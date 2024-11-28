@@ -1,1 +1,4 @@
-Executable/
+# Ignore all object files (.o) in any directory
+*.o
+
+output/
