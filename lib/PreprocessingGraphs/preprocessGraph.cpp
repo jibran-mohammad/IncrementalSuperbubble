@@ -69,8 +69,8 @@ void processGraphFile(const std::string& inputFile, const std::string& outputFil
 }
 
 int main() {
-    std::string inputFile = "/home/dell/Research/IncSuperbubble/test/graph.txt";  // Replace with your input file path
-    std::string outputFile = "/home/dell/Research/IncSuperbubble/test/graphProcessed.txt"; // Replace with your output file path
+    std::string inputFile = "/home/dell/Research/IncSuperbubble/test/graph.txt";  
+    std::string outputFile = "/home/dell/Research/IncSuperbubble/test/graphProcessed.txt";
 
     processGraphFile(inputFile, outputFile);
 
