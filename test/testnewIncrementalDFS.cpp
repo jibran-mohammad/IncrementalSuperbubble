@@ -7,24 +7,25 @@
 
 void incDFSAVLMiIMaxO(std::string& filename) { 
     int m,x,y; 
-    AdjacencyListGraph adl(m) ;
-    GraphContext g(&adl);
-    IncrementalDFSTREE incdfs(&g);
-    DFSCONTEXT d(&incdfs);
-    std::string baseDirOutput = "/home/dell/Research/IncSuperbubble-master/output/randomGraph/";
-    std::string baseDirInput = "/home/dell/Research/IncSuperbubble-master/test/inputGraphs/RandomAcyclicGraphs/";
+    
+    std::string baseDirOutput = "/home/dell/Research/IncSuperbubble/output/HunderedRandomGraphs/IncrementalDFSAVLTree/";
+    std::string baseDirInput = "/home/dell/Research/IncSuperbubble/inputGraphs/hunderedRandomGraphs/";
     std::string extension = ".txt";
     std::string outputFileName = baseDirOutput + filename + "incrementalDFSAvlTree.txt";
     filename = baseDirInput + filename + extension;
     std::ifstream infile(filename);
     std::ofstream outFile(outputFileName);
     infile >> m;
+    AdjacencyListGraph adl(m) ;
+    GraphContext g(&adl);
+    IncrementalDFSTREE incdfs(&g);
+    DFSCONTEXT d(&incdfs);
     for (int i = 1; i <= m; i++) {
            infile >> x >> y;
            std::cout << x << " "<<y<< std::endl;
            d.updateEdge(&g,x,y);
     }   
-    /*
+    
     g.displayOutgoingGraph();
     g.displayIncomingGraph();
     std::cout << "Number of edges = " << g.displayNumberEdges() << std::endl;
@@ -35,7 +36,7 @@ void incDFSAVLMiIMaxO(std::string& filename) {
     d.displayTopologicalOrder();
     d.displayMinI();
     d.displayMaxO();
-    */
+    
     
     if (outFile.is_open()) {
         // Write vector elements to file
@@ -80,6 +81,7 @@ void incDFSAVLMiIMaxO(std::string& filename) {
     } else {
         std::cerr << "Error opening file!" << std::endl;
     }
+    
 }
 
 
@@ -87,13 +89,13 @@ void incDFSAVLMiIMaxO(std::string& filename) {
 int main() {
     
     std::string filename;
-    /*
+    
     for(int i=1; i <= 100; i++) {
         filename = "randomGraph" + std::to_string(i);
         incDFSAVLMiIMaxO(filename);
     }
-    */
-    filename = "randomgraph2processed";
-    incDFSAVLMiIMaxO(filename);
+    
+    //filename = "randomgraph2processed";
+    //incDFSAVLMiIMaxO(filename);
 	return 0;
 }

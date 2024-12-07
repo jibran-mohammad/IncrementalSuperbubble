@@ -37,9 +37,10 @@ public:
 	//sizeV is the size of vertices and sizeE is the size of edges.
 
     int sizeE, sizeV;
+    bool newu, newv;
     std::vector<int> incoming;
     std::vector<int> outgoing;
-    Graph(int m):sizeE(m),sizeV(0) {}
+    Graph(int m):sizeE(m),sizeV(0),newu(false),newv(false) {}
 
 public:
 	virtual void addEdge(int x,int y) = 0;

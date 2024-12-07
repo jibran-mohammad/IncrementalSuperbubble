@@ -4,8 +4,8 @@
 #include <stack>
 #include <string>
 #include <unordered_set>
-#include "../lib/graph/adjacencyListGraph.h"
-#include "../lib/graph/contextGraph.h"
+#include "../graph/adjacencyListGraph.h"
+#include "../graph/contextGraph.h"
 
 class ExtractDAGS {
 public:
@@ -143,7 +143,7 @@ int main() {
     ExtractDAGS graph(g);
 
     // Extract and store DAGs
-    std::string filename = "/home/dell/Research/IncSuperbubble-master/output/AmazonGraph/amazon";  // Base filename
+    std::string filename = "/home/dell/Research/IncSuperbubble/output/webNotreDame/DAGS/web";  // Base filename
     graph.findDAGs(filename, g);
 
     std::cout << "DAGs extracted and saved to files." << std::endl;

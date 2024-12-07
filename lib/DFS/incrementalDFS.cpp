@@ -46,219 +46,95 @@
                if(g->strategy->newu == true){
                    this->cases = 1;
                    //std::cout << "case 1" << std::endl;
-                   BalancedBinaryTree binaryTreeIncoming;
-                   BalancedBinaryTree binaryTreeOutgoing;
+                   DifferentBalancedBinaryTree binaryTreeIncoming(this->reverseTopologicalOrder);
+                   DifferentBalancedBinaryTree binaryTreeOutgoing(this->reverseTopologicalOrder);
                    this->postorder[u] = this->postorder[0];
                    this->reversePostorder[postorder[u]] = u;
                    this->reverseTopologicalOrder[u] = (this->n - 1) -  this->postorder[u];
                    this->topOrd[reverseTopologicalOrder[u]] = u;           
-                   binaryTreeOutgoing.addNode(this->reverseTopologicalOrder[v],v);
+                   
                    this->postorder[0] = this->postorder[u] + 1;
                    this->reversePostorder[postorder[0]] = 0;
                    this->reverseTopologicalOrder[0] = (this->n - 1) -  this->postorder[0];
                    this->topOrd[reverseTopologicalOrder[0]] = 0;
+
                    this->minIbst[u]= binaryTreeIncoming;
                    this->maxObst[u]= binaryTreeOutgoing;
-                   this->reverseTopologicalOrder[0] = (this->n - 1) - postorder[0];
-                   this->topOrd[reverseTopologicalOrder[0]] = 0;
-                   this->reverseTopologicalOrder[1] = (this->n - 1) - postorder[1];
-                   this->topOrd[reverseTopologicalOrder[1]] = 1;
-                   
-                   for(int i=2; i<this->n;i++) {
-                        for (int u : g->displayOutgoingNeighbours(i)) { 
-                             if(u==1) {
-                                continue;
-                             }                   
-                             this->maxObst[i].deleteNode(reverseTopologicalOrder[u]);
-                        }
 
-                        for (int u : g->displayIncomingNeighbours(i)) {
-                              if(u==0) {
-                                continue;
-                              }                   
-                              this->minIbst[i].deleteNode(reverseTopologicalOrder[u]);
-                        }
-                    }    
+                     
 
                     for(int i=0; i<this->n; i++) {
                         this->reverseTopologicalOrder[i] = (this->n - 1) - postorder[i];
                         this->topOrd[reverseTopologicalOrder[i]] = i;
                     }
-                    for(int i=2; i<this->n;i++){   
-                        for (int u : g->displayOutgoingNeighbours(i)) {
-                              if(u==1) {
-                                continue;
-                              }
-                              this->maxObst[i].addNode(this->reverseTopologicalOrder[u],u);
-                        }
-                        for (int u : g->displayIncomingNeighbours(i)) {
-                            if(u==0) {
-                                continue;
-                            }
-                            this->minIbst[i].addNode(this->reverseTopologicalOrder[u],u);
-                        }
-                        if(g->strategy->incoming[i] == 2) {
-                            this->minI[i] = 0;   
-                        }
-                        else {
-                            this->minI[i] = (this->minIbst[i].findMin()).index;
-                        }
-                        if(g->strategy->outgoing[i] == 2) {
-                            this->maxO[i] = 1;    
-                        }
-                        else {
-                            this->maxO[i] = (this->maxObst[i].findMax()).index;
-                         
-                        }    
-                    }
+                    this->maxObst[u].addNode(v,0);
+                    this->maxO[u] =  this->maxObst[u].findMax();
+                    this->minIbst[v].addNode(u,0);
+                    this->minI[v] = this->minIbst[v].findMin();
                     g->strategy->newu = false;
                 }    
                 else {
-                    this->cases=2;
-                    //case where v is new node.
                     //std::cout << "case 2" << std::endl;
-                    BalancedBinaryTree binaryTreeIncoming;
-                    BalancedBinaryTree binaryTreeOutgoing;
+                    this->cases=2;
+                    DifferentBalancedBinaryTree binaryTreeIncoming(this->reverseTopologicalOrder);
+                    DifferentBalancedBinaryTree binaryTreeOutgoing(this->reverseTopologicalOrder);
                     this->postorder[v] = this->postorder[u];
-                    for(int i=2; i < this->n -1; i++) {
-                       for (int u : g->displayOutgoingNeighbours(i)) {   
-                          if(u == 1 || u == v) {
-                            continue;
-                          }                 
-                          this->maxObst[i].deleteNode(this->reverseTopologicalOrder[u]);
-                       }
-
-                       for (int u : g->displayIncomingNeighbours(i)) { 
-                          if(u==0) {
-                            continue;
-                          }                  
-                          this->minIbst[i].deleteNode(this->reverseTopologicalOrder[u]);
-                       }
-                    }
                     for(int i=postorder[u]; i < this->n - 1; i++) {
                       this->postorder[reversePostorder[i]]++;
                     }
+                    
                     for(int i=0;i < this->n;i++) {
                       this->reversePostorder[this->postorder[i]]=i;
                       this->reverseTopologicalOrder[i]=(this->n) - 1 - this->postorder[i];
                       this->topOrd[this->reverseTopologicalOrder[i]] =i; 
                     }
+                    binaryTreeIncoming.addNode(u,0);
+                    this->maxObst[u].addNode(v,0);
                     this->minIbst[v] = binaryTreeIncoming;
                     this->maxObst[v] = binaryTreeOutgoing;
-                    for(int i=2; i < this->n; i++) {
-                      for (int u : g->displayOutgoingNeighbours(i)) { 
-                         if(u == 1) {
-                            continue;
-                         }                   
-                         this->maxObst[i].addNode(this->reverseTopologicalOrder[u],u);
-                      }
-
-                      for (int u : g->displayIncomingNeighbours(i)) {
-                         if(u == 0) {
-                            continue;
-                         }                   
-                         this->minIbst[i].addNode(this->reverseTopologicalOrder[u],u);
-                      }
-                      
-                      if(g->strategy->incoming[i] == 2) {
-                            this->minI[i] = 0;   
-                      }
-                      else {
-                            this->minI[i] = (this->minIbst[i].findMin()).index;
-                      }
-                      if(g->strategy->outgoing[i] == 2) {
-                            this->maxO[i] = 1;    
-                      }
-                      else {
-                            this->maxO[i] = (this->maxObst[i].findMax()).index;
-                         
-                      }   
-                    }
+                    this->maxO[u] = this->maxObst[u].findMax();
+                    this->minI[v] = this->minIbst[v].findMin();
+                    this->maxO[v] = 1;
                     g->strategy->newv= false;    
                 }    
             }
             else {
                this->cases = 3;
                //std::cout << "if x is 2" << std::endl; 
-               BalancedBinaryTree binaryTreeIncomingu;
-               BalancedBinaryTree binaryTreeOutgoingu;
-               BalancedBinaryTree binaryTreeIncomingv;
-               BalancedBinaryTree binaryTreeOutgoingv;
-
-
                this->postorder[v] = this->postorder[0];
                this->reversePostorder[postorder[v]] = v;
                this->reverseTopologicalOrder[v] = (this->n - 1) -  this->postorder[v];
                this->topOrd[reverseTopologicalOrder[v]] = v;
-               binaryTreeOutgoingu.addNode(this->reverseTopologicalOrder[v],v);
-         
+            
                this->postorder[u] = this->postorder[v] + 1;
                this->reversePostorder[postorder[u]] = u;
                this->reverseTopologicalOrder[u] = (this->n - 1) -  this->postorder[u];
-               this->topOrd[reverseTopologicalOrder[u]] = u;          
-               binaryTreeIncomingv.addNode(this->reverseTopologicalOrder[u],u);
+               this->topOrd[reverseTopologicalOrder[u]] = u;            
 
                this->postorder[0] = this->postorder[u] + 1;
                this->reversePostorder[postorder[0]] = 0;
                this->reverseTopologicalOrder[0] = (this->n - 1) -  this->postorder[0];
                this->topOrd[reverseTopologicalOrder[0]] = 0;
-               binaryTreeOutgoingu.addNode(this->reverseTopologicalOrder[v],v);
-               binaryTreeIncomingv.addNode(this->reverseTopologicalOrder[u],u);
+               for(int i=0; i<this->n;i++) {
+                   this->reverseTopologicalOrder[i] = (this->n - 1) - postorder[i];
+                   this->topOrd[reverseTopologicalOrder[i]] = i;
+                }
+               DifferentBalancedBinaryTree binaryTreeIncomingu(this->reverseTopologicalOrder);
+               DifferentBalancedBinaryTree binaryTreeOutgoingu(this->reverseTopologicalOrder);
+               DifferentBalancedBinaryTree binaryTreeIncomingv(this->reverseTopologicalOrder);
+               DifferentBalancedBinaryTree binaryTreeOutgoingv(this->reverseTopologicalOrder);
+               binaryTreeOutgoingu.addNode(v,0);
+               binaryTreeIncomingv.addNode(u,0);
                this->minIbst[u]= binaryTreeIncomingu;
                this->minIbst[v]= binaryTreeIncomingv;
                this->maxObst[u]= binaryTreeOutgoingu;
                this->maxObst[v]= binaryTreeOutgoingv;
-               for(int i=2; i<this->n - 2;i++) {
-                   for (int u : g->displayOutgoingNeighbours(i)) {  
-                       if(u == 1) {
-                         continue;
-                       }                  
-                       this->maxObst[i].deleteNode(this->reverseTopologicalOrder[u]);
-                   }
-
-                   for (int u : g->displayIncomingNeighbours(i)) {  
-                       if(u == 0) {
-                         continue;
-                       }                 
-                       this->minIbst[i].deleteNode(this->reverseTopologicalOrder[u]);
-                   }
-                }   
-                for(int i=0; i<this->n;i++) {
-
-                   this->reverseTopologicalOrder[i] = (this->n - 1) - postorder[i];
-                   this->topOrd[reverseTopologicalOrder[i]] = i;
-                }
-
-                for(int i=2; i<this->n; i++) {    
-                   for (int u : g->displayOutgoingNeighbours(i)) {
-                      if(u==1) {
-                        continue;
-                      }
-                      this->maxObst[i].addNode(this->reverseTopologicalOrder[u],u);
-                   }
-                   
-                   for (int u : g->displayIncomingNeighbours(i)) {
-                      if(u==0) {
-                        continue;
-                      }
-                      this->minIbst[i].addNode(this->reverseTopologicalOrder[u],u);
-                   } 
-                   if(g->strategy->incoming[i] == 2) {
-                        this->minI[i] = 0;   
-                   }
-                   else {
-                        this->minI[i] = (this->minIbst[i].findMin()).index;
-                   }
-                   if(g->strategy->outgoing[i] == 2) {
-                        this->maxO[i] = 1;    
-                   }
-                   else {
-                        this->maxO[i] = (this->maxObst[i].findMax()).index;
-                         
-                   }   
-                }
-                g->strategy->newu = false;
-                g->strategy->newv = false;
+               this->minI[u] = 0;
+               this->maxO[u] = v;
+               this->minI[v] = u;
+               this->maxO[v] = 1; 
+               g->strategy->newu = false;
+               g->strategy->newv = false;
                            
             }
         }    
@@ -271,10 +147,10 @@
                 this->reset();
     	    }
             else {
-                this->maxObst[u].addNode(this->reverseTopologicalOrder[v],v);
-                this->minIbst[v].addNode(this->reverseTopologicalOrder[u],u);
-                this->maxO[u] = (this->maxObst[u].findMax()).index;
-                this->minI[v] = (this->minIbst[v].findMin()).index;
+                this->maxObst[u].addNode(v,0);
+                this->minIbst[v].addNode(u,0);
+                this->maxO[u] = (this->maxObst[u].findMax());
+                this->minI[v] = (this->minIbst[v].findMin());
             }   
         }
         /*
@@ -319,25 +195,18 @@
     	}
     	for(int i=0; i<this->n; i++) {
             if(this->intermediatepostorder[i]!=0) {
-                //std::cout << "i = " << i << std::endl;
                 if(i == 0 || i == 1) {
                     continue;
                 }
-                for (int u : g->displayOutgoingNeighbours(i)) {
-                       if(u == 1) {
-                         continue;
-                       }                    
-                       this->minIbst[u].deleteNode(this->reverseTopologicalOrder[i]);
+                for (int u : g->displayOutgoingNeighbours(i)) {                    
+                       this->minIbst[u].deleteNode(i);
                 }
 
-                for (int u : g->displayIncomingNeighbours(i)) {
-                       if( u == 0) {
-                          continue;
-                       }                   
-                       this->maxObst[u].deleteNode(this->reverseTopologicalOrder[i]);
+                for (int u : g->displayIncomingNeighbours(i)) {                   
+                       this->maxObst[u].deleteNode(i);
                 }
             }    
-        } 
+        }   
         for(int i=0; i<this->n; i++) {
             if(this->intermediatepostorder[i]!=0) {
                 //std::cout << "i = " << i << std::endl;
@@ -350,30 +219,35 @@
                 this->topOrd[this->reverseTopologicalOrder[i]] = i;
             }    
         }
+        this->minIbst[v].addNode(u,0);
+        this->maxObst[u].addNode(v,0);
+        this->minI[v] = this->minIbst[v].findMin();
+        this->maxO[u] = this->maxObst[u].findMax();
         for(int i=0; i<this->n; i++) {
-            if(this->intermediatepostorder[i]!=0) {
+            if(this->intermediatepostorder[i]!=0) {  
                 if(i == 0 || i == 1) {
                     continue;
-                }        
+                }      
                 for (int u : g->displayOutgoingNeighbours(i)) {
-                    if(u == 1) {
+                    if(u==1) {
                         continue;
                     }
-                    this->minIbst[u].addNode(this->reverseTopologicalOrder[i],i);
-                    this->minI[u] = (this->minIbst[u].findMin()).index;
+                    this->minIbst[u].addNode(i,0);
+                    this->minI[u] = (this->minIbst[u].findMin());
+                    
                     
                 }
 
                 for (int u : g->displayIncomingNeighbours(i)) {
-                    if( u == 0) {
+                    if (u==0) {
                         continue;
                     }
-                    this->maxObst[u].addNode(this->reverseTopologicalOrder[i],i);  
-                    this->maxO[u] = (this->maxObst[u].findMax()).index;
+                    this->maxObst[u].addNode(i,0);
+                    this->maxO[u]=  (this->maxObst[u].findMax());     
                 }
-            }
-    	}
 
+            }
+        }
     }
     
     void IncrementalDFS::reset() {

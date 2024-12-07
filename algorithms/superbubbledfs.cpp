@@ -7,13 +7,14 @@ public:
         int m,x,y,z;
         z=1;
         std::cin >> m;
-        //std::ofstream outFile("/home/dell/Research/IncSuperbubble-master/output/Email/SuperbubblesimpleDFSOutput.txt");
-        std::ofstream timeFile("/home/dell/Research/IncSuperbubble-master/output/AmazonGraph/outputFiles/SuperbubbleSimpleTimeOutput.txt");
+        //std::ofstream outFile("/home/dell/Research/IncSuperbubble/output/Yeast/superbubbles/SuperbubblesimpleDFSOutput.txt");
+        std::ofstream timeFile("/home/dell/Research/IncSuperbubble/output/webNotreDame/timeFile/SuperbubbleSimpleTimeOutput.txt");
         AdjacencyListGraph adl(m) ;
         GraphContext g(&adl);
         SimpleDFS simdfs(&g);
         DFSCONTEXT d(&simdfs);
         SuperbubbleCalculation superbubble;
+        
         
         if (timeFile.is_open()) {
               timeFile <<"             \n";
@@ -21,6 +22,7 @@ public:
                std::cerr << "Error opening time file at: " << std::endl;
         }
         
+    
         d.updateEdge(&g,0,1);
         for (int i = 1; i <= m; i++) {
            std::cin >> x >> y;
@@ -45,7 +47,8 @@ public:
        
        timeFile.close();
        
-       std::fstream timeFileUpdate("/home/dell/Research/IncSuperbubble-master/output/AmazonGraph/outputFiles/SuperbubbleSimpleTimeOutput.txt", std::ios::in | std::ios::out);
+       std::fstream timeFileUpdate("/home/dell/Research/IncSuperbubble/output/webNotreDame/timeFile/SuperbubbleSimpleTimeOutput.txt", std::ios::in | std::ios::out);
+       
        if (timeFileUpdate.is_open()) {
             timeFileUpdate.seekp(0, std::ios::beg);  // Move to the beginning of the file
             timeFileUpdate << g.displayNumberEdges() << " " << g.displayNumberVertices();
@@ -66,7 +69,7 @@ public:
        std::cout << "number of superbubbles are" << std::endl;
        std::cout << superbubble.numberOfSuperbubbles();
        */
-        /*   
+        /*  
        if (outFile.is_open()) {
             for (const pii& elem : superbubble.SB) {
                 outFile << elem.first << " " << elem.second << "\n";

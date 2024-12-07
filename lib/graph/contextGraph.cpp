@@ -17,17 +17,17 @@
     }
 
     const std::list<int>& GraphContext::displayIncomingNeighbours(int x) {
-    	this->strategy->getNeighboursIncoming(x);
+    	return this->strategy->getNeighboursIncoming(x);
     }
 
     const std::list<int>& GraphContext::displayOutgoingNeighbours(int x) {
-    	this->strategy->getNeighboursOutgoing(x);
+    	return this->strategy->getNeighboursOutgoing(x);
     }
 
     int GraphContext::displayNumberEdges() {
-    	this->strategy->getNumberOfEdges();
+    	return this->strategy->getNumberOfEdges();
     }
 
     int GraphContext::displayNumberVertices() {
-    	this->strategy->getNumberOfVertices();
+    	return this->strategy->getNumberOfVertices();
     }

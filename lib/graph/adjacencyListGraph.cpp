@@ -20,12 +20,14 @@
        auto it = this->reverseMapping.find(x);
        if (it == reverseMapping.end()) {
            this->addNode(x);
+           this->newu=true;
        }
 
        auto its = this->reverseMapping.find(y);
        
        if (its == reverseMapping.end()) {
-           this->addNode(y);           
+           this->addNode(y);
+           this->newv=true;           
        }
 
        //std::cout << x << " " << y << std::endl;
@@ -49,14 +51,20 @@
        else {
            this->incoming[this->reverseMapping[y]] = 1;
        }
-
+       /*
+          Artificial edge added from 0 to x, if x is the new node(indicated by value at index(given by x) is zero).
+          After adding artificial edge, the value at index(given by x) is made to be 2. 
+       */
        if(this->incoming[this->reverseMapping[x]] == 0 && this->reverseMapping[x]!=0) {
           this->adjLOutgoing[0].push_back(this->reverseMapping[x]);
           this->sizeE++;
           this->adjLIncoming[this->reverseMapping[x]].push_back(0);
           this->incoming[this->reverseMapping[x]] = 2 ;
        }
-    
+       /*
+          Artificial edge added from y to 1, if y is the new node(indicated by value at index(given by y) is zero).
+          After adding artificial edge, the value at index(given by y) is made to be 2. 
+       */
        if((this->outgoing[this->reverseMapping[y]] == 0) && (this->reverseMapping[y]!=1)) {
           this->adjLIncoming[1].push_back(this->reverseMapping[y]);
           this->sizeE++;

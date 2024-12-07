@@ -7,8 +7,8 @@ public:
         int m,x,y,z, cases;
         z=1;
         std::cin >> m;
-        //std::ofstream outFile("/home/dell/Research/IncSuperbubble-master/output/Email/SuperbubbleincrementalDFSAVLTreeOutput.txt");
-        std::ofstream timeFile("/home/dell/Research/IncSuperbubble-master/output/AmazonGraph/outputFiles/SuperbubbleincrementalDFSAVLTreeOutput.txt");
+        //std::ofstream outFile("/home/dell/Research/IncSuperbubble/output/Yeast/superbubbles/SuperbubbleincrementalDFSAVLTreeOutput.txt");
+        std::ofstream timeFile("/home/dell/Research/IncSuperbubble/output/webNotreDame/timeFile/SuperbubbleincrementalDFSAVLTreeOutput.txt");
         AdjacencyListGraph adl(m) ;
         GraphContext g(&adl);
         IncrementalDFSTREE incdfs(&g);
@@ -20,7 +20,7 @@ public:
            } else {
                std::cerr << "Error opening time file at: " << std::endl;
         }
-        
+                
         for (int i = 1; i <= m; i++) {
            std::cin >> x >> y;
            std::cout << x <<" "<< y << std::endl;
@@ -31,6 +31,7 @@ public:
            auto end = std::chrono::high_resolution_clock::now();  // End time
            cases = d.dfsStrategy->cases;
            std::chrono::duration<double> elapsed = end - start;
+           
            if (timeFile.is_open()) {
               timeFile << z << " " << elapsed.count() << " " << cases << "\n" ;
            } else {
@@ -40,10 +41,11 @@ public:
            cases=0;
            z++;
            
+           
         } 
         
         timeFile.close();
-        std::fstream timeFileUpdate("/home/dell/Research/IncSuperbubble-master/output/AmazonGraph/outputFiles/SuperbubbleincrementalDFSAVLTreeOutput.txt", std::ios::in | std::ios::out);
+        std::fstream timeFileUpdate("/home/dell/Research/IncSuperbubble/output/webNotreDame/timeFile/SuperbubbleincrementalDFSAVLTreeOutput.txt", std::ios::in | std::ios::out);
         if (timeFileUpdate.is_open()) {
             timeFileUpdate.seekp(0, std::ios::beg);  // Move to the beginning of the file
             timeFileUpdate << g.displayNumberEdges() << " " << g.displayNumberVertices();
@@ -76,8 +78,8 @@ public:
         } else {
             std::cerr << "Error opening file at: " << std::endl; 
         }
-        */
-         
+        
+        */ 
     }
 };
 int main(){

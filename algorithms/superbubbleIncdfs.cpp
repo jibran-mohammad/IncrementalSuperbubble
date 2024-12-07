@@ -7,8 +7,8 @@ public:
         int m,x,y,z,cases;
         z=1;
         std::cin >> m; 
-        //std::ofstream outFile("/home/dell/Research/IncSuperbubble-master/output/Email/SuperbubbleincrementalDFSOutput.txt");
-        std::ofstream timeFile("/home/dell/Research/IncSuperbubble-master/output/AmazonGraph/outputFiles/SuperbubbleincrementalDFSOutput.txt");
+        //std::ofstream outFile("/home/dell/Research/IncSuperbubble/output/Yeast/superbubbles/SuperbubbleincrementalDFSOutput.txt");
+        std::ofstream timeFile("/home/dell/Research/IncSuperbubble/output/webNotreDame/timeFile/SuperbubbleincrementalDFSOutput.txt");
         AdjacencyListGraph adl(m) ;
         GraphContext g(&adl);
         IncrementalDFS incdfs(&g);
@@ -21,6 +21,7 @@ public:
                std::cerr << "Error opening time file at: " << std::endl;
         }
         
+        
         for (int i = 1; i <= m; i++) {
            std::cin >> x >> y;
            std::cout << x <<" "<< y << std::endl;
@@ -31,6 +32,7 @@ public:
            
            cases = d.dfsStrategy->cases;
            std::chrono::duration<double> elapsed = end - start;
+           
            if (timeFile.is_open()) {
               timeFile << z << " " << elapsed.count() << " " << cases << "\n" ;
            } else {
@@ -38,12 +40,13 @@ public:
            }
            d.dfsStrategy->cases=0;
            cases=0;
+           
            z++;
            
         } 
         
         timeFile.close();
-        std::fstream timeFileUpdate("/home/dell/Research/IncSuperbubble-master/output/AmazonGraph/outputFiles/SuperbubbleincrementalDFSOutput.txt", std::ios::in | std::ios::out);
+        std::fstream timeFileUpdate("/home/dell/Research/IncSuperbubble/output/webNotreDame/timeFile/SuperbubbleincrementalDFSOutput.txt", std::ios::in | std::ios::out);
         if (timeFileUpdate.is_open()) {
             timeFileUpdate.seekp(0, std::ios::beg);  // Move to the beginning of the file
             timeFileUpdate << g.displayNumberEdges() << " " << g.displayNumberVertices();
@@ -51,7 +54,8 @@ public:
             std::cerr << "Error opening time file at: " << std::endl;
         }
         
-        /*   
+        
+        /*  
         g.displayOutgoingGraph();
         g.displayIncomingGraph();
         std::cout << "Number of edges = " << g.displayNumberEdges() << std::endl;
