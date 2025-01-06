@@ -27,10 +27,10 @@ def chunk_average(x, y, chunk_size):
 chunk_size = 150  # Adjust as needed
 
 # Load data from files
-m1, n1, edges1, time1 = load_data('/home/dell/Research/IncSuperbubble/output/webNotreDame/timeFile/SuperbubbleSimpleTimeOutput.txt')
-m2, n2, edges2, time2 = load_data('/home/dell/Research/IncSuperbubble/output/webNotreDame/timeFile/SuperbubbleincrementalDFSOutput.txt')
-m3, n3, edges3, time3 = load_data('/home/dell/Research/IncSuperbubble/output/webNotreDame/timeFile/SuperbubbleincrementalDFSAVLTreeOutput.txt')
-m4, n4, edges4, time4 = load_data('/home/dell/Research/IncSuperbubble/output/webNotreDame/timeFile/SuperbubbleincrementalH1output.txt')
+m1, n1, edges1, time1 = load_data('/home/dell/Research/IncSuperbubble/output/Yeast/timeFile/SuperbubbleSimpleTimeOutput.txt')
+m2, n2, edges2, time2 = load_data('/home/dell/Research/IncSuperbubble/output/Yeast/timeFile/SuperbubbleincrementalDFSOutput.txt')
+m3, n3, edges3, time3 = load_data('/home/dell/Research/IncSuperbubble/output/Yeast/timeFile/SuperbubbleincrementalDFSAVLTreeOutput.txt')
+m4, n4, edges4, time4 = load_data('/home/dell/Research/IncSuperbubble/output/Yeast/timeFile/SuperbubbleincrementalH1output.txt')
 
 # Calculate averages in chunks
 edges1_avg, time1_avg = chunk_average(edges1, time1, chunk_size)
@@ -40,10 +40,11 @@ edges4_avg, time4_avg = chunk_average(edges4, time4, chunk_size)
 
 # Plotting the data with averaged points
 plt.figure(figsize=(10, 6))
-plt.plot(edges1_avg, time1_avg, label="File 1: O(m^2)", linewidth=1.0, alpha=0.7, color='red')
-plt.plot(edges2_avg, time2_avg, label="File 2: O(m^2 * log(n))", linewidth=1.0, alpha=0.7, color='green')
-plt.plot(edges3_avg, time3_avg, label="File 3: O(m * n * log(n))", linewidth=1.0, alpha=0.7, color='blue')
-plt.plot(edges4_avg, time4_avg, label="File 4: O(m * n * log(n)H1)", linewidth=1.0, alpha=0.7, color='black')
+plt.plot(edges1_avg, time1_avg, label=f"File 1: O(m^2), n={m1}", linewidth=1.0, alpha=0.7, color='red')
+plt.plot(edges2_avg, time2_avg, label=f"File 2: O(m^2 * log(n)), n={m2}", linewidth=1.0, alpha=0.7, color='green')
+plt.plot(edges3_avg, time3_avg, label=f"File 3: O(m * n * log(n)), n={m3}", linewidth=1.0, alpha=0.7, color='blue')
+plt.plot(edges4_avg, time4_avg, label=f"File 4: O(m * n * log(n) H1), n={m4}", linewidth=1.0, alpha=0.7, color='black')
+
 
 # Labeling the graph
 plt.xlabel("Number of Edges (m)")

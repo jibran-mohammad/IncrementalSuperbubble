@@ -1,5 +1,5 @@
-#include"../lib/graph/adjacencyListGraph.h"
-#include"../lib/graph/contextGraph.h"
+#include"../graph/adjacencyListGraph.h"
+#include"../graph/contextGraph.h"
 #include<iostream>
 
 bool dfs(int v, std::vector<bool>& visited, std::vector<bool>& recStack, GraphContext &g) {

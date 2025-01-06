@@ -8,7 +8,7 @@ public:
         z=1;
         std::cin >> m; 
         //std::ofstream outFile("/home/dell/Research/IncSuperbubble/output/Yeast/superbubbles/SuperbubbleincrementalDFSOutput.txt");
-        std::ofstream timeFile("/home/dell/Research/IncSuperbubble/output/webNotreDame/timeFile/SuperbubbleincrementalDFSOutput.txt");
+        std::ofstream timeFile("/home/dell/Research/IncSuperbubble/output/Yeast/timeFile/SuperbubbleincrementalDFSOutput.txt");
         AdjacencyListGraph adl(m) ;
         GraphContext g(&adl);
         IncrementalDFS incdfs(&g);
@@ -29,24 +29,21 @@ public:
            superbubble.insertE(&d,&g,x,y);
            superbubble.computeSB(&d,&g);
            auto end = std::chrono::high_resolution_clock::now();  // End time
-           
-           cases = d.dfsStrategy->cases;
            std::chrono::duration<double> elapsed = end - start;
            
+           int superbubblecount = superbubble.numberOfSuperbubbles();
            if (timeFile.is_open()) {
-              timeFile << z << " " << elapsed.count() << " " << cases << "\n" ;
+              timeFile << z << " " << elapsed.count() << " " << superbubblecount << "\n" ;
            } else {
                std::cerr << "Error opening time file at: " << std::endl;
            }
-           d.dfsStrategy->cases=0;
-           cases=0;
            
            z++;
            
         } 
         
         timeFile.close();
-        std::fstream timeFileUpdate("/home/dell/Research/IncSuperbubble/output/webNotreDame/timeFile/SuperbubbleincrementalDFSOutput.txt", std::ios::in | std::ios::out);
+        std::fstream timeFileUpdate("/home/dell/Research/IncSuperbubble/output/Yeast/timeFile/SuperbubbleincrementalDFSOutput.txt", std::ios::in | std::ios::out);
         if (timeFileUpdate.is_open()) {
             timeFileUpdate.seekp(0, std::ios::beg);  // Move to the beginning of the file
             timeFileUpdate << g.displayNumberEdges() << " " << g.displayNumberVertices();

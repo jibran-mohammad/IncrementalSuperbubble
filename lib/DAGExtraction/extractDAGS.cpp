@@ -143,7 +143,7 @@ int main() {
     ExtractDAGS graph(g);
 
     // Extract and store DAGs
-    std::string filename = "/home/dell/Research/IncSuperbubble/output/webNotreDame/DAGS/web";  // Base filename
+    std::string filename = "/home/dell/Research/IncSuperbubble/output/Human/GRCH38/DAGS/";  // Base filename
     graph.findDAGs(filename, g);
 
     std::cout << "DAGs extracted and saved to files." << std::endl;
