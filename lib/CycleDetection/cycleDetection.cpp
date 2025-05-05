@@ -64,10 +64,11 @@ int main()
 	/*
 	g.displayOutgoingGraph();
 	g.displayIncomingGraph();
+    
 	std::cout << "Number of edges = " << g.displayNumberEdges() << std::endl;
 	std::cout << "Number of vertices = " << g.displayNumberVertices() << std::endl;
-	
 	*/
+	
     if (isGraphDAG(g)) {
         std::cout << "The graph is a DAG." << std::endl;
     } else {
