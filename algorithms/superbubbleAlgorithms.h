@@ -9,6 +9,6 @@
 class AlgorithmForSuperbubbles {
 public:
      void inputAndCompute();
-
+     long getMemoryUsageInKB();
 };
 
