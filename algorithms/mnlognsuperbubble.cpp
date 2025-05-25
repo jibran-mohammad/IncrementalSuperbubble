@@ -1,3 +1,4 @@
+#include <sys/resource.h>
 #include"superbubbleAlgorithms.h"
 #include<fstream>
 #include<chrono>
