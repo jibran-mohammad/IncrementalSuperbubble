@@ -2,7 +2,12 @@
 #include<fstream>
 #include<chrono>
 class IncrementalSuperbubbleDifferentAVLTree: public AlgorithmForSuperbubbles {
-public:    
+public:  
+    long getMemoryUsageInKB() {
+        struct rusage usage;
+        getrusage(RUSAGE_SELF, &usage);
+        return usage.ru_maxrss; // memory in kilobytes
+    }  
     void inputAndCompute() {
         int m,x,y,z, cases;
         z=1;
@@ -41,6 +46,7 @@ public:
            
         } 
         
+        timeFile << "PeakMemory(KB): " << getMemoryUsageInKB() << "\n";
         timeFile.close();
         std::fstream timeFileUpdate("home/user/Superbubble/IncrementalSuperbubble/output/Human/MiniGraph/timeFile/SuperbubbleincrementalDFSAVLTreeOutput.txt", std::ios::in | std::ios::out);
         if (timeFileUpdate.is_open()) {
