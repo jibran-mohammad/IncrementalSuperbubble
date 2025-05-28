@@ -1,14 +1,20 @@
+#include <sys/resource.h>
 #include"superbubbleAlgorithms.h"
 #include<fstream>
 #include<chrono>
 class IncrementalSuperbubbleDifferentAVLTree: public AlgorithmForSuperbubbles {
-public:    
+public:  
+    long getMemoryUsageInKB() {
+        struct rusage usage;
+        getrusage(RUSAGE_SELF, &usage);
+        return usage.ru_maxrss; // memory in kilobytes
+    }   
     void inputAndCompute() {
         int m,x,y,z, cases;
         z=1;
         std::cin >> m;
         //std::ofstream outFile("/home/dell/Research/IncSuperbubble/output/Yeast/superbubbles/SuperbubbleincrementalDFSAVLTreeOutput.txt");
-        std::ofstream timeFile("/home/dell/Research/IncSuperbubble/output/Yeast/timeFile/SuperbubbleincrementalDFSAVLTreeOutput.txt");
+        std::ofstream timeFile("/home/dell/Research/IncSuperbubble/output/Human/MiniGraph/timeFile/GRCh38-464.gfa/SuperbubbleincrementalDFSAVLTreeOutput.txt");
         AdjacencyListGraph adl(m) ;
         GraphContext g(&adl);
         IncrementalDFSTREE incdfs(&g);
@@ -40,9 +46,10 @@ public:
            
            
         } 
-        
+
+        timeFile << "PeakMemory(KB): " << getMemoryUsageInKB() << "\n";
         timeFile.close();
-        std::fstream timeFileUpdate("/home/dell/Research/IncSuperbubble/output/Yeast/timeFile/SuperbubbleincrementalDFSAVLTreeOutput.txt", std::ios::in | std::ios::out);
+        std::fstream timeFileUpdate("/home/dell/Research/IncSuperbubble/output/Human/MiniGraph/timeFile/GRCh38-464.gfa/SuperbubbleincrementalDFSAVLTreeOutput.txt", std::ios::in | std::ios::out);
         if (timeFileUpdate.is_open()) {
             timeFileUpdate.seekp(0, std::ios::beg);  // Move to the beginning of the file
             timeFileUpdate << g.displayNumberEdges() << " " << g.displayNumberVertices();

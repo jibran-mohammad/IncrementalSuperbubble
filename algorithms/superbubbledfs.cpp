@@ -14,7 +14,7 @@ public:
         z=1;
         std::cin >> m;
         //std::ofstream outFile("/home/dell/Research/IncSuperbubble/output/Yeast/superbubbles/SuperbubblesimpleDFSOutput.txt");
-        std::ofstream timeFile("/home/dell/Research/IncSuperbubble/output/Human/MiniGraph/timeFile/SuperbubbleSimpleTimeOutput.txt");
+        std::ofstream timeFile("/home/dell/Research/IncSuperbubble/output/Human/MiniGraph/timeFile/GRCh38-464.gfa/SuperbubbleSimpleTimeOutput.txt");
         AdjacencyListGraph adl(m) ;
         GraphContext g(&adl);
         SimpleDFS simdfs(&g);
@@ -43,7 +43,7 @@ public:
            std::chrono::duration<double> elapsed = end - start;
            int superbubblecount = superbubble.numberOfSuperbubbles();
            if (timeFile.is_open()) {
-              timeFile << z << " " << elapsed.count() << superbubblecount << "\n" ;
+              timeFile << z << " " << elapsed.count() << " " << superbubblecount << "\n" ;
            } else {
                std::cerr << "Error opening time file at: " << std::endl;
            }
@@ -54,7 +54,7 @@ public:
        
        timeFile.close();
        
-       std::fstream timeFileUpdate("/home/dell/Research/IncSuperbubble/output/Human/MiniGraph/timeFile/SuperbubbleSimpleTimeOutput.txt", std::ios::in | std::ios::out);
+       std::fstream timeFileUpdate("/home/dell/Research/IncSuperbubble/output/Human/MiniGraph/timeFile/GRCh38-464.gfa/SuperbubbleSimpleTimeOutput.txt", std::ios::in | std::ios::out);
        
        if (timeFileUpdate.is_open()) {
             timeFileUpdate.seekp(0, std::ios::beg);  // Move to the beginning of the file
