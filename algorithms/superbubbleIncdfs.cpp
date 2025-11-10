@@ -1,7 +1,9 @@
 #include <sys/resource.h>
-#include"superbubbleAlgorithms.h"
-#include<fstream>
-#include<chrono>
+#include "superbubbleAlgorithms.h" // Assuming this contains your class definitions
+#include <fstream>
+#include <chrono>
+#include <string>
+#include <sstream>
 class IncrementalSuperbubbleSimpleAVLTree: public AlgorithmForSuperbubbles {
 public:  
     long getMemoryUsageInKB() {
@@ -9,86 +11,158 @@ public:
         getrusage(RUSAGE_SELF, &usage);
         return usage.ru_maxrss; // memory in kilobytes
     }   
-    void inputAndCompute() {
-        int m,x,y,z,cases;
-        z=1;
-        std::cin >> m; 
-        //std::ofstream outFile("/home/dell/Research/IncSuperbubble/output/Yeast/superbubbles/SuperbubbleincrementalDFSOutput.txt");
-        std::ofstream timeFile("/home/user/Superbubble/IncrementalSuperbubble/output/Human/MiniGraph/timeFile/CHM13-464.gfa/SuperbubbleincrementalDFSOutput.txt");
-        AdjacencyListGraph adl(m) ;
+    void inputAndCompute(std::string output_path) {
+
+        // --- File path configuration ---
+        //std::ofstream outFile("/home/dell/Research/Superbubble/Experiment/IncSuperbubble/output/Human/HaplotypeTestingData/outFile/SuperbubbleIncrementalDFSOutput.txt");
+        std::ofstream timeFile(output_path);
+
+        // --- Variables for parsing ---
+        int num_base_edges, num_nodes, x, y;
+        std::string line;
+        std::string graph_name;
+        int update_counter = 1;
+
+        // --- Skip initial comment lines ---
+        while (std::getline(std::cin, line) && (line.empty() || line[0] == '#')) {
+            // This loop reads and discards all comment lines at the top of the file.
+            std::cout << line << std::endl;
+        }
+        //std::cout << line << std::endl;
+        // --- 1. Process the Base Graph ---
+        graph_name = line;
+        std::cin >> num_base_edges >> num_nodes;
+        std::cout << num_base_edges << " " << num_nodes << std::endl;
+        // Initialize graph objects
+        // <-- CORRECTED LINE: Initialize with the number of edges, as per your class design.
+        AdjacencyListGraph adl(num_base_edges); 
         GraphContext g(&adl);
         IncrementalDFS incdfs(&g);
         DFSCONTEXT d(&incdfs);
         SuperbubbleCalculation superbubble;
+        std::cout << "creating of objects classes" << std::endl;
+        // Write initial header to time file
         
-        if (timeFile.is_open()) {
-              timeFile <<"             \n"; 
-           } else {
-               std::cerr << "Error opening time file at: " << std::endl;
+        if (!timeFile.is_open()) {
+            std::cerr << "Error opening time file!" << std::endl;
+            return;
         }
+        std::cout << num_base_edges << std::endl;
         
-        
-        for (int i = 1; i <= m; i++) {
-           std::cin >> x >> y;
-           std::cout << x <<" "<< y << std::endl;
-           auto start = std::chrono::high_resolution_clock::now();  // Start time
-           superbubble.insertE(&d,&g,x,y);
-           superbubble.computeSB(&d,&g);
-           auto end = std::chrono::high_resolution_clock::now();  // End time
-           std::chrono::duration<double> elapsed = end - start;
-           
-           int superbubblecount = superbubble.numberOfSuperbubbles();
-           if (timeFile.is_open()) {
-              timeFile << z << " " << elapsed.count() << " " << superbubblecount << "\n" ;
-           } else {
-               std::cerr << "Error opening time file at: " << std::endl;
-           }
-           
-           z++;
-           
-        } 
-        timeFile << "PeakMemory(KB): " << getMemoryUsageInKB() << "\n";
-        
-        timeFile.close();
-        std::fstream timeFileUpdate("/home/user/Superbubble/IncrementalSuperbubble/output/Human/MiniGraph/timeFile/CHM13-464.gfa/SuperbubbleincrementalDFSOutput.txt", std::ios::in | std::ios::out);
-        if (timeFileUpdate.is_open()) {
-            timeFileUpdate.seekp(0, std::ios::beg);  // Move to the beginning of the file
-            timeFileUpdate << g.displayNumberEdges() << " " << g.displayNumberVertices();
-        } else {
-            std::cerr << "Error opening time file at: " << std::endl;
+        // BATCH INSERT all edges from the base graph first.
+        for (int i = 0; i < num_base_edges; ++i) {
+            std::cin >> x >> y;
+            std::cout << x << " "<< y << std::endl;
+            d.updateEdge(&g, x, y); 
         }
-        
-        
-        /*  
-        g.displayOutgoingGraph();
-        g.displayIncomingGraph();
-        std::cout << "Number of edges = " << g.displayNumberEdges() << std::endl;
-        std::cout << "Number of vertices = " << g.displayNumberVertices() << std::endl;
-        d.displayReverseTopologicalOrder();
-        d.displayPostorder();
-        d.displayReversePostorder();
-        d.displayTopologicalOrder();
-        d.displayMinI();
-        d.displayMaxO();
-        superbubble.printSuperbubbles();
-        std::cout << "number of superbubbles are" << std::endl;
-        std::cout << superbubble.numberOfSuperbubbles();
-        */
+        // Now, perform the first full calculation on the complete base graph
+        auto start = std::chrono::high_resolution_clock::now();
+        d.performDFS(&g);
+        d.createMinI(&g);
+        d.createMaxO(&g);
+        superbubble.computeSB(&d, &g);
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
         /*
+        outFile << graph_name << "\n";
         if (outFile.is_open()) {
             for (const pii& elem : superbubble.SB) {
                 outFile << elem.first << " " << elem.second << "\n";
             }
             std::cout << "List written to file successfully at: "<< std::endl;
-            outFile.close();
         } else {
             std::cerr << "Error opening file at: " << std::endl; 
         }
         */
+        // Record timing for the entire base graph construction
+        timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";
+        timeFile << "BaseGraph_Build " << elapsed.count() << " " << superbubble.numberOfSuperbubbles() << "\n";
+        
+        std::cout << "base graph processed" << std::endl;
+        // --- 2. Process Haplotype Additions Incrementally ---
+        while (std::getline(std::cin, line)) {
+            if (line.empty() || line.find("# HAPLOTYPE:") == std::string::npos) {
+                continue;
+            }
+             
+            // --- NEW, SMARTER CHECK ---
+            // Find the position of the colon
+            size_t colon_pos = line.find(":");
+            // Find the first non-space character after the colon
+            size_t name_start_pos = line.find_first_not_of(" \t", colon_pos + 1);
 
+            // If there's nothing after the colon, or if the first character is a '#',
+            // then it's a separator line, so we skip it.
+            if (name_start_pos == std::string::npos || line[name_start_pos] == '#') {
+              continue;
+            }
+            // --- END OF NEW CHECK ---
+
+            std::string hap_name_header = line;
+            int hap_edge_count = 0;
+            
+            // Carefully read the next line to get the edge count.
+            if (std::cin.peek() >= '0' && std::cin.peek() <= '9') {
+                 std::cin >> hap_edge_count;
+            }
+            
+            if (hap_edge_count == 0) {
+                 std::string clean_hap_name = hap_name_header.substr(hap_name_header.find(":") + 2);
+                 timeFile << update_counter << " " << clean_hap_name << " " << 0.0 << " " << superbubble.numberOfSuperbubbles() << "\n";
+                 update_counter++;
+                 std::string dummy;
+                 std::getline(std::cin, dummy);
+                 continue;
+            }
+
+            // Start the timer for this entire haplotype update
+            start = std::chrono::high_resolution_clock::now();
+            
+             // BATCH INSERT all edges for this haplotype
+            for (int i = 0; i < hap_edge_count; ++i) {
+                std::cin >> x >> y;
+                //std::cout << x << " " << y << std::endl;
+                superbubble.insertE(&d,&g,x, y);
+            }
+            superbubble.computeSB(&d, &g);
+            
+            end = std::chrono::high_resolution_clock::now();
+            elapsed = end - start;
+
+            std::string clean_hap_name = hap_name_header.substr(hap_name_header.find(":") + 2);
+            std::cout << clean_hap_name << std::endl;
+            /*
+            if (outFile.is_open()) {
+                outFile << update_counter << " " << clean_hap_name << "\n";
+                for (const pii& elem : superbubble.SB) {
+                    outFile << elem.first << " " << elem.second << "\n";
+                }
+                std::cout << "List written to file successfully at: "<< std::endl;
+                
+            } else {
+                std::cerr << "Error opening file at: " << std::endl; 
+            }*/
+            timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";
+            timeFile << update_counter << " " << clean_hap_name << " " << elapsed.count() << " " << superbubble.numberOfSuperbubbles() << "\n";
+            update_counter++;
+        }
+        //outFile.close();
+        // --- Finalization ---
+        timeFile << "PeakMemory(KB): " << getMemoryUsageInKB() << "\n";
+        timeFile.close();
     }
 };
-int main(){
+int main(int argc, char* argv[]){
+    // argc is the argument count, argv are the arguments
+    // argv[0] is the program name
+    // argv[1] will be our output path
+
+    if (argc < 2) {
+        // Print error to standard error
+        std::cerr << "Error: No output file path provided." << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <output_file_path>" << std::endl;
+        return 1; // Exit with an error code
+    }
 	IncrementalSuperbubbleSimpleAVLTree incremental;
-    incremental.inputAndCompute();
+    incremental.inputAndCompute(argv[1]);
 }

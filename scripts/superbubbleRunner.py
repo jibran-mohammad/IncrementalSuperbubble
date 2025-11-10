@@ -1,0 +1,301 @@
+import os
+import subprocess
+import sys
+import shutil
+import argparse
+
+
+# --- DYNAMIC PATH CONFIGURATION ---
+# Get the absolute path to this script's directory (e.g., .../IncSuperbubble/scripts)
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Get the parent directory (the true project root, e.g., .../IncSuperbubble)
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+
+# 1. The directory where your Makefile is located.
+#    The 'make' command will be run here.
+MAKE_DIR = PROJECT_ROOT
+
+# 2. The full path to the single input file that all algorithms will use.
+INPUT_FILE_PATH = os.path.join(PROJECT_ROOT, "input", "Ecoli", "Graphs", "numeric_edgelist.txt")
+
+# --- CONFIGURATION ---
+# Please edit these paths to match your project structure.
+
+# 1. The directory where your C++ source files and your Makefile are located.
+#    The 'make' command will be run here.
+#CPP_ALGO_DIR = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/"
+
+# 2. The full path to the single input file that all algorithms will use.
+#INPUT_FILE_PATH = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Ecoli/Graphs/numeric_edgelist.txt"
+
+# 3. A list describing each of your C++ algorithms.
+#    - 'name': A friendly name for logging.
+#    - 'target': The TARGET name for the Makefile (e.g., 'simple_superbubble_app').
+#    - 'output_dir': The directory where this algorithm saves its output.
+#                   This must match the hardcoded path inside your C++ file.
+ALGORITHMS = [
+    {
+        "name": "SimpleSuperbubble",
+        "target": "simpleSuperbubble",
+        "output_dir": os.path.join(PROJECT_ROOT, "output", "Ecoli", "timeFile/"),
+        "output_filename": "SuperbubbleSimpleTimeOutput.txt"
+    },
+    {
+        "name": "IncrementalAlgorithm",
+        "target": "incsuperbubble",
+        "output_dir": os.path.join(PROJECT_ROOT, "output", "Ecoli", "timeFile/"),
+        "output_filename": "SuperbubbleIncrementalDFSOutput.txt"
+    },
+    {
+        "name": "AnotherAlgorithm",
+        "target": "newincrementalSuperbubble",
+        "output_dir": os.path.join(PROJECT_ROOT, "output", "Ecoli", "timeFile/"),
+        "output_filename": "SuperbubbleIncrementalAVLDFSOutput.txt"
+    }
+]
+# ---------------------
+
+def run_make_clean(cpp_dir):
+    """Runs 'make clean' in the specified directory."""
+    print(f"-> Running 'make clean' in '{cpp_dir}'...")
+    clean_command = ["make", "clean"]
+    try:
+        # The 'cwd' argument ensures the command runs in the correct directory.
+        subprocess.run(
+            clean_command,
+            cwd=cpp_dir,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        print("   ...Previous builds cleaned successfully.")
+        return True
+    except FileNotFoundError:
+        print(f"   [!] ERROR: 'make' command not found. Is it installed and in your system's PATH?", file=sys.stderr)
+        return False
+    except subprocess.CalledProcessError as e:
+        # If 'make clean' fails, it might be because there's nothing to clean,
+        # but it's safer to report the error and stop.
+        print(f"   [!] 'make clean' FAILED.", file=sys.stderr)
+        print("--- make error output ---", file=sys.stderr)
+        print(e.stderr, file=sys.stderr)
+        print("-------------------------", file=sys.stderr)
+        return False
+
+def compile_target_with_make(cpp_dir, target):
+    """
+    Compiles a target using the Makefile and captures the last line of stdout
+    as the path to the executable.
+    Returns the executable path on success, None on failure.
+    """
+    print(f"-> Compiling target '{target}' using Makefile in '{cpp_dir}'...")
+    make_command = ["make", f"TARGET={target}"]
+    try:
+        # Run the make command, capturing its output.
+        result = subprocess.run(
+            make_command,
+            cwd=cpp_dir,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        # Assume the last line of stdout is the path to the executable.
+        # .strip() removes leading/trailing whitespace, including the final newline.
+        last_line = result.stdout.strip().splitlines()[-1]
+        
+        executable_path = None
+        if last_line.startswith("Linking "):
+            # Split the line by spaces, e.g., "Linking test/path..." -> ["Linking", "test/path..."]
+            path_part = last_line.split()[1]
+            # Remove the trailing "..." from the path part.
+            relative_path = path_part.rstrip('.')
+            # Construct the full, absolute path by joining with the base directory.
+            executable_path = os.path.join(cpp_dir, relative_path)
+        else:
+            # Fallback for makefiles that just output the path directly.
+            executable_path = last_line
+        print(executable_path)
+        if not executable_path:
+             print(f"   [!] ERROR: Could not parse executable path from make output.", file=sys.stderr)
+             return None
+
+        print(f"   ...Success! Parsed executable path: '{executable_path}'")
+        return executable_path
+    except FileNotFoundError:
+        print(f"   [!] ERROR: 'make' command not found. Is it installed and in your system's PATH?", file=sys.stderr)
+        return None
+    except subprocess.CalledProcessError as e:
+        print(f"   [!] Makefile FAILED for target '{target}'.", file=sys.stderr)
+        print("--- make error output ---", file=sys.stderr)
+        print(e.stderr, file=sys.stderr)
+        print("-------------------------", file=sys.stderr)
+        return None
+
+def run_cpp_program(executable_path, input_path,full_output_path):
+    """Runs a compiled C++ program, redirecting the input file to its stdin."""
+    print(f"-> Running {os.path.basename(executable_path)} with input {os.path.basename(input_path)}...")
+    print(f"   ...Writing output to: {full_output_path}")
+
+    # The executable path is now absolute, so it's the only item in the command.
+    run_command = [executable_path, full_output_path]
+    try:
+        with open(input_path, 'r') as input_file_handle:
+            subprocess.run(
+                run_command,
+                stdin=input_file_handle,
+                check=True,
+                cwd=PROJECT_ROOT
+            )
+        print(f"   ...Finished successfully.")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"   [!] Execution FAILED for {os.path.basename(executable_path)}.", file=sys.stderr)
+        print("--- Program error output ---", file=sys.stderr)
+        print(e.stderr, file=sys.stderr)
+        print("----------------------------", file=sys.stderr)
+        return False
+
+
+def main():
+    """Main function to orchestrate the compilation and execution pipeline."""
+    all_algo_names = [algo['name'] for algo in ALGORITHMS]
+    
+    # --- Instructions for the user ---
+    print("--- Superbubble Pipeline Orchestrator ---")
+    print(f"Available algorithms: {', '.join(all_algo_names)}")
+    print("\nUsage examples:")
+    print("  - To run ALL algorithms: python3 run_superbubble_pipeline.py")
+    print("  - To run a SINGLE algorithm: python3 run_superbubble_pipeline.py -a SimpleSuperbubble")
+    print("  - To run MULTIPLE algorithms: python3 run_superbubble_pipeline.py -a SimpleSuperbubble AnotherAlgorithm\n")
+    
+    # --- Set up command-line argument parsing ---
+    parser = argparse.ArgumentParser(
+        description="Compile and run specified C++ superbubble algorithms.",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument(
+        '-a', '--algorithms',
+        nargs='+',  # This allows for one or more space-separated names
+        choices=all_algo_names,
+        metavar='ALGO_NAME',
+        help=f"Specify which algorithms to run. Choices: {', '.join(all_algo_names)}. "
+             f"\nIf not provided, all algorithms will be run."
+    )
+    parser.add_argument(
+        '-d', '--dataset',
+        type=str,
+        default='Ecoli',
+        help="Specify which dataset to run (e.g., 'Ecoli', 'Human')."
+    )
+    args = parser.parse_args()
+
+    if args.algorithms:
+        algorithms_to_run = [algo for algo in ALGORITHMS if algo['name'] in args.algorithms]
+        print(f"--- Running selected algorithms: {[algo['name'] for algo in algorithms_to_run]} ---")
+    else:
+        algorithms_to_run = ALGORITHMS
+        print("--- Starting Superbubble Algorithm Pipeline (all algorithms) ---")
+
+    print(f"--- Target Dataset: {args.dataset} ---")
+
+    # --- PHASE 0: Clean previous builds ---
+    print("\n[PHASE 0: Cleaning up previous builds]")
+    if not run_make_clean(MAKE_DIR):
+        print("\nAborting pipeline due to an error during 'make clean'.", file=sys.stderr)
+        sys.exit(1)
+
+    # --- PHASE 1: Build the list of jobs ---
+    print("\n[PHASE 1: Generating job list]")
+    jobs_to_run = []
+    
+    if args.dataset == 'Ecoli':
+        input_path = os.path.join(PROJECT_ROOT, "input", "Ecoli", "Graphs", "numeric_edgelist.txt")
+        if not os.path.exists(input_path):
+             print(f"[!] ERROR: Ecoli input file not found at '{input_path}'", file=sys.stderr)
+             sys.exit(1)
+             
+        for algo in algorithms_to_run:
+            output_dir = os.path.join(PROJECT_ROOT, "output", "Ecoli", "timeFile")
+            full_output_path = os.path.join(output_dir, algo['output_filename'])
+            jobs_to_run.append({
+                "algo_name": algo['name'],
+                "target": algo['target'],
+                "input_path": input_path,
+                "output_dir": output_dir,
+                "full_output_path": full_output_path
+            })
+            
+    elif args.dataset == 'Human':
+        # Loop from 1 to 24 for the chromosomes
+        for chr_num in range(1, 25):
+            chr_name = f"chr{chr_num}"
+            # ASSUMING this is your input path structure. Update if needed.
+            input_path = os.path.join(PROJECT_ROOT, "input", "Human", "Graphs", f"{chr_name}_numeric_edgelist.txt")
+            
+            if not os.path.exists(input_path):
+                print(f"[!] Warning: Input file not found, skipping: '{input_path}'", file=sys.stderr)
+                continue # Skip this chromosome if the input doesn't exist
+
+            for algo in algorithms_to_run:
+                # This is your new complex output path: output/Human/chrX/timeFile/
+                output_dir = os.path.join(PROJECT_ROOT, "output", "Human", chr_name, "timeFile")
+                full_output_path = os.path.join(output_dir, algo['output_filename'])
+                jobs_to_run.append({
+                    "algo_name": algo['name'],
+                    "target": algo['target'],
+                    "input_path": input_path,
+                    "output_dir": output_dir,
+                    "full_output_path": full_output_path,
+                    "job_name": f"{algo['name']} on {chr_name}" # For logging
+                })
+    else:
+        print(f"[!] ERROR: Unknown dataset '{args.dataset}'.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"   ...Generated {len(jobs_to_run)} total jobs.")
+
+    # --- PHASE 2: Compile and Run All Jobs ---
+    print("\n[PHASE 2: Compiling and Running Algorithms]")
+    
+    # Keep track of compiled targets so we don't re-compile
+    compiled_executables = {}
+
+    for i, job in enumerate(jobs_to_run):
+        job_name = job.get("job_name", job['algo_name'])
+        print(f"\n--- Processing Job {i+1}/{len(jobs_to_run)}: {job_name} ---")
+        
+        target_name = job['target']
+        
+        # Step 1: Compile (if we haven't already)
+        if target_name not in compiled_executables:
+            executable_path = compile_target_with_make(MAKE_DIR, target_name)
+            if not executable_path:
+                 print(f"\nAborting pipeline due to compilation error for {target_name}.", file=sys.stderr)
+                 sys.exit(1)
+            if not os.path.exists(executable_path):
+                print(f"[!] ERROR: Makefile produced invalid path '{executable_path}'", file=sys.stderr)
+                sys.exit(1)
+            compiled_executables[target_name] = executable_path
+        else:
+            executable_path = compiled_executables[target_name]
+            print(f"-> Target '{target_name}' already compiled.")
+
+        # Step 2: Create output directory
+        try:
+            os.makedirs(job['output_dir'], exist_ok=True)
+        except OSError as e:
+            print(f"[!] ERROR: Could not create output directory '{job['output_dir']}': {e}", file=sys.stderr)
+            sys.exit(1)
+
+        # Step 3: Run the job
+        if not run_cpp_program(executable_path, job['input_path'], job['full_output_path']):
+            print(f"\nAborting pipeline due to execution error on job {job_name}.", file=sys.stderr)
+            sys.exit(1)
+            
+    print("\n--- Pipeline completed successfully! ---")
+
+
+if __name__ == "__main__":
+    main()
+
