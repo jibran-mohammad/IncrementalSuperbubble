@@ -1,5 +1,33 @@
-# Ignore all object files (.o) in any directory
+# Ignore all object files everywhere
 *.o
 
-/output/
-/inputGraphs/
+# Ignore other test executables/files
+test/h1Superbubble_
+test/mnlognsuperbubble_
+
+# Ignore test executables
+test/mnlognsuperbubble
+test/superbubbleIncdfs
+test/superbubbledfs
+
+# Ignore Python virtual environments
+venv/
+.venv/
+env/
+
+# --- Project Specific Rules ---
+
+# 1. Ignore all contents within Pangenome_Construction
+# (Note the capital P to match your untracked folder)
+Pangenome_Construction/*
+
+# 2. Ignore all contents within the subdirectories of output/ and input/
+# This matches 'output/ecoli/colidataset' or 'output/ecoli/graph'
+output/*/*
+input/*/*
+
+# 3. DO NOT ignore the placeholder .gitkeep files
+# This allows you to track the empty directories
+!Pangenome_Construction/.gitkeep
+!output/*/.gitkeep
+!input/*/.gitkeep
