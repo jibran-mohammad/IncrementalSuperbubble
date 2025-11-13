@@ -17,6 +17,8 @@ This script performs the following steps:
 import re
 from typing import Set, List, Tuple, Dict, Any
 import pathlib
+import sys 
+import os
 
 # ==============================================================================
 #  Dynamic Path Discovery Function
@@ -79,15 +81,25 @@ try:
     REPO_ROOT_PATH = find_repo_root(script_dir, REPO_NAME)
     print(f"ℹ️ Located repository root: {REPO_ROOT_PATH}")
 
-    # 4. --- YOUR MANUAL PATH ---
-    # Manually construct the PREPROCESS_DIR using the found root path
-    # You can use / from pathlib or os.path.join
-    base_graph_filepath = str(REPO_ROOT_PATH / "input/Ecoli/Graphs/reduced_graph.gfa")
-    sorted_haplotypes_filepath = str(REPO_ROOT_PATH / "input/Ecoli/Graphs/ordered_haplotypes.txt")
-    output_edgelist_filepath = str(REPO_ROOT_PATH / "input/Ecoli/Graphs/full_graph_edgelist.txt")
-    # Or, if you prefer using os.path.join:
-    # import os
-    # PREPROCESS_DIR = os.path.join(str(REPO_ROOT_PATH), "Preprocessing")
+    # 4. --- DYNAMIC PATH CONFIGURATION ---
+    # Get dataset name and ref fasta from environment variables
+    DATASET_NAME = os.getenv('PIPELINE_DATASET_NAME')
+    REF_FASTA_NAME = os.getenv('PIPELINE_REF_FASTA') # Not used here, but good practice
+
+    if not DATASET_NAME:
+        print("❌ Critical Error: 'PIPELINE_DATASET_NAME' environment variable not set.", file=sys.stderr)
+        print("Please run this script via the main 'graphRunner.py' orchestrator.", file=sys.stderr)
+        sys.exit(1)
+    
+    print(f"ℹ️ Configuring for dataset: {DATASET_NAME}")
+    
+    # Define common paths
+    GRAPH_DIR = REPO_ROOT_PATH / "input" / DATASET_NAME / "Graphs"
+
+    # --- Specific paths for this script ---
+    base_graph_filepath = str(GRAPH_DIR / "reduced_graph.gfa")
+    sorted_haplotypes_filepath = str(GRAPH_DIR / "ordered_haplotypes.txt")
+    output_edgelist_filepath = str(GRAPH_DIR / "full_graph_edgelist.txt")
 
 except FileNotFoundError as e:
     print(f"❌ Critical Error: {e}", file=sys.stderr)

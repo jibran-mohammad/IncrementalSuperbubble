@@ -17,6 +17,14 @@ while IFS= read -r base || [ -n "$base" ]; do
   base="${base%/}/"
   base_https="$(printf "%s" "$base" | to_https)"
   asm="$(basename "$base_https")"
+  dest="$OUT/$asm"
+
+  # --- Check if assembly is already downloaded ---
+  if [ -d "$dest" ]; then
+    echo "SKIPPING $asm: Directory '$dest' already exists."
+    continue
+  fi
+  # --- End of check ---
 
   chr_url="${base_https}${asm}_assembly_structure/Primary_Assembly/assembled_chromosomes/FASTA/"
 
@@ -36,7 +44,6 @@ while IFS= read -r base || [ -n "$base" ]; do
     continue
   fi
 
-  dest="$OUT/$asm"
   mkdir -p "$dest"
   echo "⬇️  $asm : $(echo "$files" | wc -l) chromosomes"
   while read -r f; do

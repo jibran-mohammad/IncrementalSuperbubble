@@ -4,6 +4,39 @@ import sys
 import shutil
 import argparse
 
+# --- HOW TO RUN ---
+#
+# This script uses command-line arguments to select the dataset and algorithms.
+#
+# 1. Run on Ecoli dataset (default) with ALL algorithms:
+#    python3 superbubbleRunner.py
+#    OR
+#    python3 superbubbleRunner.py -d Ecoli
+#
+# 2. Run on Human dataset with ALL algorithms:
+#    python3 superbubbleRunner.py -d Human
+#
+# 3. Run on Ecoli dataset with a SINGLE specific algorithm:
+#    python3 superbubbleRunner.py -a SimpleSuperbubble
+#
+# 4. Run on Ecoli dataset with MULTIPLE specific algorithms:
+#    python3 superbubbleRunner.py -a SimpleSuperbubble AnotherAlgorithm
+#
+# 5. Run on Human dataset with a SINGLE specific algorithm:
+#    python3 superbubbleRunner.py -d Human -a IncrementalAlgorithm
+#
+# 6. Run on Human dataset with MULTIPLE specific algorithms:
+#    python3 superbubbleRunner.py -d Human -a IncrementalAlgorithm AnotherAlgorithm
+#
+# ### NEW ###
+# 7. Run on Human dataset for ONLY chromosome_1:
+#    python3 superbubbleRunner.py -d Human -c chromosome_1
+#
+# 8. Run on Human dataset for chromosome_1 and chromosome_X with a specific algorithm:
+#    python3 superbubbleRunner.py -d Human -a SimpleSuperbubble -c chromosome_1 chromosome_X
+#
+# --- END HOW TO RUN ---
+
 
 # --- DYNAMIC PATH CONFIGURATION ---
 # Get the absolute path to this script's directory (e.g., .../IncSuperbubble/scripts)
@@ -16,41 +49,29 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 #    The 'make' command will be run here.
 MAKE_DIR = PROJECT_ROOT
 
-# 2. The full path to the single input file that all algorithms will use.
-INPUT_FILE_PATH = os.path.join(PROJECT_ROOT, "input", "Ecoli", "Graphs", "numeric_edgelist.txt")
-
 # --- CONFIGURATION ---
-# Please edit these paths to match your project structure.
 
-# 1. The directory where your C++ source files and your Makefile are located.
-#    The 'make' command will be run here.
-#CPP_ALGO_DIR = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/"
-
-# 2. The full path to the single input file that all algorithms will use.
-#INPUT_FILE_PATH = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Ecoli/Graphs/numeric_edgelist.txt"
-
-# 3. A list describing each of your C++ algorithms.
+# 1. A list describing each of your C++ algorithms.
 #    - 'name': A friendly name for logging.
 #    - 'target': The TARGET name for the Makefile (e.g., 'simple_superbubble_app').
-#    - 'output_dir': The directory where this algorithm saves its output.
-#                   This must match the hardcoded path inside your C++ file.
+#    - 'output_filename': The final name for the output file.
+#
+#    NOTE: The 'output_dir' has been removed from this list because the
+#    main() function now generates it dynamically based on the dataset.
 ALGORITHMS = [
     {
         "name": "SimpleSuperbubble",
         "target": "simpleSuperbubble",
-        "output_dir": os.path.join(PROJECT_ROOT, "output", "Ecoli", "timeFile/"),
         "output_filename": "SuperbubbleSimpleTimeOutput.txt"
     },
     {
         "name": "IncrementalAlgorithm",
         "target": "incsuperbubble",
-        "output_dir": os.path.join(PROJECT_ROOT, "output", "Ecoli", "timeFile/"),
         "output_filename": "SuperbubbleIncrementalDFSOutput.txt"
     },
     {
         "name": "AnotherAlgorithm",
         "target": "newincrementalSuperbubble",
-        "output_dir": os.path.join(PROJECT_ROOT, "output", "Ecoli", "timeFile/"),
         "output_filename": "SuperbubbleIncrementalAVLDFSOutput.txt"
     }
 ]
@@ -162,12 +183,9 @@ def main():
     all_algo_names = [algo['name'] for algo in ALGORITHMS]
     
     # --- Instructions for the user ---
+    # (The print statements below also serve as a mini-guide)
     print("--- Superbubble Pipeline Orchestrator ---")
     print(f"Available algorithms: {', '.join(all_algo_names)}")
-    print("\nUsage examples:")
-    print("  - To run ALL algorithms: python3 run_superbubble_pipeline.py")
-    print("  - To run a SINGLE algorithm: python3 run_superbubble_pipeline.py -a SimpleSuperbubble")
-    print("  - To run MULTIPLE algorithms: python3 run_superbubble_pipeline.py -a SimpleSuperbubble AnotherAlgorithm\n")
     
     # --- Set up command-line argument parsing ---
     parser = argparse.ArgumentParser(
@@ -186,8 +204,22 @@ def main():
         '-d', '--dataset',
         type=str,
         default='Ecoli',
-        help="Specify which dataset to run (e.g., 'Ecoli', 'Human')."
+        choices=['Ecoli', 'Human'], # Added choices for clarity
+        help="Specify which dataset to run (e.g., 'Ecoli', 'Human'). Default: Ecoli"
     )
+    
+    ### NEW ###
+    # Add a new argument for specifying chromosomes
+    parser.add_argument(
+        '-c', '--chromosomes',
+        nargs='+',
+        metavar='CHR_NAME',
+        help="Specify which human chromosomes to run (e.g., 'chromosome_1', 'chromosome_X'). \n"
+             "Only used if '-d Human' is selected. \n"
+             "If not provided, all human chromosomes will be run."
+    )
+    # --- End of new argument ---
+    
     args = parser.parse_args()
 
     if args.algorithms:
@@ -210,6 +242,12 @@ def main():
     jobs_to_run = []
     
     if args.dataset == 'Ecoli':
+        ### MODIFIED ###
+        # Add a warning if -c is used with Ecoli
+        if args.chromosomes:
+            print("[!] Warning: '--chromosomes' argument is ignored when dataset is 'Ecoli'.")
+            
+        # --- ECOLI DATASET ---
         input_path = os.path.join(PROJECT_ROOT, "input", "Ecoli", "Graphs", "numeric_edgelist.txt")
         if not os.path.exists(input_path):
              print(f"[!] ERROR: Ecoli input file not found at '{input_path}'", file=sys.stderr)
@@ -223,14 +261,37 @@ def main():
                 "target": algo['target'],
                 "input_path": input_path,
                 "output_dir": output_dir,
-                "full_output_path": full_output_path
+                "full_output_path": full_output_path,
+                "job_name": f"{algo['name']} on Ecoli" # Added job_name
             })
             
     elif args.dataset == 'Human':
-        # Loop from 1 to 24 for the chromosomes
-        for chr_num in range(1, 25):
-            chr_name = f"chr{chr_num}"
-            # ASSUMING this is your input path structure. Update if needed.
+        # --- HUMAN DATASET ---
+        
+        ### MODIFIED ###
+        # Define the full list of chromosomes
+        ALL_HUMAN_CHROMOSOMES = [f"chromosome_{i}" for i in range(1, 23)] + ["chromosome_X", "chromosome_y", "chromosome_M"]
+        
+        chromosomes_to_process = []
+        
+        if args.chromosomes:
+            # 1. User specified a list of chromosomes
+            chromosomes_to_process = args.chromosomes
+            print(f"   ...Preparing jobs for {len(chromosomes_to_process)} specific human chromosomes: {', '.join(chromosomes_to_process)}")
+        else:
+            # 2. No specific chromosomes provided, so use the full list
+            chromosomes_to_process = ALL_HUMAN_CHROMOSOMES
+            print(f"   ...Preparing jobs for all {len(chromosomes_to_process)} human chromosomes.")
+
+        # Loop over the *selected* list (either the full one or the user-specified one)
+        for chr_name in chromosomes_to_process:
+        ### END MODIFIED ###
+            
+            # This path assumes your Human graphs follow the Ecoli naming convention
+            # e.g., .../input/Human/Graphs/chromosome_1_numeric_edgelist.txt
+            # e.g., .../input/Human/Graphs/chromosome_X_numeric_edgelist.txt
+            # ** This is different from the .fa path you mentioned, but matches
+            # ** what the rest of your script expects (a numeric edgelist).
             input_path = os.path.join(PROJECT_ROOT, "input", "Human", "Graphs", f"{chr_name}_numeric_edgelist.txt")
             
             if not os.path.exists(input_path):
@@ -238,9 +299,11 @@ def main():
                 continue # Skip this chromosome if the input doesn't exist
 
             for algo in algorithms_to_run:
-                # This is your new complex output path: output/Human/chrX/timeFile/
+                # This builds the output path exactly as you requested:
+                # .../output/Human/chromosome_1/timeFile/
                 output_dir = os.path.join(PROJECT_ROOT, "output", "Human", chr_name, "timeFile")
                 full_output_path = os.path.join(output_dir, algo['output_filename'])
+                
                 jobs_to_run.append({
                     "algo_name": algo['name'],
                     "target": algo['target'],
@@ -253,6 +316,10 @@ def main():
         print(f"[!] ERROR: Unknown dataset '{args.dataset}'.", file=sys.stderr)
         sys.exit(1)
 
+    if not jobs_to_run:
+        print("\n[!] No valid jobs were generated. Check input files and dataset name.", file=sys.stderr)
+        sys.exit(1)
+        
     print(f"   ...Generated {len(jobs_to_run)} total jobs.")
 
     # --- PHASE 2: Compile and Run All Jobs ---
@@ -298,4 +365,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

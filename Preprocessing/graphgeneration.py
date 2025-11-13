@@ -59,6 +59,13 @@ def find_repo_root(start_path: pathlib.Path, repo_name: str) -> pathlib.Path:
 #  Script Configuration
 # ==============================================================================
 
+# ==============================================================================
+#  Script Configuration
+# ==============================================================================
+
+import os # Make sure os is at the top
+import sys # Make sure sys is at the top
+
 try:
     # 1. Define the name of the repository we are looking for
     REPO_NAME = "IncSuperbubble"
@@ -73,18 +80,46 @@ try:
     REPO_ROOT_PATH = find_repo_root(script_dir, REPO_NAME)
     print(f"ℹ️ Located repository root: {REPO_ROOT_PATH}")
 
-    # 4. --- YOUR MANUAL PATH ---
-    # Manually construct the PREPROCESS_DIR using the found root path
-    # You can use / from pathlib or os.path.join
+    # 4. --- DYNAMIC PATH CONFIGURATION ---
+    # Get dataset name and ref fasta from environment variables
+    DATASET_NAME = os.getenv('PIPELINE_DATASET_NAME')
+    REF_FASTA_NAME = os.getenv('PIPELINE_REF_FASTA')
+
+    if not DATASET_NAME or not REF_FASTA_NAME:
+        print("❌ Critical Error: 'PIPELINE_DATASET_NAME' or 'PIPELINE_REF_FASTA' environment variable not set.", file=sys.stderr)
+        print("Please run this script via the main 'graphRunner.py' orchestrator.", file=sys.stderr)
+        sys.exit(1)
+    
+    print(f"ℹ️ Configuring for dataset: {DATASET_NAME}")
+    print(f"ℹ️ Using reference fasta: {REF_FASTA_NAME}")
+    
+    # Define common paths
+    INPUT_BASE_DIR = REPO_ROOT_PATH / "input" / DATASET_NAME
+    GRAPH_DIR = INPUT_BASE_DIR / "Graphs"
+    GAF_DIR = INPUT_BASE_DIR / "GAF_Files"
+
+    # --- Specific paths for this script ---
     VG = str(REPO_ROOT_PATH / "Pangenome_Construction/vgTool/vg/bin/./vg")
     MINICHAIN = str(REPO_ROOT_PATH / "Pangenome_Construction/minichain/./minichain")
     mash_bin = str(REPO_ROOT_PATH / "Pangenome_Construction/Mash/./mash")
-    graph_dir = str(REPO_ROOT_PATH / "input/Ecoli/Graphs")
-    fa_dir = str(REPO_ROOT_PATH / "input/Ecoli/coli3682_dataset")
-    gaf_dir = str(REPO_ROOT_PATH / "input/Ecoli/GAF_Files")
-    # Or, if you prefer using os.path.join:
-    # import os
-    # PREPROCESS_DIR = os.path.join(str(REPO_ROOT_PATH), "Preprocessing")
+    
+    graph_dir = str(GRAPH_DIR)
+    gaf_dir = str(GAF_DIR)
+    
+    # Handle different FASTA directory structures
+    if DATASET_NAME == 'Ecoli':
+        fa_dir = str(INPUT_BASE_DIR / "coli3682_dataset")
+    else:
+        # For human, the DATASET_NAME *is* the fasta dir (e.g., human/chromosome_1)
+        fa_dir = str(INPUT_BASE_DIR) 
+
+    # Set the ref fasta filename (the script joins it with fa_dir later)
+    ref = REF_FASTA_NAME
+
+except FileNotFoundError as e:
+    print(f"❌ Critical Error: {e}", file=sys.stderr)
+    print("Please ensure this script is located somewhere inside the 'IncSuperbubble' repository.", file=sys.stderr)
+    sys.exit(1)
 
 except FileNotFoundError as e:
     print(f"❌ Critical Error: {e}", file=sys.stderr)
@@ -205,7 +240,7 @@ print("Threads : " + str(threads))
 if not os.path.exists(graph_dir):
     os.makedirs(graph_dir)
 
-ref = 'GCF_000005845.2_ASM584v2_genomic.fna'
+#ref = 'GCF_000005845.2_ASM584v2_genomic.fna'
 #fa_dir = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Ecoli/coli3682_dataset"
 #gaf_dir = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Ecoli/GAF_Files"
 
