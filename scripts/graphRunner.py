@@ -103,7 +103,7 @@ def run_script(script_name, env_vars):
         command = []
         if script_name == "graphgeneration.py":
             # Pass the thread count to graphgeneration.py
-            command = ["python3", script_path, "-t", "20"]
+            command = ["python3", script_path, "-t", "27"]
         else:
             command = ["python3", script_path]
 
