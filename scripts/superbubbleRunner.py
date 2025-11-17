@@ -292,7 +292,7 @@ def main():
             # e.g., .../input/Human/Graphs/chromosome_X_numeric_edgelist.txt
             # ** This is different from the .fa path you mentioned, but matches
             # ** what the rest of your script expects (a numeric edgelist).
-            input_path = os.path.join(PROJECT_ROOT, "input", "Human", "Graphs", f"{chr_name}_numeric_edgelist.txt")
+            input_path = os.path.join(PROJECT_ROOT, "input", "Human", f"{chr_name}", "Graphs" ,"numeric_edgelist.txt")
             
             if not os.path.exists(input_path):
                 print(f"[!] Warning: Input file not found, skipping: '{input_path}'", file=sys.stderr)
