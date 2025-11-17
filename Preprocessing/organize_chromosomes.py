@@ -154,6 +154,8 @@ def main():
     except OSError as e:
         print(f"Error: Could not create output directory: {output_dir}\n{e}", file=sys.stderr)
         sys.exit(1)
+    
+    corrupt_log_filepath = os.path.join(output_dir, "corrupt_files.log")
 
     # --- 3. Find Haplotype Directories ---
     try:
@@ -246,6 +248,17 @@ def main():
                     print(f"  [OK] {filename:20} -> {os.path.join(std_chrom_dir_name, dest_filename)}")
                 
                 file_count += 1
+            except (gzip.BadGzipFile, EOFError) as e:
+                # These errors mean the .gz file is corrupt or truncated
+                print(f"  Error: File appears corrupt: {filename}. Skipping.", file=sys.stderr)
+                print(f"         Logging to: {corrupt_log_filepath}")
+                # Log the full path of the corrupt file
+                try:
+                    with open(corrupt_log_filepath, 'a') as log_file: # 'a' for append
+                        log_file.write(f"{source_filepath}\n")
+                except OSError as log_e:
+                    print(f"  CRITICAL: Could not write to log file! Error: {log_e}", file=sys.stderr)
+
             except shutil.SameFileError:
                  print(f"  Warning: Source and destination are the same file: {source_filepath}", file=sys.stderr)
             except (OSError, gzip.BadGzipFile) as e:
