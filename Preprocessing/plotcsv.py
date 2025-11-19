@@ -49,7 +49,7 @@ def plot_haplotype_data(filename, output_dir):
     # Define columns that should be numeric
     cols_to_numeric = [
         'Step', 'Nodes', 'Edges', 'Superbubbles', 
-        'AVLDFS_Time_s', 'DFS_Time_s', 'Simple_Time_s'
+        'BST_INC_DFS_Time_s', 'INC_DFS_Time_s', 'Simple_Time_s'
     ]
     
     # Ensure all necessary columns exist before trying to convert
@@ -75,8 +75,8 @@ def plot_haplotype_data(filename, output_dir):
     df_step_sorted = df.sort_values(by='Step')
     
     plt.figure(figsize=(12, 7))
-    plt.plot(df_step_sorted['Step'], df_step_sorted['AVLDFS_Time_s'], marker='o', linestyle='-', label='AVLDFS')
-    plt.plot(df_step_sorted['Step'], df_step_sorted['DFS_Time_s'], marker='s', linestyle='--', label='DFS')
+    plt.plot(df_step_sorted['Step'], df_step_sorted['BST_INC_DFS_Time_s'], marker='o', linestyle='-', label='AVLDFS')
+    plt.plot(df_step_sorted['Step'], df_step_sorted['INC_DFS_Time_s'], marker='s', linestyle='--', label='DFS')
     plt.plot(df_step_sorted['Step'], df_step_sorted['Simple_Time_s'], marker='^', linestyle=':', label='Simple')
     
     plt.title('Algorithm Runtimes vs. Haplotype Step', fontsize=16)
@@ -98,8 +98,8 @@ def plot_haplotype_data(filename, output_dir):
     df_edges_sorted = df.sort_values(by='Edges')
     
     plt.figure(figsize=(12, 7))
-    plt.plot(df_edges_sorted['Edges'], df_edges_sorted['AVLDFS_Time_s'], marker='o', linestyle='-', label='AVLDFS')
-    plt.plot(df_edges_sorted['Edges'], df_edges_sorted['DFS_Time_s'], marker='s', linestyle='--', label='DFS')
+    plt.plot(df_edges_sorted['Edges'], df_edges_sorted['BST_INC_DFS_Time_s'], marker='o', linestyle='-', label='AVLDFS')
+    plt.plot(df_edges_sorted['Edges'], df_edges_sorted['INC_DFS_Time_s'], marker='s', linestyle='--', label='DFS')
     plt.plot(df_edges_sorted['Edges'], df_edges_sorted['Simple_Time_s'], marker='^', linestyle=':', label='Simple')
     
     plt.title('Algorithm Runtimes vs. Number of Edges', fontsize=16)

@@ -158,8 +158,8 @@ def process_time_directory(time_dir_path: pathlib.Path):
     # We now use the full path by joining the directory
     files_to_parse = {
         time_dir_path / "SuperbubbleSimpleTimeOutput.txt": "Simple_Time_s",
-        time_dir_path / "SuperbubbleIncrementalDFSOutput.txt": "DFS_Time_s",
-        time_dir_path / "SuperbubbleIncrementalAVLDFSOutput.txt": "AVLDFS_Time_s"
+        time_dir_path / "SuperbubbleIncrementalDFSOutput.txt": "INC_DFS_Time_s",
+        time_dir_path / "SuperbubbleIncrementalAVLDFSOutput.txt": "BST_INC_DFS_Time_s"
     }
 
     all_data = []

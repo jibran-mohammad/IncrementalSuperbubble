@@ -1,10 +1,10 @@
 """
 A script to reorder haplotype data from a file.
 
-It prioritizes haplotypes that define new structures (nodes or edges)
-by placing them at the beginning of the output, followed by all
-path-only (walk-only) haplotypes. This is a common preprocessing
-step for building pangenome graphs consistently.
+It sorts haplotypes into three categories based on their content:
+1. Haplotypes with structural changes (Edges and Nodes).
+2. Haplotypes with only Node changes (no Edges).
+3. Haplotypes with no changes (Walks only).
 """
 import os
 import pathlib
@@ -74,8 +74,7 @@ try:
     # 4. --- DYNAMIC PATH CONFIGURATION ---
     # Get dataset name and ref fasta from environment variables
     DATASET_NAME = os.getenv('PIPELINE_DATASET_NAME')
-    REF_FASTA_NAME = os.getenv('PIPELINE_REF_FASTA') # Not used here, but good practice
-
+    
     if not DATASET_NAME:
         print("❌ Critical Error: 'PIPELINE_DATASET_NAME' environment variable not set.", file=sys.stderr)
         print("Please run this script via the main 'graphRunner.py' orchestrator.", file=sys.stderr)
@@ -97,7 +96,7 @@ except FileNotFoundError as e:
 
 def reorder_haplotypes(file_content: str) -> str:
     """
-    Parses and reorders haplotype blocks from a string.
+    Parses and reorders haplotype blocks from a string into three categories.
 
     Args:
         file_content: A string containing the entire haplotype data.
@@ -107,45 +106,65 @@ def reorder_haplotypes(file_content: str) -> str:
     """
     # Split the content into blocks for each haplotype.
     # The delimiter is the start of each new haplotype record.
-    # We filter out any empty strings that might result from the split.
     haplotype_blocks = file_content.strip().split('# HAPLOTYPE:')
+    
+    # Clean up blocks (remove empty strings from split)
     haplotype_blocks = [block.strip() for block in haplotype_blocks if block.strip()]
 
-    structural_haplotypes = []
-    path_only_haplotypes = []
+    structural_haplotypes = []  # Contains EDGE (and likely NODE)
+    node_only_haplotypes = []   # Contains NODE but NO EDGE
+    no_change_haplotypes = []   # Contains neither (WALK only)
 
     # Categorize each haplotype block
     for block in haplotype_blocks:
-        # A block is considered "structural" if it defines new graph components.
-        if 'NODE' in block or 'EDGE' in block:
+        has_edge = 'EDGE' in block
+        has_node = 'NODE' in block
+
+        if has_edge:
+            # Priority 1: Haplotypes with Edges (Structural)
             structural_haplotypes.append(block)
+        elif has_node:
+            # Priority 2: Haplotypes with only Node changes
+            node_only_haplotypes.append(block)
         else:
-            path_only_haplotypes.append(block)
+            # Priority 3: No structural/node changes (Walk only)
+            no_change_haplotypes.append(block)
             
-    # Reconstruct the full text for each block by adding the header back
-    # The .format() method is used for clean string construction.
-    structural_haplotypes_full = ["# HAPLOTYPE: {}".format(b) for b in structural_haplotypes]
-    path_only_haplotypes_full = ["# HAPLOTYPE: {}".format(b) for b in path_only_haplotypes]
+    # Helper to reconstruct the full text for each block
+    def reconstruct(blocks):
+        return ["# HAPLOTYPE: {}".format(b) for b in blocks]
 
-    # Combine the two lists
-    ordered_haplotypes = structural_haplotypes_full + path_only_haplotypes_full
+    structural_full = reconstruct(structural_haplotypes)
+    node_only_full = reconstruct(node_only_haplotypes)
+    no_change_full = reconstruct(no_change_haplotypes)
 
-    # Add comments to delineate the two sections in the output
-    output_parts = [
-        "############################################################",
-        "# SECTION 1: Haplotypes with Structural Definitions (NODE/EDGE)",
-        "############################################################\n"
-    ]
-    output_parts.extend(structural_haplotypes_full)
-    
-    output_parts.append("\n############################################################")
-    output_parts.append("# SECTION 2: Path-Only Haplotypes (WALK only)")
-    output_parts.append("############################################################\n")
-    output_parts.extend(path_only_haplotypes_full)
+    # Build the final output list with section headers
+    output_parts = []
 
-    # Join all parts together into a final string, with two newlines
-    # between each haplotype entry for readability.
-    return "\n\n".join(output_parts)
+    if structural_full:
+        output_parts.append("############################################################")
+        output_parts.append("# SECTION 1: Haplotypes with Structural Definitions (EDGE/NODE)")
+        output_parts.append("############################################################\n")
+        output_parts.extend(structural_full)
+        output_parts.append("\n")
+
+    if node_only_full:
+        output_parts.append("############################################################")
+        output_parts.append("# SECTION 2: Haplotypes with Only Node Changes (NODE only)")
+        output_parts.append("############################################################\n")
+        output_parts.extend(node_only_full)
+        output_parts.append("\n")
+
+    if no_change_full:
+        output_parts.append("############################################################")
+        output_parts.append("# SECTION 3: Haplotypes with No Changes (WALK only)")
+        output_parts.append("############################################################\n")
+        output_parts.extend(no_change_full)
+
+    # Join all parts together into a final string.
+    # Using join with "\n\n" handles spacing between entries within lists,
+    # but since we added headers and explicit newlines, we can simply join.
+    return "\n\n".join(output_parts).strip()
 
 
 def main():
@@ -153,14 +172,6 @@ def main():
     Main function to read an input file, reorder its content,
     and write to an output file using predefined paths.
     """
-    # --- PLEASE EDIT THESE PATHS ---
-    # Define the input and output file paths here.
-    # You can use full paths (e.g., "C:/Users/YourUser/Documents/data.txt")
-    # or relative paths (e.g., "data/input.txt").
-    #input_filepath = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Ecoli/Graphs/unique_elements.txt"
-    #output_filepath = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Ecoli/Graphs/ordered_haplotypes.txt"
-    # -----------------------------
-
     try:
         print(f"-> Reading data from: {input_filepath}")
         with open(input_filepath, 'r') as f_in:
@@ -184,4 +195,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
