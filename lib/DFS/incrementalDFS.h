@@ -4,6 +4,7 @@
 #include "minImaxOdatastructure.h"
 #include"../tree/differentAVLTree.h"
 #include <climits>
+#include <chrono>
 /*
   Incremental DFS algorithm, it uses incremental DFS in DAG algorithm and uses different balanced binary search
   tree for storing incoming and outgoing edges according to the topological order. Theoritically it takes 
@@ -11,6 +12,21 @@
 */
 class IncrementalDFS:public BaseDFS , public IDatastructure  {
 public:
+	  struct IncrementalUpdateTimes {
+    double insertTime = 0.0;
+    double dfsTime = 0.0;
+    double minITime = 0.0;
+    double maxOTime = 0.0;
+    };
+    struct TypeOfEdgeInsertion {
+    	int case1 = 0;
+    	int case2 = 0;
+    	int case3 = 0;
+    	int case4 = 0;
+    	int case5 = 0;
+    };
+    IncrementalUpdateTimes latestTimes;
+    TypeOfEdgeInsertion edgeTypes;
     std::vector<int> marked;
     std::vector<int> postorderChanged;
     std::vector<int> intermediatepostorder;

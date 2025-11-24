@@ -16,6 +16,7 @@ public:
 
         // --- Variables for parsing ---
         int num_base_edges, num_nodes, x, y;
+        double superbubbleTime, totalTime;
         std::string line;
         std::string graph_name;
         int update_counter = 1;
@@ -77,6 +78,7 @@ public:
         timeFile << "BaseGraph_Build " << elapsed.count() << " " << superbubble.numberOfSuperbubbles() << "\n";
         
         std::cout << "base graph processed" << std::endl;
+        timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5\n";
         // --- 2. Process Haplotype Additions Incrementally ---
         while (std::getline(std::cin, line)) {
             if (line.empty() || line.find("# HAPLOTYPE:") == std::string::npos) {
@@ -113,21 +115,36 @@ public:
                  continue;
             }
 
+            superbubbleTime = 0.0;
+            totalTime = 0.0;
+            incdfs.latestTimes.insertTime = 0.0;
+            incdfs.latestTimes.dfsTime = 0.0;
+            incdfs.latestTimes.minITime = 0.0;
+            incdfs.latestTimes.maxOTime = 0.0;
+            incdfs.edgeTypes.case1 = 0;
+            incdfs.edgeTypes.case2 = 0;
+            incdfs.edgeTypes.case3 = 0;
+            incdfs.edgeTypes.case4 = 0;
+            incdfs.edgeTypes.case5 = 0;
+
             // Start the timer for this entire haplotype update
-            start = std::chrono::high_resolution_clock::now();
+            
             
              // BATCH INSERT all edges for this haplotype
             for (int i = 0; i < hap_edge_count; ++i) {
                 std::cin >> x >> y;
                 superbubble.insertE(&d,&g,x, y);
+
+                start = std::chrono::high_resolution_clock::now();
+                superbubble.computeSB(&d, &g);
+                end = std::chrono::high_resolution_clock::now();
+                elapsed = end - start;
+                superbubbleTime += elapsed.count();
                 
             }
-
-            superbubble.computeSB(&d, &g);
-            end = std::chrono::high_resolution_clock::now();
-            elapsed = end - start;
-
+            
             std::string clean_hap_name = hap_name_header.substr(hap_name_header.find(":") + 2);
+            std::cout << clean_hap_name << std::endl;
             /*
             if (outFile.is_open()) {
                 outFile << update_counter << " " << clean_hap_name << "\n";
@@ -139,8 +156,9 @@ public:
             } else {
                 std::cerr << "Error opening file at: " << std::endl; 
             }*/
+            totalTime = incdfs.latestTimes.insertTime + incdfs.latestTimes.dfsTime + incdfs.latestTimes.minITime + incdfs.latestTimes.maxOTime + superbubbleTime;
             timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";
-            timeFile << update_counter << " " << clean_hap_name << " " << elapsed.count() << " " << superbubble.numberOfSuperbubbles() << "\n";
+            timeFile << update_counter << " " << clean_hap_name << " " << incdfs.latestTimes.insertTime << " " << incdfs.latestTimes.dfsTime << " " << incdfs.latestTimes.minITime << " " << incdfs.latestTimes.maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.case1 << " " << incdfs.edgeTypes.case2 << " " << incdfs.edgeTypes.case3 << " " << incdfs.edgeTypes.case4 << " " << incdfs.edgeTypes.case5 << "\n";
             update_counter++;
         }
         //outFile.close();

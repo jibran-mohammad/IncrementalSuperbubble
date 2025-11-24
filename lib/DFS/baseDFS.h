@@ -5,6 +5,7 @@
 
 class BaseDFS: public IDFS {
 public:
+	//int a,b;
 	BaseDFS(GraphContext *g) {
     	n=g->displayNumberVertices();
     	this->postorderNumber = 0;

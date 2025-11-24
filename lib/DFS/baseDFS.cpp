@@ -1,17 +1,22 @@
 #include "baseDFS.h"
     
     void BaseDFS::dfs(GraphContext *G) { 
+        //this->a=0;
+        //this->b=0;
         for (int i = 0; i <this->n; ++i) {
             if (!this->visit[i]) {
                this->dfsUtil(G, i);
            }
         }
+       //std::cout <<" Nodes and edges " << this->a << " " << this->b << std::endl;
     }
  
     void BaseDFS::dfsUtil(GraphContext *G, int v) {
         this->visit[v] = 1; // Mark the current vertex as visited
+        //this->a++;
         // Recur for all adjacent vertices of the current vertex
         for (int u : G->displayOutgoingNeighbours(v)) {
+            //this->b++;
             if (!this->visit[u]) {
                 this->dfsUtil(G, u);
             }

@@ -140,7 +140,7 @@ else ifeq ($(TARGET),newincrementalSuperbubble)
 	TARGET_EXEC = $(NEWINCREMENTALSUPERBUBBLE_EXEC)
 	TARGET_DEPS = $(NEWINCREMENTALSUPERBUBBLE_OBJS) $(SUPERBUBBLE_DIR)/superbubble.o $(DFS_DIR)/incrementalDFSAVLTree.o $(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseDFS.o  $(GRAPH_DIR)/adjacencyListGraph.o $(GRAPH_DIR)/contextGraph.o $(TREE_DIR)/differentAVLTree.o
 else ifeq ($(TARGET),H1Superbubble)
-	TARGET_EXEC = $(H1SUPERBUBBLE_EXEC)_
+	TARGET_EXEC = $(H1SUPERBUBBLE_EXEC)
 	TARGET_DEPS = $(H1SUPERBUBBLE_OBJS) $(SUPERBUBBLE_DIR)/superbubble.o $(DFS_DIR)/incrementalDFSH1.o $(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseDFS.o  $(GRAPH_DIR)/adjacencyListGraph.o $(GRAPH_DIR)/contextGraph.o $(TREE_DIR)/differentAVLTree.o
 else ifeq ($(TARGET),testDFSAllFiles)
 	TARGET_EXEC = $(TESTDFSALLFILES_EXEC)

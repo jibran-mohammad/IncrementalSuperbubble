@@ -4,6 +4,7 @@ import os
 import pathlib
 import sys
 import argparse
+
 # ==============================================================================
 #  Dynamic Path Discovery Function (from graphRunner.py)
 # ==============================================================================
@@ -54,90 +55,176 @@ def robust_float_convert(val_str: str) -> float:
         return 0.0
 
 # ==============================================================================
-#  Parsing Function (Updated)
+#  Parsing Function (Updated to handle new file format)
 # ==============================================================================
 
-def parse_file(filename, time_column_name):
-    """
-    Parses one of the superbubble output files.
-    
-    The file has a unique format where graph stats (edges, nodes)
-    are on one line, and the build stats (name, time, superbubbles)
-    are on the next line.
-    """
+def parse_file(filename: pathlib.Path, time_column_name: str):
     data = []
     
-    # Check if file exists before trying to open
-    # This now works with pathlib.Path objects
-    if not os.path.exists(filename):
+    if not filename.exists():
         print(f"    Warning: File not found: {os.path.basename(filename)}. Skipping.")
         return pd.DataFrame()
+
+    print(f"    Parsing {os.path.basename(filename)}...")
 
     with open(filename, 'r') as f:
         lines = f.readlines()
 
-    # Use an iterator to process lines in pairs
     line_iter = iter(lines)
     
-    try:
-        while True:
-            # --- Line 1: Edges and Nodes ---
-            # Example: "8249 4203"
-            stats_line = next(line_iter).strip()
-            # Stop if we hit the peak memory line
-            if "PeakMemory" in stats_line:
-                break
-                
-            stats_parts = stats_line.split()
-            if len(stats_parts) < 2:
-                continue # Skip malformed lines
-                
-            edges = int(stats_parts[0])
-            nodes = int(stats_parts[1])
+    # Define metric columns
+    BASE_METRIC_COLUMNS = ['Insert_Time', 'DFS_Time', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time', 'SB_Count']
+    
+    is_incremental_file = time_column_name in ["INC_DFS_Time_s", "BST_INC_DFS_Time_s"]
+    if is_incremental_file:
+        CASE_COLUMNS = ['Case1', 'Case2', 'Case3', 'Case4', 'Case5']
+        FULL_METRIC_COLUMNS = BASE_METRIC_COLUMNS + CASE_COLUMNS
+        EXPECTED_DATA_PARTS_LEN = 2 + len(FULL_METRIC_COLUMNS)
+    else:
+        CASE_COLUMNS = []
+        FULL_METRIC_COLUMNS = BASE_METRIC_COLUMNS
+        EXPECTED_DATA_PARTS_LEN = 2 + len(FULL_METRIC_COLUMNS)
+        
+    # Determine PREFIX and SOURCE METRIC
+    if filename.name == "SuperbubbleSimpleTimeOutput.txt":
+        source_time_metric = 'Total_Time'
+        prefix = 'Simple_'
+    elif filename.name == "SuperbubbleIncrementalDFSOutput.txt":
+        source_time_metric = 'DFS_Time'
+        prefix = 'INC_'
+    else: # SuperbubbleIncrementalAVLDFSOutput.txt
+        source_time_metric = 'DFS_Time'
+        prefix = 'BST_'
 
-            # --- Line 2: Name, Time, Superbubbles ---
-            # Example 1: "BaseGraph_Build 0.00223163 3926"
-            # Example 2: "1 GCF_000618905.3... 0.0311279 4192"
-            build_line = next(line_iter).strip()
+    current_haplotype_edges = 0
+    current_haplotype_nodes = 0
+
+    try:
+        # --- Lines 1-3: Initialization and Header Skip ---
+        stats_line = next(line_iter).strip()
+        if "PeakMemory" in stats_line: return pd.DataFrame() 
+        stats_parts = stats_line.split()
+        if len(stats_parts) < 2: return pd.DataFrame()
+        initial_edges = int(stats_parts[0])
+        initial_nodes = int(stats_parts[1])
+        current_haplotype_edges = initial_edges
+        current_haplotype_nodes = initial_nodes
+
+        build_line = next(line_iter).strip()
+        if not build_line.startswith("BaseGraph_Build"): raise ValueError(f"Expected 'BaseGraph_Build' but got: {build_line}")
+        build_parts = build_line.split()
+        base_time = robust_float_convert(build_parts[1])
+        base_superbubbles = int(build_parts[2]) # The starting total count (e.g., 5602)
+        
+        base_entry = {
+            'Step': 0, 
+            'Haplotype_Name': 'BaseGraph_Build',
+            'Nodes': initial_nodes,
+            'Edges': initial_edges,
+            f'{prefix}Time_s': base_time 
+        }
+        
+        # Populate all prefixed metric columns
+        for col in FULL_METRIC_COLUMNS:
+             if col == 'SB_Count':
+                 # Map BaseGraph total count to the prefixed SB_Count column
+                 base_entry[f'{prefix}{col}'] = base_superbubbles
+             else:
+                 base_entry[f'{prefix}{col}'] = 0.0 if 'Time' in col or col == 'SB_Compute_Time' else 0
+
+        data.append(base_entry)
+
+        try:
+             header_line = next(line_iter).strip()
+             if not header_line.startswith("Update_ID"): header_line = next(line_iter).strip()
+        except StopIteration:
+            pass
+            
+        # --- Data Lines ---
+        while True:
+            # --- Line N: Edges and Nodes ---
+            stats_line = next(line_iter).strip()
+            
+            if "PeakMemory" in stats_line: break
+            if not stats_line: continue
+
+            stats_parts = stats_line.split()
+            
+            if len(stats_parts) == 2 and stats_parts[0].isdigit():
+                current_haplotype_edges = int(stats_parts[0])
+                current_haplotype_nodes = int(stats_parts[1])
+                
+            try:
+                build_line = next(line_iter).strip()
+            except StopIteration:
+                break 
+            
+            if "PeakMemory" in build_line: break
+            if not build_line: continue
+
             build_parts = build_line.split()
             
-            if not build_parts:
-                continue # Skip empty lines
-
-            step_name = ""
-            time_val = 0.0
-            superbubbles = 0
+            # --- Handle short zero-time lines ---
+            is_short_zero_entry = (
+                len(build_parts) == 4 and 
+                build_parts[0].isdigit() and 
+                robust_float_convert(build_parts[2]) == 0.0
+            )
             
-            if build_parts[0] == "BaseGraph_Build":
-                step = 0  # Use 0 for BaseGraph for sorting
-                step_name = "BaseGraph_Build"
-                # Use robust conversion
-                time_val = robust_float_convert(build_parts[1])
-                superbubbles = int(build_parts[2])
-            else:
-                # Handle lines with a step number
-                step = int(build_parts[0]) # Convert step to int
-                step_name = build_parts[1]
-                # Use robust conversion
-                time_val = robust_float_convert(build_parts[2])
-                superbubbles = int(build_parts[3])
+            if len(build_parts) != EXPECTED_DATA_PARTS_LEN and not is_short_zero_entry:
+                 continue 
 
-            data.append({
+            if is_short_zero_entry:
+                step = int(build_parts[0])
+                haplotype_name = build_parts[1]
+                sb_count = int(build_parts[3])
+                
+                metrics = [0.0] * (len(BASE_METRIC_COLUMNS) - 1) + [sb_count] 
+                if is_incremental_file:
+                    metrics += [0] * len(CASE_COLUMNS)
+            
+            else: 
+                step = int(build_parts[0])
+                haplotype_name = build_parts[1]
+                
+                metrics = []
+                for i, val in enumerate(build_parts[2:]):
+                    col_name = FULL_METRIC_COLUMNS[i]
+                    if 'Time' in col_name or col_name == 'SB_Compute_Time':
+                        metrics.append(robust_float_convert(val))
+                    else:
+                        try:
+                            metrics.append(int(val))
+                        except ValueError:
+                             metrics.append(0)
+
+            entry = {
                 'Step': step,
-                'Haplotype_Name': step_name,
-                'Nodes': nodes,
-                'Edges': edges,
-                'Superbubbles': superbubbles,
-                time_column_name: time_val
-            })
+                'Haplotype_Name': haplotype_name,
+                'Nodes': current_haplotype_nodes,
+                'Edges': current_haplotype_edges,
+            }
+            
+            # Map metrics with the prefix
+            for name, value in zip(FULL_METRIC_COLUMNS, metrics):
+                entry[f'{prefix}{name}'] = value
+
+            # Assign the dynamic comparison time column
+            entry[f'{prefix}Time_s'] = entry[f'{prefix}{source_time_metric}']
+
+            data.append(entry)
             
     except StopIteration:
-        # End of file
         pass
     except Exception as e:
-        print(f"    Error parsing {filename}: {e}")
+        print(f"    ❌ Error parsing {filename}: {e}", file=sys.stderr)
 
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+    if not df.empty:
+        df['Step'] = df['Step'].astype(object)
+        df.loc[df['Step'] == 0, 'Step'] = 'Base'
+    
+    return df
 
 # ==============================================================================
 #  New Processing Function
@@ -145,8 +232,7 @@ def parse_file(filename, time_column_name):
 
 def process_time_directory(time_dir_path: pathlib.Path):
     """
-    Parses all three time files within a specific 'timeFile' directory
-    and saves the combined CSV inside that same directory.
+    Parses all three time files, prefixes the common metrics, and merges them.
     """
     print(f"\nProcessing directory: {time_dir_path}")
     
@@ -154,53 +240,170 @@ def process_time_directory(time_dir_path: pathlib.Path):
         print(f"  Warning: Directory not found. Skipping.")
         return
 
-    # Define the files and their corresponding time column names
-    # We now use the full path by joining the directory
-    files_to_parse = {
-        time_dir_path / "SuperbubbleSimpleTimeOutput.txt": "Simple_Time_s",
-        time_dir_path / "SuperbubbleIncrementalDFSOutput.txt": "INC_DFS_Time_s",
-        time_dir_path / "SuperbubbleIncrementalAVLDFSOutput.txt": "BST_INC_DFS_Time_s"
-    }
+    # Define files, corresponding time columns, and their prefixes
+    files_info = [
+        ("SuperbubbleSimpleTimeOutput.txt", "Simple_Time_s", "Simple_"),
+        ("SuperbubbleIncrementalDFSOutput.txt", "INC_DFS_Time_s", "INC_"),
+        ("SuperbubbleIncrementalAVLDFSOutput.txt", "BST_INC_DFS_Time_s", "BST_")
+    ]
+    files_to_parse = {time_dir_path / f[0]: f[1] for f in files_info}
 
     all_data = []
     
-    # Parse each file
     for filepath, time_col in files_to_parse.items():
         df = parse_file(filepath, time_col)
         if not df.empty:
             all_data.append(df)
 
     if not all_data:
-        print("  No data was parsed. No CSV will beG be generated.")
+        print("  No data was parsed. No CSV will be generated.")
         return
 
     # --- Merge the data ---
     try:
-        merged_df = all_data[0].copy()
-        merged_df = merged_df.set_index('Step')
+    
+        COMMON_MERGE_COLS = ['Step', 'Haplotype_Name', 'Nodes', 'Edges']
+        
+        # 1. Define time metric structures for use in merging and filtering (FIX: SCOPE)
+        BASE_TIME_METRICS = ['Insert_Time', 'DFS_Time', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time']
+        PREFIXES = ['Simple_', 'INC_', 'BST_']
+        
+        # 2. Perform the full merge
+        merged_df = all_data[0].copy().set_index('Step')
 
+        # Join the remaining DataFrames, which are already fully prefixed
         for df in all_data[1:]:
-            time_col_name = [col for col in df.columns if col.endswith('_Time_s')][0]
-            other_df_time = df.set_index('Step')[[time_col_name]]
-            merged_df = merged_df.join(other_df_time, how='outer')
+            df_to_join = df.set_index('Step')
+            cols_to_join = [col for col in df_to_join.columns if col not in COMMON_MERGE_COLS]
+            
+            merged_df = merged_df.join(df_to_join[cols_to_join], how='outer')
 
         merged_df = merged_df.reset_index()
-        
-        # --- NEW: Sort by the integer 'Step' column ---
-        merged_df = merged_df.sort_values(by='Step').reset_index(drop=True)
 
-        # --- NEW: Convert 'Step' column back to desired string format ---
-        # Change type to 'object' to allow storing a mix of strings ("Base") and numbers
-        merged_df['Step'] = merged_df['Step'].astype(object)
-        # Find the row where Step is 0 (our placeholder for Base) and replace it
-        merged_df.loc[merged_df['Step'] == 0, 'Step'] = 'Base'
-
-        common_cols = ['Step', 'Haplotype_Name', 'Nodes', 'Edges', 'Superbubbles']
-        time_cols = [col for col in merged_df.columns if col.endswith('_Time_s')]
-        final_columns = common_cols + sorted(time_cols)
+        # --- START CORRECTED ZERO-TIME FILTERING LOGIC (Implemented correctly here) ---
         
-        final_columns = [col for col in final_columns if col in merged_df.columns]
+        # 3. Collect all time/compute columns
+        time_cols = []
+        for prefix in PREFIXES:
+            for metric in BASE_TIME_METRICS:
+                col = f'{prefix}{metric}'
+                if col in merged_df.columns:
+                    time_cols.append(col)
+
+        # 4. Separate the 'Base' step (must be preserved)
+        non_base_df = merged_df[merged_df['Step'] != 'Base'].copy()
+        base_df = merged_df[merged_df['Step'] == 'Base'].copy()
+        
+        # 5. Filter non-base rows: convert time columns to numeric and sum
+        valid_time_cols = [col for col in time_cols if col in non_base_df.columns]
+
+        for col in valid_time_cols:
+             non_base_df[col] = pd.to_numeric(non_base_df[col], errors='coerce').fillna(0.0)
+
+        # Calculate the sum and filter
+        time_sum = non_base_df[valid_time_cols].sum(axis=1)
+        filtered_non_base_df = non_base_df[time_sum > 1e-9]
+
+        # 6. Recombine the Base row with the filtered non-base rows
+        merged_df = pd.concat([base_df, filtered_non_base_df]).reset_index(drop=True)
+        
+        print(f"  ℹ️ Filtered out {len(non_base_df) - len(filtered_non_base_df)} haplotypes with zero time.")
+        
+        """
+        for prefix in PREFIXES:
+            for metric in BASE_TIME_METRICS:
+                col = f'{prefix}{metric}'
+                if col in merged_df.columns:
+                    time_cols.append(col)
+        """
+        
+        # --- Single Set Case Column Fix (Dropping INC_, keeping/renaming BST_) ---
+        CASE_METRICS = ['Case1', 'Case2', 'Case3', 'Case4', 'Case5']
+        
+        rename_dict = {}
+        for case in CASE_METRICS:
+            # Drop the INC_ columns
+            if f'INC_{case}' in merged_df.columns:
+                merged_df = merged_df.drop(columns=[f'INC_{case}'], errors='ignore')
+            # Rename the BST_ columns to the final CaseX name
+            if f'BST_{case}' in merged_df.columns:
+                rename_dict[f'BST_{case}'] = case
+        
+        merged_df = merged_df.rename(columns=rename_dict)
+        
+        # --- PascalCase Renaming and Final Column Ordering (CRITICAL FOR NEW METRICS) ---
+        
+        RENAME_MAP = {
+            'Haplotype_Name': 'HaplotypeName',
+            'Simple_SB_Count': 'SuperbubbleCount',
+        }
+
+        # Function to convert snake_case column names (e.g., Simple_DFS_Time) to PascalCase (SimpleDFSTime)
+        def to_pascal_case(name):
+            if name in RENAME_MAP:
+                return RENAME_MAP[name]
+
+            # Preserve the prefixed parts exactly (so acronyms like DFS, MinI, MaxO stay uppercase)
+            # and convert by simply removing the underscores between parts.
+            # Special-case the Time_s sentinel which we want as e.g. SimpleTimeS
+            if name.endswith('Time_s'):
+                # e.g. 'Simple_Time_s' -> 'SimpleTimeS'
+                prefix = name.split('_')[0]
+                return prefix + 'TimeS'
+
+            if name.startswith(('Simple_', 'INC_', 'BST_')):
+                parts = name.split('_')
+                # Keep inner parts exactly (no .capitalize()), just glue them:
+                # 'Simple_DFS_Time' -> ['Simple','DFS','Time'] -> 'Simple' + 'DFS' + 'Time' -> 'SimpleDFSTime'
+                return parts[0] + ''.join(parts[1:])
+
+            return name  # Case1-5 and common columns
+
+        new_columns = {col: to_pascal_case(col) for col in merged_df.columns}
+        merged_df = merged_df.rename(columns=new_columns)
+        
+        # --- Define Final Order using the new PascalCase names ---
+        
+        BASE_COLS = ['Step', 'HaplotypeName', 'Nodes', 'Edges']
+        TIME_METRICS = ['InsertTime', 'DFSTime', 'MinITime', 'MaxOTime', 'SBComputeTime', 'TotalTime']
+        PREFIXES = ['Simple', 'INC', 'BST']
+        
+        final_order = BASE_COLS + ['SuperbubbleCount']
+        
+        # 1. Add all detailed time metrics (3 columns each)
+        for metric in TIME_METRICS:
+             for prefix in PREFIXES:
+                col_name = f'{prefix}{metric}'
+                if col_name in merged_df.columns:
+                    final_order.append(col_name)
+        
+        # 2. Add the main comparison time columns (3 columns)
+        """
+        for prefix in PREFIXES:
+             col_name = f'{prefix}TimeS'
+             if col_name in merged_df.columns:
+                  final_order.append(col_name)
+        """
+        # 3. Add Case metrics (now just the 5 CaseX columns)
+        final_order.extend(CASE_METRICS)
+        
+        final_columns = [col for col in final_order if col in merged_df.columns]
+
+        # Ensure correct column subsetting
         merged_df = merged_df[final_columns]
+        
+        # Sort logic
+        merged_df['SortStep'] = merged_df['Step'].apply(lambda x: 0 if x == 'Base' else (int(x) if pd.notna(x) else float('inf')))
+        merged_df = merged_df.sort_values(by='SortStep').drop(columns=['SortStep']).reset_index(drop=True)
+
+        # --- Type and NaN Handling ---
+        for col in merged_df.columns:
+            if 'Time' in col or 'Compute' in col:
+                merged_df[col] = pd.to_numeric(merged_df[col], errors='coerce').astype(float).fillna(0.0)
+            elif col in ['SuperbubbleCount', 'Nodes', 'Edges'] or col in CASE_METRICS:
+                merged_df[col] = pd.to_numeric(merged_df[col], errors='coerce').astype('Int64').fillna(0)
+            
+        merged_df['HaplotypeName'] = merged_df['HaplotypeName'].fillna('N/A')
 
         # --- Save to CSV ---
         output_filename = time_dir_path / "haplotype_build_comparison.csv"
@@ -209,11 +412,11 @@ def process_time_directory(time_dir_path: pathlib.Path):
         print(f"  ✅ Successfully saved data to: {output_filename}")
 
     except Exception as e:
-        print(f"  ❌ Error merging or saving data for {time_dir_path}: {e}")
+        print(f"  ❌ Error merging or saving data for {time_dir_path}: {e}", file=sys.stderr)
 
 
 # ==============================================================================
-#  New Dynamic Main Function
+#  Main Function 
 # ==============================================================================
 
 def main():
@@ -306,7 +509,6 @@ def main():
             
             if not chromosome_dirs:
                 print("  No 'chromosome_*' directories found.")
-                # This 'pass' is fine, or we can just let it continue to the end
             else:
                 print(f"  Found {len(chromosome_dirs)} chromosome directories to process.")
                 

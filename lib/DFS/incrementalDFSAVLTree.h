@@ -4,6 +4,7 @@
 #include "minImaxOdatastructure.h"
 #include"../tree/differentAVLTree.h"
 #include <climits>
+#include <chrono>
 /*
  class IncremetalDFSTREE, it uses incremental DFS in DAG algorithm, and a special type of balanced binary 
  search tree which stores the indices of the graph as key, and has access to reverse topological order.This
@@ -11,6 +12,21 @@
 */
 class IncrementalDFSTREE:public BaseDFS , public IDatastructure  {
 public:
+	struct IncrementalUpdateTimes {
+    double insertTime = 0.0;
+    double dfsTime = 0.0;
+    double minITime = 0.0;
+    double maxOTime = 0.0;
+    };
+    struct TypeOfEdgeInsertion {
+    	int case1 = 0;
+    	int case2 = 0;
+    	int case3 = 0;
+    	int case4 = 0;
+    	int case5 = 0;
+    };
+    IncrementalUpdateTimes latestTimes;
+    TypeOfEdgeInsertion edgeTypes;
     std::vector<int> marked;
     std::vector<int> postorderChanged;
     std::vector<int> intermediatepostorder;
