@@ -14,108 +14,19 @@ The project uses the following directory structure, rooted at `IncSuperbubble/`:
 ```bash
 .
 ├── algorithms
-│   ├── mnlognsuperbubble.cpp
-│   ├── mnlognsuperbubble.o
-│   ├── superbubbleAlgorithms.h
-│   ├── superbubbledfs.cpp
-│   ├── superbubbledfs.o
-│   ├── superbubbleIncdfs.cpp
-│   └── superbubbleIncdfs.o
 ├── input
-│   ├── Ecoli
-│   ├── HaplotypeTestingData
-│   └── Human
 ├── lib
-│   ├── Camparisonalgo
-│   ├── CycleDetection
-│   ├── DAGExtraction
-│   ├── DFS
-│   ├── findSuperbubble
-│   ├── graph
-│   ├── plot
-│   ├── PreprocessingGraphs
-│   ├── ProbabilityEstimation
-│   ├── RandomGraphGeneration
-│   └── tree
 ├── LICENSE
 ├── Makefile
 ├── output
-│   ├── Ecoli
-│   ├── graphs_incremental
-│   ├── Human
-│   ├── performance_plot_GRC.png
-│   ├── testDAG.gfa
-│   └── Yeast
 ├── Pangenome_Construction
-│   ├── agc
-│   ├── bifrost
-│   ├── home
-│   ├── Mash
-│   ├── minichain
-│   ├── minigraph
-│   ├── odgi
-│   └── vgTool
 ├── Preprocessing
-│   ├── csvToLatex.py
-│   ├── DAGCheck.py
-│   ├── differencesInGraphs.py
-│   ├── discover_hprc_urls.sh
-│   ├── download_chromosomes_https.sh
-│   ├── duplicateSegments.py
-│   ├── edgeListProcessor.py
-│   ├── fetch_ecoli_genomes.sh
-│   ├── gfaToEdgeListConverter.py
-│   ├── graphgeneration.py
-│   ├── haplotypeRemoval.py
-│   ├── haplotypeSorter.py
-│   ├── inconsistencyCheck.py
-│   ├── normalizeOrientations.py
-│   ├── organize_chromosomes.py
-│   ├── parse_to_csv.py
-│   ├── plotcsv.py
-│   ├── reverseComplement.py
-│   ├── split_fasta.py
-│   ├── subsetCheck.py
-│   ├── test_path.py
-│   └── typesOfLinks.py
 ├── README.md
 ├── requirements.txt
 ├── scripts
-│   ├── graphRunner.py
-│   └── superbubbleRunner.py
 ├── test
-│   ├── changedgraph.txt
-│   ├── differentgraph.txt
-│   ├── graph1.txt
-│   ├── graph2.txt
-│   ├── graphProcessed.txt
-│   ├── graphsir.txt
-│   ├── graph.txt
-│   ├── h1Superbubble_
-│   ├── mnlognsuperbubble
-│   ├── newgraph.txt
-│   ├── randomgraph2.txt
-│   ├── superbubbledfs
-│   ├── superbubbleIncdfs
-│   ├── testadjacencyGraph.cpp
-│   ├── testadjacencyTree.cpp
-│   ├── testAllSuperbubble.cpp
-│   ├── testAVLtree.cpp
-│   ├── testDifferentAvlTree.cpp
-│   ├── testgraph.txt
-│   ├── testIncrementalDFS.cpp
-│   ├── testnewIncrementalDFS.cpp
-│   ├── testnewIncrementalDFSH1.cpp
-│   ├── testSIIAVLTree.cpp
-│   ├── testSimpleDFS.cpp
-│   └── testSuperbubble.cpp
 └── venv
-    ├── bin
-    ├── include
-    ├── lib
-    ├── lib64 -> lib
-    ├── pyvenv.cfg
-    └── share
+
 
 ```
 ---
