@@ -11,8 +11,112 @@ The pipeline is generally run in two phases:
 ## 🏗️ Directory Structure
 
 The project uses the following directory structure, rooted at `IncSuperbubble/`:
-```
-IncSuperbubble/ ├── algorithms/ # Main directory for C++ superbubble executables/source ├── input/ # Contains raw genome data (e.g., Ecoli, Human) │ ├── Ecoli/ │ │ └── GCF_000005845.2_ASM584v2_genomic.fna # Ecoli reference FASTA │ └── Human/ │ └── chromosome_1/ │ └── chromosome_1.fa # Human chromosome 1 reference FASTA ├── lib/ # C++ code for utility libraries (e.g., graph structures) ├── output/ # Automatically generated for pipeline outputs and time files ├── Pangenome_Construction/ ├── Preprocessing/ # Contains all the individual Python scripts for graph generation ├── scripts/ # Contains the orchestrator scripts (graphRunner.py, superbubbleRunner.py) ├── test/ ├── venv/ # Python Virtual Environment ├── .gitignore ├── LICENSE ├── Makefile # Used to compile C++ programs in 'algorithms' and 'lib' ├── README.md # This file └── requirements.txt # Python dependencies
+```bash
+.
+├── algorithms
+│   ├── mnlognsuperbubble.cpp
+│   ├── mnlognsuperbubble.o
+│   ├── superbubbleAlgorithms.h
+│   ├── superbubbledfs.cpp
+│   ├── superbubbledfs.o
+│   ├── superbubbleIncdfs.cpp
+│   └── superbubbleIncdfs.o
+├── input
+│   ├── Ecoli
+│   ├── HaplotypeTestingData
+│   └── Human
+├── lib
+│   ├── Camparisonalgo
+│   ├── CycleDetection
+│   ├── DAGExtraction
+│   ├── DFS
+│   ├── findSuperbubble
+│   ├── graph
+│   ├── plot
+│   ├── PreprocessingGraphs
+│   ├── ProbabilityEstimation
+│   ├── RandomGraphGeneration
+│   └── tree
+├── LICENSE
+├── Makefile
+├── output
+│   ├── Ecoli
+│   ├── graphs_incremental
+│   ├── Human
+│   ├── performance_plot_GRC.png
+│   ├── testDAG.gfa
+│   └── Yeast
+├── Pangenome_Construction
+│   ├── agc
+│   ├── bifrost
+│   ├── home
+│   ├── Mash
+│   ├── minichain
+│   ├── minigraph
+│   ├── odgi
+│   └── vgTool
+├── Preprocessing
+│   ├── csvToLatex.py
+│   ├── DAGCheck.py
+│   ├── differencesInGraphs.py
+│   ├── discover_hprc_urls.sh
+│   ├── download_chromosomes_https.sh
+│   ├── duplicateSegments.py
+│   ├── edgeListProcessor.py
+│   ├── fetch_ecoli_genomes.sh
+│   ├── gfaToEdgeListConverter.py
+│   ├── graphgeneration.py
+│   ├── haplotypeRemoval.py
+│   ├── haplotypeSorter.py
+│   ├── inconsistencyCheck.py
+│   ├── normalizeOrientations.py
+│   ├── organize_chromosomes.py
+│   ├── parse_to_csv.py
+│   ├── plotcsv.py
+│   ├── reverseComplement.py
+│   ├── split_fasta.py
+│   ├── subsetCheck.py
+│   ├── test_path.py
+│   └── typesOfLinks.py
+├── README.md
+├── requirements.txt
+├── scripts
+│   ├── graphRunner.py
+│   └── superbubbleRunner.py
+├── test
+│   ├── changedgraph.txt
+│   ├── differentgraph.txt
+│   ├── graph1.txt
+│   ├── graph2.txt
+│   ├── graphProcessed.txt
+│   ├── graphsir.txt
+│   ├── graph.txt
+│   ├── h1Superbubble_
+│   ├── mnlognsuperbubble
+│   ├── newgraph.txt
+│   ├── randomgraph2.txt
+│   ├── superbubbledfs
+│   ├── superbubbleIncdfs
+│   ├── testadjacencyGraph.cpp
+│   ├── testadjacencyTree.cpp
+│   ├── testAllSuperbubble.cpp
+│   ├── testAVLtree.cpp
+│   ├── testDifferentAvlTree.cpp
+│   ├── testgraph.txt
+│   ├── testIncrementalDFS.cpp
+│   ├── testnewIncrementalDFS.cpp
+│   ├── testnewIncrementalDFSH1.cpp
+│   ├── testSIIAVLTree.cpp
+│   ├── testSimpleDFS.cpp
+│   └── testSuperbubble.cpp
+└── venv
+    ├── bin
+    ├── include
+    ├── lib
+    ├── lib64 -> lib
+    ├── pyvenv.cfg
+    └── share
+
 ```
 ---
 
