@@ -11,9 +11,9 @@ The pipeline is generally run in two phases:
 ## 🏗️ Directory Structure
 
 The project uses the following directory structure, rooted at `IncSuperbubble/`:
-
+```
 IncSuperbubble/ ├── algorithms/ # Main directory for C++ superbubble executables/source ├── input/ # Contains raw genome data (e.g., Ecoli, Human) │ ├── Ecoli/ │ │ └── GCF_000005845.2_ASM584v2_genomic.fna # Ecoli reference FASTA │ └── Human/ │ └── chromosome_1/ │ └── chromosome_1.fa # Human chromosome 1 reference FASTA ├── lib/ # C++ code for utility libraries (e.g., graph structures) ├── output/ # Automatically generated for pipeline outputs and time files ├── Pangenome_Construction/ ├── Preprocessing/ # Contains all the individual Python scripts for graph generation ├── scripts/ # Contains the orchestrator scripts (graphRunner.py, superbubbleRunner.py) ├── test/ ├── venv/ # Python Virtual Environment ├── .gitignore ├── LICENSE ├── Makefile # Used to compile C++ programs in 'algorithms' and 'lib' ├── README.md # This file └── requirements.txt # Python dependencies
-
+```
 ---
 
 ## 🛠️ Prerequisites
