@@ -44,11 +44,12 @@ The following libraries are required for the pipeline, especially for the analys
 
 ```bash
 # Recommended: Create and activate a virtual environment first
-# python3 -m venv venv
-# source venv/bin/activate
+python3 -m venv venv
+source venv/bin/activate
 
 # Install required Python packages
 pip install pandas matplotlib numpy
+```
 
 ### 3. External Executables (CRITICAL)
 
@@ -68,9 +69,10 @@ This step ensures that the required external bioinformatics tools (vg, mash, min
 
 Create the required directory structure:
 
-Bash
+```Bash
 
 mkdir -p Pangenome_Construction/vgTool
+```
 Install/Place Executables: Install the external tools and ensure their executables are available at the required paths:
 
 Pangenome_Construction/vgTool/vg
@@ -85,7 +87,7 @@ This script runs the entire preprocessing pipeline to create the graph file (num
 Script location: scripts/graphRunner.py
 
 Examples:
-Bash
+```Bash
 
 # Run E. coli Dataset (creates input/Ecoli/Graphs/numeric_edgelist.txt)
 python3 scripts/graphRunner.py --dataset ecoli
@@ -95,6 +97,7 @@ python3 scripts/graphRunner.py --dataset Human
 
 # Run Specific Human Chromosomes (e.g., chromosome_1 and chromosome_X)
 python3 scripts/graphRunner.py --dataset Human --chromosomes 1 X
+```
 Phase 2: Superbubble Algorithm Execution (superbubbleRunner.py)
 This step handles C++ compilation via the Makefile and executes the algorithms on the generated graphs, logging raw time output to the output/ directory.
 
@@ -103,34 +106,36 @@ Script location: scripts/superbubbleRunner.py
 Available Algorithms: SimpleSuperbubble, IncrementalAlgorithm, AnotherAlgorithm.
 
 Examples:
-Bash
+```Bash
 
 # Run all algorithms on E. coli
 python3 scripts/superbubbleRunner.py --dataset Ecoli
 
 # Run specific algorithms on chromosome_1
 python3 scripts/superbubbleRunner.py --dataset Human --algorithms IncrementalAlgorithm --chromosomes chromosome_1
+```
 Phase 3: Data Analysis and Plotting
 This final phase processes the raw time outputs into readable CSVs and generates performance charts.
 
 Step 3a: Generate CSV (parse_to_csv.py)
 This script merges the raw time output files from the three algorithms into a single haplotype_build_comparison.csv within the respective timeFile/ directory.
 
-Bash
+```Bash
 
 # Example: Process E. coli output
 python3 Preprocessing/parse_to_csv.py --dataset ecoli
 
 # Example: Process all Human chromosome outputs
 python3 Preprocessing/parse_to_csv.py --dataset human 
+```
 Step 3b: Generate Plots (plotcsv.py)
 This script reads the CSV generated in 3a and produces performance charts (PNG files). You must specify the path to the CSV and the desired output directory for the plots.
 
-Bash
+```Bash
 
 # Example: Generate plots for the E. coli data and save them in a new 'plots/ecoli_charts/' directory
 python3 plotcsv.py output/Ecoli/timeFile/haplotype_build_comparison.csv plots/ecoli_charts/
 
 # Example: Generate plots for chromosome_1 data
 python3 plotcsv.py output/Human/chromosome_1/timeFile/haplotype_build_comparison.csv plots/chr1_charts/
-
+```
