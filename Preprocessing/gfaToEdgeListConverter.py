@@ -206,12 +206,6 @@ def main():
     """
     Main execution function.
     """
-    # --- Configuration ---
-    #base_graph_filepath = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Ecoli/Graphs/reduced_graph.gfa"  # Your GFA-like file
-    #sorted_haplotypes_filepath = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Ecoli/Graphs/ordered_haplotypes.txt" # Your sorted haplotype file
-    #output_edgelist_filepath = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Ecoli/Graphs/full_graph_edgelist.txt"
-    # ---------------------
-
     try:
         # 1. Process the base graph
         print(f"Parsing base graph from '{base_graph_filepath}'...")

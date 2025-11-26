@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# --- MODIFICATION 1: Accept a target directory ---
 if [ -z "$1" ]; then
     echo "Error: Please provide a base directory."
     echo "Usage: $0 /path/to/your/project_folder"
@@ -92,7 +91,6 @@ echo "Done. '$OUT_URLS' contains up to 100 verified URLs."
 echo "Preview (first 10):"
 head -n 10 "$OUT_URLS" || true
 
-# --- MODIFICATION 2: Add download and unzip steps ---
 
 echo "4) Creating genomes download directory..."
 # Create the 'genomes' directory *inside* the BASE_DIR

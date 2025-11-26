@@ -280,7 +280,6 @@ def process_time_directory(time_dir_path: pathlib.Path):
 
         merged_df = merged_df.reset_index()
 
-        # --- START CORRECTED ZERO-TIME FILTERING LOGIC (Implemented correctly here) ---
         
         # 3. Collect all time/compute columns
         time_cols = []
@@ -309,15 +308,9 @@ def process_time_directory(time_dir_path: pathlib.Path):
         
         print(f"  ℹ️ Filtered out {len(non_base_df) - len(filtered_non_base_df)} haplotypes with zero time.")
         
-        """
-        for prefix in PREFIXES:
-            for metric in BASE_TIME_METRICS:
-                col = f'{prefix}{metric}'
-                if col in merged_df.columns:
-                    time_cols.append(col)
-        """
         
-        # --- Single Set Case Column Fix (Dropping INC_, keeping/renaming BST_) ---
+        
+        
         CASE_METRICS = ['Case1', 'Case2', 'Case3', 'Case4', 'Case5']
         
         rename_dict = {}
@@ -377,13 +370,7 @@ def process_time_directory(time_dir_path: pathlib.Path):
                 if col_name in merged_df.columns:
                     final_order.append(col_name)
         
-        # 2. Add the main comparison time columns (3 columns)
-        """
-        for prefix in PREFIXES:
-             col_name = f'{prefix}TimeS'
-             if col_name in merged_df.columns:
-                  final_order.append(col_name)
-        """
+        
         # 3. Add Case metrics (now just the 5 CaseX columns)
         final_order.extend(CASE_METRICS)
         

@@ -28,7 +28,7 @@ import argparse
 # 6. Run on Human dataset with MULTIPLE specific algorithms:
 #    python3 superbubbleRunner.py -d Human -a IncrementalAlgorithm AnotherAlgorithm
 #
-# ### NEW ###
+# 
 # 7. Run on Human dataset for ONLY chromosome_1:
 #    python3 superbubbleRunner.py -d Human -c chromosome_1
 #
@@ -194,7 +194,7 @@ def main():
     )
     parser.add_argument(
         '-a', '--algorithms',
-        nargs='+',  # This allows for one or more space-separated names
+        nargs='+',  
         choices=all_algo_names,
         metavar='ALGO_NAME',
         help=f"Specify which algorithms to run. Choices: {', '.join(all_algo_names)}. "
@@ -208,7 +208,6 @@ def main():
         help="Specify which dataset to run (e.g., 'Ecoli', 'Human'). Default: Ecoli"
     )
     
-    ### NEW ###
     # Add a new argument for specifying chromosomes
     parser.add_argument(
         '-c', '--chromosomes',
@@ -290,8 +289,6 @@ def main():
             # This path assumes your Human graphs follow the Ecoli naming convention
             # e.g., .../input/Human/Graphs/chromosome_1_numeric_edgelist.txt
             # e.g., .../input/Human/Graphs/chromosome_X_numeric_edgelist.txt
-            # ** This is different from the .fa path you mentioned, but matches
-            # ** what the rest of your script expects (a numeric edgelist).
             input_path = os.path.join(PROJECT_ROOT, "input", "Human", f"{chr_name}", "Graphs" ,"numeric_edgelist.txt")
             
             if not os.path.exists(input_path):

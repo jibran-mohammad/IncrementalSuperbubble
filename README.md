@@ -166,16 +166,17 @@ python3 scripts/superbubbleRunner.py --dataset Ecoli
 python3 Preprocessing/parse_to_csv.py --dataset Ecoli
 ```
 **Step 5** — Produce Performance Plots
+```Bash
 python3 Preprocessing/plotcsv.py output/Ecoli/timeFile/haplotype_build_comparison.csv output/Ecoli/timeFile/
-
+```
 ## 📦 Expected Output
 
 After completion, you should find the following:
 
 Location	Contents
-**input/Ecoli/coli3682_dataset/Graphs/	numeric_edgelist.txt**
-**output/Ecoli/timeFile	Algorithm results and timing logs**
-**output/Ecoli/timeFile/	Raw timing files + .csv**
-**output/Ecoli/timeFile/	Performance comparison graphs (PNG)**
+**input/Ecoli/coli3682_dataset/Graphs/	numeric_edgelist.txt**.
+**output/Ecoli/timeFile	Algorithm results and timing logs**.
+**output/Ecoli/timeFile/	Raw timing files + .csv**.
+**output/Ecoli/timeFile/	Performance comparison graphs (PNG)**.
 
 If everything runs successfully, you have verified the pipeline setup and the algorithms.

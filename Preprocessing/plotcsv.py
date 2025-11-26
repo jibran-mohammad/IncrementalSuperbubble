@@ -1,7 +1,5 @@
 import pandas as pd
 import matplotlib
-# Set the backend to 'Agg' BEFORE importing pyplot
-# This is a non-interactive backend, perfect for saving files
 matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
 import sys

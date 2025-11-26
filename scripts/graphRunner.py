@@ -1,9 +1,8 @@
-#!/usr/bin/env python3
 import subprocess
 import sys
 import pathlib
-import argparse  # Import argparse
-import os        # Import os
+import argparse  
+import os        
 
 # ==============================================================================
 #  Dynamic Path Discovery Function
@@ -111,7 +110,7 @@ def run_script(script_name, env_vars):
         proc = subprocess.run(
             command,
             check=True,
-            env=current_env  # Pass the modified environment
+            env=current_env  
         )
 
         if proc.returncode != 0:

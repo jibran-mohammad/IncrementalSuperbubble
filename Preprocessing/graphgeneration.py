@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# author: Ghanshyam Chandra
 
 import os
 import time
@@ -59,12 +57,9 @@ def find_repo_root(start_path: pathlib.Path, repo_name: str) -> pathlib.Path:
 #  Script Configuration
 # ==============================================================================
 
-# ==============================================================================
-#  Script Configuration
-# ==============================================================================
 
-import os # Make sure os is at the top
-import sys # Make sure sys is at the top
+import os 
+import sys 
 
 try:
     # 1. Define the name of the repository we are looking for
@@ -127,16 +122,10 @@ except FileNotFoundError as e:
     sys.exit(1)
 
 
-#VG = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/Pangenome_Construction/vgTool/vg/bin/./vg"
-#MINICHAIN = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/Pangenome_Construction/minichain/./minichain"
-#mash_bin = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/Pangenome_Construction/Mash/./mash"
-# ---- GAF/WALK helpers (robust to column shifts) ----
 WALK_RE = re.compile(r'[<>]s\d+')              # matches >s123 or <s456 (minichain style)
 WALK_TOKEN_NUMERIC_RE = re.compile(r'([<>])s(\d+)')   # for walk-edge building & haps
 WALK_P_RE = re.compile(r'(s[0-9]+)([+-])')   # matches P-line tokens like s123+ from vg
 WALK_GAF_RE = WALK_RE                        # GAF walk column looks like >s123<s456...
-# If you ever see non-numeric IDs (e.g., s12a), switch to:
-# WALK_TOKEN_GENERIC_RE = re.compile(r'([<>])([!-;=?-~]+)')
 
 def extract_walk_from_gaf(parts):
     """
@@ -235,31 +224,24 @@ for opt, arg in opts:
     
 print("Threads : " + str(threads))
 
-# create directory for graphs
-#graph_dir = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Ecoli/Graphs"
 if not os.path.exists(graph_dir):
     os.makedirs(graph_dir)
 
-#ref = 'GCF_000005845.2_ASM584v2_genomic.fna'
-#fa_dir = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Ecoli/coli3682_dataset"
-#gaf_dir = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Ecoli/GAF_Files"
-
-# ensure the new directory exists
-if not os.path.exists(gaf_dir):                                                 # ADD THIS LINE
-    os.makedirs(gaf_dir)                                                        # ADD THIS LINE
+if not os.path.exists(gaf_dir):                                                 
+    os.makedirs(gaf_dir)                                                    
 
 # read fasta files from "Genomes" folder
 fasta_files = []
 for filename in os.listdir(fa_dir):
     if filename.endswith((".fa", ".fna", ".fasta")):
-        if filename == ref:  # don't add reference (we'll add it explicitly later)
+        if filename == ref:  
             continue    
         fasta_files.append(os.path.join(fa_dir, filename))
 
 # `ref` is the ref filename string (e.g. "GCF_... .fna")
 ref_filename = ref
-ref_base = os.path.splitext(ref_filename)[0]           # e.g. GCF_000005845.2_ASM584v2_genomic
-ref = os.path.join(fa_dir, ref_filename)               # full path to reference fasta
+ref_base = os.path.splitext(ref_filename)[0]           
+ref = os.path.join(fa_dir, ref_filename)              
 fasta_files.append(ref)
 # add timer for execution
 fasta_gfa_2 = []
@@ -302,14 +284,6 @@ def gen_mg_gfa(idx):
     if os.path.exists(mash_file[idx]):
         os.remove(mash_file[idx])
 
-    # # sort fasta_file based on mash distance
-    # def get_mash_distance(fasta):
-    #     cmd = "mash dist " + ref + " " + fasta + " | grep -v '^#' | head -n 1 | cut -f 3"
-    #     out = subprocess.check_output(cmd, shell=True)
-    #     out = out.decode("utf-8")
-    #     # write to file
-    #     with open("mash.txt", 'a') as f:
-    #         f.write(fasta + "\t" + out)
 
 
     # print computating mash distance
@@ -321,12 +295,7 @@ def gen_mg_gfa(idx):
         # write to file
         with open(mash_file[idx], 'a') as f:
             f.write(fasta + "\t" + out)
-    # run in parallel
-    # num_processes = len(fasta_file)  # Use the number of available CPU cores
-    # pool = multiprocessing.Pool(processes=num_processes)
-    # pool.map(get_mash_distance, fasta_file)
 
-    # read mash.txt and sort fasta_file based on distance
     fasta_file[idx] = []
     tuple_list[idx] = []
     with open(mash_file[idx], 'r') as f:
@@ -387,7 +356,7 @@ for h, haplotypes in fasta_gfa_2:
     start_time = time.time()
     fasta_file = []
 
-    for hap in haplotypes: # reference is already added
+    for hap in haplotypes: 
         fasta_file.append(hap)
 
     gfa_path = os.path.join(graph_dir, os.path.splitext(h)[0] + ".gfa")
@@ -398,8 +367,7 @@ for h, haplotypes in fasta_gfa_2:
     except Exception as e:
         print(f"[fatal] Reference W-line build failed: {e}")
         sys.exit(2)
-
-    # sort fasat 
+ 
     # perform all to all alignment
     def process_fasta(fasta):
         if os.path.abspath(fasta) == os.path.abspath(ref):
@@ -430,15 +398,7 @@ for h, haplotypes in fasta_gfa_2:
         gaf_path = os.path.join(gaf_dir, base_name + ".gaf")
         if os.path.exists(gaf_path):
             gaf_files.append(gaf_path)
-    """        
-    gaf_files = []
-    # List all files in the directory
-    print(f"Looking for GAF files in: {gaf_dir}") # A useful print statement
-    files = os.listdir(gaf_dir)
-    for file_name in files:
-        if file_name.endswith(".gaf"):
-            gaf_files.append(os.path.join(gaf_dir, file_name))
-    """
+    
     # --- generate w lines (one per GAF file, plus 1 reference) ---
     w_lines = []
     walks = []
@@ -469,11 +429,10 @@ for h, haplotypes in fasta_gfa_2:
                     best = cand
 
         if best is None:
-            continue  # no usable alignment in this GAF
+            continue  
 
         _, _, parts = best
         # walk column: scan from right to be robust
-        # (older script stored in parts[5], but we don't assume)
         walk_col = None
         for col in reversed(parts):
             if WALK_GAF_RE.search(col):
@@ -483,7 +442,7 @@ for h, haplotypes in fasta_gfa_2:
             continue
 
         sample_id = os.path.splitext(os.path.basename(gaf))[0]  # one sample per GAF
-        seq_id = parts[0]  # contig/sequence name in that sample
+        seq_id = parts[0]  
 
         w_lines.append(f"W\t{sample_id}\t0\t{seq_id}\t*\t*\t{walk_col}\n")
         walks.append(seq_id)
@@ -517,7 +476,6 @@ for h, haplotypes in fasta_gfa_2:
             if line.startswith('S'):
                 field = line.split('\t')
                 id = field[1]
-                # haps[id] = [] # used to debug and found \n is the cause
                 vertices.append(id)
                 s_lines.append(line)
             elif line.startswith('L'):
@@ -587,18 +545,7 @@ for h, haplotypes in fasta_gfa_2:
     for v in vertices:
         if v not in haps:
             print("Error: Vertex " + v + " not found in walks and will be removed")
-    """
-    for i in range(len(w_lines)):
-        walk = w_lines[i]
-        field = walk.split('\t')
-        id = field[1]
-        walk = field[6].split('>')[1:]
-        for w in walk:
-            w = w.split('\n')[0]
-            if id not in haps[w]:
-                print("Error: Walk " + id + " not found in haps[" + w + "]")
-                sys.exit(2)
-    """
+    
     for walk_line in w_lines:
         parts = walk_line.rstrip('\n').split('\t')
         if len(parts) < 7:

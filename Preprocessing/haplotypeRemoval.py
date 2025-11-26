@@ -211,10 +211,7 @@ def write_reduced_gfa(nodes, edges, original_gfa, output_gfa, ref_sample):
 
 
 def main():
-    #gfa_file = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Ecoli/Graphs/GCF_000005845.2_ASM584v2_genomic_pos.gfa"
-    #unique_file = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Ecoli/Graphs/unique_elements.txt"
-    #reduced_gfa = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Ecoli/Graphs/reduced_graph.gfa"
-    
+     
     print("🔎 Detecting reference haplotype from first W line...")
     ref_sample = detect_reference_sample(gfa_file)
     print(f"Reference haplotype detected: {ref_sample}")

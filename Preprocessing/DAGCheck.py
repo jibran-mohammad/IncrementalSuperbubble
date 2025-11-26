@@ -214,7 +214,6 @@ def check_sanitized_graphs_for_dag(cycle_dir):
 
 
 if __name__ == "__main__":
-    #file_path = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Ecoli/Graphs/GCF_000005845.2_ASM584v2_genomic.gfa"
     
     if not os.path.exists(file_path):
         sys.exit(f"Error: File not found at '{file_path}'")

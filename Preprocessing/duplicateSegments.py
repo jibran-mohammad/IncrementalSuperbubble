@@ -81,7 +81,7 @@ def count_nodes_and_edges_with_duplicate_sequences(gfa_file_path, duplicates):
 
 if __name__ == "__main__":
     # Example usage: Replace with your actual file path
-    gfa_file = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/output/graphs_incremental/minichain/Incremental/graph1.gfa"
+    gfa_file = "Path"
 
     if not os.path.exists(gfa_file):
         sys.exit(f"Error: GFA file not found at '{gfa_file}'")

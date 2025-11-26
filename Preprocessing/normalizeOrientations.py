@@ -51,8 +51,8 @@ def find_repo_root(start_path: pathlib.Path, repo_name: str) -> pathlib.Path:
 #  Script Configuration
 # ==============================================================================
 
-import os # Make sure os is at the top
-import sys # Make sure sys is at the top
+import os 
+import sys 
 
 try:
     # 1. Define the name of the repository we are looking for

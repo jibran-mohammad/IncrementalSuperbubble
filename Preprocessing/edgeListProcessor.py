@@ -180,9 +180,6 @@ def process_and_write(input_path: str, output_path: str, node_map: dict):
 
 def main():
     """Main execution function."""
-    #input_filepath = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Ecoli/Graphs/full_graph_edgelist.txt"
-    #output_filepath = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Ecoli/Graphs/numeric_edgelist.txt"
-
     try:
         print(f"Pass 1: Creating node map from '{input_filepath}'...")
         node_map = create_node_map(input_filepath)
