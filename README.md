@@ -173,7 +173,7 @@ python3 Preprocessing/plotcsv.py output/Ecoli/timeFile/haplotype_build_compariso
 
 After completion, you should find the following:
 
-Location	Contents
+Location	Contents  
 -**input/Ecoli/coli3682_dataset/Graphs/	numeric_edgelist.txt**.  
 -**output/Ecoli/timeFile	Algorithm results and timing logs**.  
 -**output/Ecoli/timeFile/	Raw timing files + .csv**.  
