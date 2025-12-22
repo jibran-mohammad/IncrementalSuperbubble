@@ -11,7 +11,7 @@ public:
         getrusage(RUSAGE_SELF, &usage);
         return usage.ru_maxrss; // memory in kilobytes
     }   
-    void inputAndCompute(std::string output_path) {
+    void inputAndCompute(std::string output_path, std::string mode) {
 
         // --- File path configuration ---
         //std::ofstream outFile("/home/dell/Research/Superbubble/Experiment/IncSuperbubble/output/Human/HaplotypeTestingData/outFile/SuperbubbleIncrementalDFSOutput.txt");
@@ -135,14 +135,23 @@ public:
                 std::cin >> x >> y;
                 //std::cout << x << " " << y << std::endl;
                 superbubble.insertE(&d,&g,x, y);
+
+                if(mode == "perEdge") {
+                    start = std::chrono::high_resolution_clock::now();
+                    superbubble.computeSB(&d, &g);
+                    end = std::chrono::high_resolution_clock::now();
+                    elapsed = end - start;
+                    superbubbleTime += elapsed.count();
+                }
+            }
+
+            
+            if (mode == "perBatch") {
                 start = std::chrono::high_resolution_clock::now();
                 superbubble.computeSB(&d, &g);
                 end = std::chrono::high_resolution_clock::now();
-                elapsed = end - start;
-                superbubbleTime += elapsed.count();
+                superbubbleTime = std::chrono::duration<double>(end - start).count();
             }
-            
-            
             std::string clean_hap_name = hap_name_header.substr(hap_name_header.find(":") + 2);
             std::cout << clean_hap_name << std::endl;
             /*
@@ -172,12 +181,12 @@ int main(int argc, char* argv[]){
     // argv[0] is the program name
     // argv[1] will be our output path
 
-    if (argc < 2) {
+    if (argc < 3) {
         // Print error to standard error
         std::cerr << "Error: No output file path provided." << std::endl;
-        std::cerr << "Usage: " << argv[0] << " <output_file_path>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <output_file_path> <perBatch|perEdge>" << std::endl;
         return 1; // Exit with an error code
     }
 	IncrementalSuperbubbleSimpleAVLTree incremental;
-    incremental.inputAndCompute(argv[1]);
+    incremental.inputAndCompute(argv[1], argv[2]);
 }

@@ -13,9 +13,8 @@ public:
         return usage.ru_maxrss; // memory in kilobytes
     }
 
-    void inputAndCompute(std::string output_path) {
-        // --- File path configuration ---
-        //std::ofstream outFile("/home/dell/Research/Superbubble/Experiment/IncSuperbubble/output/Human/HaplotypeTestingData/outFile/SuperbubblesimpleDFSOutput.txt");
+    void inputAndCompute(std::string output_path, std::string mode) {
+
         std::ofstream timeFile(output_path);
 
         // --- Variables for parsing ---
@@ -36,7 +35,6 @@ public:
         std::cin >> num_base_edges >> num_nodes;
 
         // Initialize graph objects
-        // <-- CORRECTED LINE: Initialize with the number of edges, as per your class design.
         AdjacencyListGraph adl(num_base_edges); 
         GraphContext g(&adl);
         SimpleDFS simdfs(&g);
@@ -90,7 +88,6 @@ public:
                 continue;
             }
              
-            // --- NEW, SMARTER CHECK ---
             // Find the position of the colon
             size_t colon_pos = line.find(":");
             // Find the first non-space character after the colon
@@ -130,9 +127,12 @@ public:
                  std::cin >> x >> y;
                  start = std::chrono::high_resolution_clock::now();
                  superbubble.insertE(&d,&g,x,y);
+                 // use pointer to superbubble tree to flag affected superbubbles and all ancestors upto LCA
                  end = std::chrono::high_resolution_clock::now();
                  elapsed = end - start;
                  insertTime += elapsed.count();
+                 
+                 if (mode == "perEdge") {
                  start = std::chrono::high_resolution_clock::now();
                  d.performDFS(&g);
                  end = std::chrono::high_resolution_clock::now();
@@ -157,46 +157,40 @@ public:
                  end = std::chrono::high_resolution_clock::now();
                  elapsed = end - start;
                  superbubbleTime += elapsed.count();
+                 }
 
                  
 
             }
             
             //timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";
-            // Start the timer for this entire haplotype update
             
-            /*
-            // BATCH INSERT all edges for this haplotype
-            for (int i = 0; i < hap_edge_count; ++i) {
-                std::cin >> x >> y;
-                superbubble.insertE(&d,&g,x, y);
+            if (mode == "perBatch") {
+                start = std::chrono::high_resolution_clock::now();
                 d.performDFS(&g);
-                d.createMinI(&g);
+                end = std::chrono::high_resolution_clock::now();
+                elapsed = end - start;
+                dfsTime += elapsed.count();
+            
+                start = std::chrono::high_resolution_clock::now();
+                d.createMinI(&g); 
+                end = std::chrono::high_resolution_clock::now();
+                elapsed = end - start;
+                minITime += elapsed.count();
+            
+                start = std::chrono::high_resolution_clock::now();
                 d.createMaxO(&g);
-                superbubble.computeSB(&d, &g);
-            }
-             */
+                end = std::chrono::high_resolution_clock::now();
+                elapsed = end - start;
+                maxOTime += elapsed.count();
             
-            
-            //end = std::chrono::high_resolution_clock::now();
-            //elapsed = end - start;
-            //timeFile << update_counter << " " << clean_hap_name << " " << elapsed.count() << " dfs function" << "\n";
-            
-            //start = std::chrono::high_resolution_clock::now();
-            
-            //end = std::chrono::high_resolution_clock::now();
-            //elapsed = end - start;
-            //timeFile << update_counter << " " << clean_hap_name << " " << elapsed.count() << " minI function" << "\n";
-            
-            //start = std::chrono::high_resolution_clock::now();
-            
-            //end = std::chrono::high_resolution_clock::now();
-            //elapsed = end - start;
-            //timeFile << update_counter << " " << clean_hap_name << " " << elapsed.count() << " maxO function" << "\n";
 
-            //start = std::chrono::high_resolution_clock::now();
-            
-            
+                start = std::chrono::high_resolution_clock::now();
+                superbubble.computeSB(&d,&g);
+                end = std::chrono::high_resolution_clock::now();
+                elapsed = end - start;
+                superbubbleTime += elapsed.count();
+            }
             std::string clean_hap_name = hap_name_header.substr(hap_name_header.find(":") + 2);
             //timeFile << update_counter << " " << clean_hap_name << " " << elapsed.count() << " superbubble function" << "\n";
             //std::string clean_hap_name = hap_name_header.substr(hap_name_header.find(":") + 2);
@@ -229,13 +223,13 @@ int main(int argc, char* argv[]){
     // argv[0] is the program name
     // argv[1] will be our output path
 
-    if (argc < 2) {
+    if (argc < 3) {
         // Print error to standard error
         std::cerr << "Error: No output file path provided." << std::endl;
-        std::cerr << "Usage: " << argv[0] << " <output_file_path>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <output_path> <perBatch|perEdge>" << std::endl;
         return 1; // Exit with an error code
     }
     SimpleSuperbubble simple;
-    simple.inputAndCompute(argv[1]);
+    simple.inputAndCompute(argv[1], argv[2]);
     return 0; 
 }

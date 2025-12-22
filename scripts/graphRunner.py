@@ -165,6 +165,18 @@ def get_dataset_configs(args):
             # The DATASET_NAME will be the relative path from 'input'
             dataset_path = f"Human/{chrom_name}"
             configs.append((dataset_path, ref_fasta))
+    elif args.dataset == "Virus":
+        dataset_path = "Virus"
+        ref_fasta = "GCF_009858895.2_ASM985889v3_genomic.fna"
+
+        virus_dir = INPUT_DIR / "Virus" / "cleanGenomes"
+        if not (virus_dir / ref_fasta).exists():
+            print(
+                f"⚠️ Warning: Reference fasta '{ref_fasta}' not found in '{virus_dir}'.",
+                file=sys.stderr
+            )
+
+        configs.append((dataset_path, ref_fasta))       
             
     return configs
 
@@ -213,14 +225,22 @@ def main():
     
     EXAMPLE (run on just chromosome M):
     python3 /path/to/Preprocessing/graphRunner.py --dataset Human --chromosomes M
+
+
+    OPTION 4: Run the 'Virus' dataset
+     
+    It will process the 'Ecoli' directory.
+    
+    COMMAND: python3 /path/to/Preprocessing/graphRunner.py --dataset Virus 
+
     
     """
     parser = argparse.ArgumentParser(description="Pangenome Processing Pipeline Runner")
     parser.add_argument(
         "-d", "--dataset",
-        choices=["ecoli", "Human"],
+        choices=["ecoli", "Human", "Virus"],
         required=True,
-        help="The dataset to process."
+        help="The dataset to process. 'ecoli', 'Human', 'Virus'."
     )
     parser.add_argument(
         "-c", "--chromosomes",

@@ -104,9 +104,12 @@ try:
     # Handle different FASTA directory structures
     if DATASET_NAME == 'Ecoli':
         fa_dir = str(INPUT_BASE_DIR / "coli3682_dataset")
-    else:
+    elif "Human" in DATASET_NAME:
         # For human, the DATASET_NAME *is* the fasta dir (e.g., human/chromosome_1)
-        fa_dir = str(INPUT_BASE_DIR) 
+        fa_dir = str(INPUT_BASE_DIR)
+    elif "Virus" in DATASET_NAME:
+        # Both the reference and all FASTAs are here
+        fa_dir = str(INPUT_BASE_DIR / "cleanGenomes")     
 
     # Set the ref fasta filename (the script joins it with fa_dir later)
     ref = REF_FASTA_NAME
@@ -224,6 +227,9 @@ for opt, arg in opts:
     
 print("Threads : " + str(threads))
 
+AlignPool = 4
+Align_Threads = 4
+
 if not os.path.exists(graph_dir):
     os.makedirs(graph_dir)
 
@@ -319,7 +325,7 @@ def gen_mg_gfa(idx):
     
     graph[idx] = os.path.join(graph_dir, ref_base + ".gfa")
 
-    cmd = f"{shlex.quote(MINICHAIN)} -t1 -cxggs {shlex.quote(ref)}"
+    cmd = f"{shlex.quote(MINICHAIN)} -t{threads} -cxggs {shlex.quote(ref)}"
     for file_name in fasta_file[idx]:
         if os.path.abspath(file_name) == os.path.abspath(ref):
             continue
@@ -379,12 +385,13 @@ for h, haplotypes in fasta_gfa_2:
         output_gaf = os.path.join(gaf_dir, base_name + ".gaf")
 
         # Build the command using an f-string and the threads variable
-        cmd = f"{shlex.quote(MINICHAIN)} -t{threads} -cx asm --vc {shlex.quote(gfa_path)} {shlex.quote(fasta)} > {shlex.quote(output_gaf)}"
+        cmd = f"{shlex.quote(MINICHAIN)} -t{Align_Threads} -cx asm --vc {shlex.quote(gfa_path)} {shlex.quote(fasta)} > {shlex.quote(output_gaf)}"
         
         # print(cmd)
         os.system(cmd)
 
-    num_processes = threads  # Use the number of available CPU cores
+    
+    num_processes = ALIGN_POOL  # Use the number of available CPU cores
     pool = multiprocessing.Pool(processes=num_processes)
     pool.map(process_fasta, fasta_file)
 

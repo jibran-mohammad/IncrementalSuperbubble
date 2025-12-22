@@ -34,6 +34,10 @@ import argparse
 #
 # 8. Run on Human dataset for chromosome_1 and chromosome_X with a specific algorithm:
 #    python3 superbubbleRunner.py -d Human -a SimpleSuperbubble -c chromosome_1 chromosome_X
+# 
+# 9. For Batch processing: python3 superbubbleRunner.py -d Human -m perBatch
+
+#    For Every-Edge processing: python3 superbubbleRunner.py -d Human -m perEdge  
 #
 # --- END HOW TO RUN ---
 
@@ -153,13 +157,13 @@ def compile_target_with_make(cpp_dir, target):
         print("-------------------------", file=sys.stderr)
         return None
 
-def run_cpp_program(executable_path, input_path,full_output_path):
+def run_cpp_program(executable_path, input_path,full_output_path, mode):
     """Runs a compiled C++ program, redirecting the input file to its stdin."""
-    print(f"-> Running {os.path.basename(executable_path)} with input {os.path.basename(input_path)}...")
+    print(f"-> Running {os.path.basename(executable_path)} with input {os.path.basename(input_path)}...in {mode} mode...")
     print(f"   ...Writing output to: {full_output_path}")
 
     # The executable path is now absolute, so it's the only item in the command.
-    run_command = [executable_path, full_output_path]
+    run_command = [executable_path, full_output_path, mode]
     try:
         with open(input_path, 'r') as input_file_handle:
             subprocess.run(
@@ -217,7 +221,13 @@ def main():
              "Only used if '-d Human' is selected. \n"
              "If not provided, all human chromosomes will be run."
     )
-    # --- End of new argument ---
+    
+    parser.add_argument(
+        '-m', '--mode',
+        choices=['perBatch', 'perEdge'],
+        default='perBatch',
+        help="Specify processing mode. 'perBatch' (after haplotype) or 'perEdge' (after every edge)."
+    )
     
     args = parser.parse_args()
 
@@ -353,7 +363,7 @@ def main():
             sys.exit(1)
 
         # Step 3: Run the job
-        if not run_cpp_program(executable_path, job['input_path'], job['full_output_path']):
+        if not run_cpp_program(executable_path, job['input_path'], job['full_output_path'], args.mode):
             print(f"\nAborting pipeline due to execution error on job {job_name}.", file=sys.stderr)
             sys.exit(1)
             
