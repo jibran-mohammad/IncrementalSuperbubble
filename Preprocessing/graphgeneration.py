@@ -10,6 +10,25 @@ import shlex
 import shutil
 import pathlib
 
+
+from .graphBackend.minichain import MinichainBackend
+from .graphBackend.minigraph import MinigraphBackend
+
+from .tools import get_tools
+def get_graphBackend(name, threads, tools):
+    if name == "minichain":
+        return MinichainBackend(
+            threads=threads,
+            minichain_bin=tools["minichain"],
+        )
+    elif name == "minigraph":
+        return MinigraphBackend(
+            threads=threads,
+            minigraph_bin=tools["minigraph"],
+        )
+    else:
+        raise ValueError(f"Unknown graph backend: {name}")
+
 # ==============================================================================
 #  Dynamic Path Discovery Function
 # ==============================================================================
@@ -79,6 +98,8 @@ try:
     # Get dataset name and ref fasta from environment variables
     DATASET_NAME = os.getenv('PIPELINE_DATASET_NAME')
     REF_FASTA_NAME = os.getenv('PIPELINE_REF_FASTA')
+    GRAPH_BACKEND = os.getenv("PIPELINE_GRAPH_BACKEND", "minichain")
+    print(f"ℹ️ Graph backend selected: {GRAPH_BACKEND}")
 
     if not DATASET_NAME or not REF_FASTA_NAME:
         print("❌ Critical Error: 'PIPELINE_DATASET_NAME' or 'PIPELINE_REF_FASTA' environment variable not set.", file=sys.stderr)
@@ -92,12 +113,18 @@ try:
     INPUT_BASE_DIR = REPO_ROOT_PATH / "input" / DATASET_NAME
     GRAPH_DIR = INPUT_BASE_DIR / "Graphs"
     GAF_DIR = INPUT_BASE_DIR / "GAF_Files"
+    
+    TOOLS = get_tools(REPO_ROOT_PATH)
+    for name, path in TOOLS.items():
+        if not pathlib.Path(path).exists():
+            print(f"⚠️ Tool not found: {name} -> {path}")
 
     # --- Specific paths for this script ---
+    """
     VG = str(REPO_ROOT_PATH / "Pangenome_Construction/vgTool/vg/bin/./vg")
     MINICHAIN = str(REPO_ROOT_PATH / "Pangenome_Construction/minichain/./minichain")
     mash_bin = str(REPO_ROOT_PATH / "Pangenome_Construction/Mash/./mash")
-    
+    """
     graph_dir = str(GRAPH_DIR)
     gaf_dir = str(GAF_DIR)
     
@@ -118,12 +145,6 @@ except FileNotFoundError as e:
     print(f"❌ Critical Error: {e}", file=sys.stderr)
     print("Please ensure this script is located somewhere inside the 'IncSuperbubble' repository.", file=sys.stderr)
     sys.exit(1)
-
-except FileNotFoundError as e:
-    print(f"❌ Critical Error: {e}", file=sys.stderr)
-    print("Please ensure this script is located somewhere inside the 'IncSuperbubble' repository.", file=sys.stderr)
-    sys.exit(1)
-
 
 WALK_RE = re.compile(r'[<>]s\d+')              # matches >s123 or <s456 (minichain style)
 WALK_TOKEN_NUMERIC_RE = re.compile(r'([<>])s(\d+)')   # for walk-edge building & haps
@@ -154,7 +175,7 @@ def build_reference_w_line(graph_path, ref_fasta_path, gaf_dir, threads):
     ref_walk = None
 
     # 1) Try vg convert (first P-line)
-    cmd = f'{shlex.quote(VG)} convert -g -f {shlex.quote(graph_path)} -W | grep "^P" | head -n 1'
+    cmd = f'{shlex.quote(TOOLS["vg"])} convert -g -f {shlex.quote(graph_path)} -W | grep "^P" | head -n 1'
     try:
         out = subprocess.check_output(cmd, shell=True, text=True)
         parts = out.split('\t')
@@ -171,7 +192,7 @@ def build_reference_w_line(graph_path, ref_fasta_path, gaf_dir, threads):
         tmp_gaf = os.path.join(
             gaf_dir, os.path.splitext(os.path.basename(ref_fasta_path))[0] + ".ref.gaf"
         )
-        align_cmd = f"{shlex.quote(MINICHAIN)} -t{threads} -cx asm --vc {shlex.quote(graph_path)} {shlex.quote(ref_fasta_path)} > {shlex.quote(tmp_gaf)}"
+        align_cmd = f"{shlex.quote(TOOLS['minichain'])} -t{threads} -cx asm --vc {shlex.quote(graph_path)} {shlex.quote(ref_fasta_path)} > {shlex.quote(tmp_gaf)}"
         os.system(align_cmd)
 
         best = None  # (is_primary, mapq, parts)
@@ -295,7 +316,7 @@ def gen_mg_gfa(idx):
     # print computating mash distance
     print("Computing Mash Distance ...")
     for fasta in fasta_file[idx]:
-        cmd = f"{shlex.quote(mash_bin)} dist {shlex.quote(ref)} {shlex.quote(fasta)} | grep -v '^#' | head -n 1 | cut -f 3"
+        cmd = f"{shlex.quote(TOOLS['mash'])} dist {shlex.quote(ref)} {shlex.quote(fasta)} | grep -v '^#' | head -n 1 | cut -f 3"
         out = subprocess.check_output(cmd, shell=True)
         out = out.decode("utf-8")
         # write to file
@@ -324,7 +345,21 @@ def gen_mg_gfa(idx):
     os.remove(mash_file[idx])
     
     graph[idx] = os.path.join(graph_dir, ref_base + ".gfa")
+    
+    backend = get_graphBackend(
+        GRAPH_BACKEND,
+        threads,
+        tools=TOOLS
+        )
 
+    backend.build_graph(
+        ref_fasta=ref,
+        fasta_list=fasta_file[idx],
+        output_gfa=graph[idx],
+        label=os.path.splitext(h[idx])[0]
+        )
+    
+    """
     cmd = f"{shlex.quote(MINICHAIN)} -t{threads} -cxggs {shlex.quote(ref)}"
     for file_name in fasta_file[idx]:
         if os.path.abspath(file_name) == os.path.abspath(ref):
@@ -340,7 +375,7 @@ def gen_mg_gfa(idx):
     os.system(cmd)
 
     print("--- Time : %s seconds ---" % (time.time() - start_time) + " for " + os.path.splitext(h[idx])[0] + ".gfa")
-
+    """
 
 # generate graph in parallel
 num_processes = 20  # Use the number of available CPU cores
@@ -385,13 +420,13 @@ for h, haplotypes in fasta_gfa_2:
         output_gaf = os.path.join(gaf_dir, base_name + ".gaf")
 
         # Build the command using an f-string and the threads variable
-        cmd = f"{shlex.quote(MINICHAIN)} -t{Align_Threads} -cx asm --vc {shlex.quote(gfa_path)} {shlex.quote(fasta)} > {shlex.quote(output_gaf)}"
+        cmd = f"{shlex.quote(TOOLS['minichain'])} -t{Align_Threads} -cx asm --vc {shlex.quote(gfa_path)} {shlex.quote(fasta)} > {shlex.quote(output_gaf)}"
         
         # print(cmd)
         os.system(cmd)
 
     
-    num_processes = ALIGN_POOL  # Use the number of available CPU cores
+    num_processes = AlignPool  # Use the number of available CPU cores
     pool = multiprocessing.Pool(processes=num_processes)
     pool.map(process_fasta, fasta_file)
 

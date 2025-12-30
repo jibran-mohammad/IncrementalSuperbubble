@@ -96,13 +96,19 @@ def run_script(script_name, env_vars):
     # Get the current environment and update it with our new variables
     current_env = os.environ.copy()
     current_env.update(env_vars)
-    
+    current_env["PYTHONPATH"] = str(REPO_ROOT_PATH)
     try:
         # Build the command
         command = []
         if script_name == "graphgeneration.py":
             # Pass the thread count to graphgeneration.py
-            command = ["python3", script_path, "-t", "27"]
+            command = [
+                "python3",
+                "-m",
+                "Preprocessing.graphgeneration",
+                "-t",
+                "27"
+            ]
         else:
             command = ["python3", script_path]
 
@@ -233,6 +239,63 @@ def main():
     
     COMMAND: python3 /path/to/Preprocessing/graphRunner.py --dataset Virus 
 
+
+    --------------------------------------------------------------------------
+    GRAPH GENERATION BACKEND OPTIONS
+
+    The pipeline supports multiple tools for pangenome graph construction.
+    The choice of tool ONLY affects the graph generation stage
+    (graphgeneration.py). All downstream steps remain unchanged.
+
+    The backend is selected using the --graph-backend option.
+
+    Available backends:
+
+      1) minichain  (default)
+         - Incremental pangenome construction
+         - Mash-based genome ordering
+         - Baseline backend used in existing experiments
+
+      2) minigraph
+         - Reference-anchored pangenome construction
+         - Faster for large genome sets
+         - Useful for comparison experiments
+
+    --------------------------------------------------------------------------
+    EXAMPLES
+
+    Run E. coli dataset using minichain (default):
+      python3 graphRunner.py --dataset ecoli
+
+    Run E. coli dataset using minigraph:
+      python3 graphRunner.py --dataset ecoli --graph-backend minigraph
+
+    Run all human chromosomes using minichain:
+      python3 graphRunner.py --dataset Human --chromosomes all
+
+    Run chromosome 22 using minigraph:
+      python3 graphRunner.py --dataset Human --chromosomes 22 --graph-backend minigraph
+
+    Run virus dataset using minigraph:
+      python3 graphRunner.py --dataset Virus --graph-backend minigraph
+
+    --------------------------------------------------------------------------
+    NOTES
+
+    - The backend choice is passed internally via the environment variable:
+        PIPELINE_GRAPH_BACKEND
+
+    - graphgeneration.py reads this variable and selects the appropriate
+      backend implementation.
+
+    - If no backend is specified, 'minichain' is used by default for
+      backward compatibility.
+
+    - To add a new graph construction tool in the future:
+        1) Implement a new backend class in graph_backends/
+        2) Register it in graphgeneration.py
+        3) Add it to the --graph-backend choices here
+
     
     """
     parser = argparse.ArgumentParser(description="Pangenome Processing Pipeline Runner")
@@ -247,6 +310,12 @@ def main():
         nargs='+',
         default=["all"],
         help="For 'human' dataset: list of chromosomes (e.g., '1' '2' 'X') or 'all'. Default is 'all'."
+    )
+    parser.add_argument(
+        "--graph-backend",
+        choices=["minichain", "minigraph"],
+        default="minichain",
+        help="Graph construction backend"
     )
     args = parser.parse_args()
 
@@ -268,7 +337,8 @@ def main():
         # Define the environment variables for this run
         env_vars = {
             "PIPELINE_DATASET_NAME": dataset_name,
-            "PIPELINE_REF_FASTA": ref_fasta
+            "PIPELINE_REF_FASTA": ref_fasta,
+            "PIPELINE_GRAPH_BACKEND": args.graph_backend
         }
         
         # Run the entire pipeline for this dataset
