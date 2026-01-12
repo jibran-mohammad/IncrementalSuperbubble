@@ -13,6 +13,10 @@
     */
     void IncrementalDFSTREE::insert(GraphContext *g, int u, int v) {
         int x;
+        this->latestTimes.currentinsertTime = 0.0;
+        this->latestTimes.currentdfsTime = 0.0;
+        this->latestTimes.currentminITime = 0.0;
+        this->latestTimes.currentmaxOTime = 0.0;
         auto start = std::chrono::high_resolution_clock::now();
         auto end = std::chrono::high_resolution_clock::now();   
         std::chrono::duration<double> elapsed = end - start;
@@ -29,6 +33,7 @@
         v=g->strategy->reverseMapping[v];
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
+        this->latestTimes.currentinsertTime = elapsed.count();
         this->latestTimes.insertTime += elapsed.count();
         //std::cout << "new U= "<< u << " " << "new v= " << v << std::endl;
         if(x>0) {
@@ -51,6 +56,7 @@
             end = std::chrono::high_resolution_clock::now();
             elapsed = end - start;
             this->latestTimes.insertTime += elapsed.count();
+            this->latestTimes.insertTime += elapsed.count();
 
             if(x == 1) {
                //std::cout << "x is equal to 1" << std::endl;
@@ -64,12 +70,14 @@
                    DifferentBalancedBinaryTree binaryTreeIncoming(this->reverseTopologicalOrder);
                    end = std::chrono::high_resolution_clock::now();
                    elapsed = end - start;
+                   this->latestTimes.currentminITime += elapsed.count();
                    this->latestTimes.minITime += elapsed.count();
 
                    start = std::chrono::high_resolution_clock::now();
                    DifferentBalancedBinaryTree binaryTreeOutgoing(this->reverseTopologicalOrder);
                    end = std::chrono::high_resolution_clock::now();
                    elapsed = end - start;
+                   this->latestTimes.currentmaxOTime += elapsed.count();
                    this->latestTimes.maxOTime += elapsed.count();
 
                    start = std::chrono::high_resolution_clock::now();
@@ -92,6 +100,7 @@
                    }
                    end = std::chrono::high_resolution_clock::now();
                    elapsed = end - start;
+                   this->latestTimes.currentdfsTime += elapsed.count();
                    this->latestTimes.dfsTime += elapsed.count();
 
                    start = std::chrono::high_resolution_clock::now();
@@ -99,6 +108,7 @@
                    this->maxO[u] =  this->maxObst[u].findMax();
                    end = std::chrono::high_resolution_clock::now();
                    elapsed = end - start;
+                   this->latestTimes.currentmaxOTime += elapsed.count();
                    this->latestTimes.maxOTime += elapsed.count();
 
                    start = std::chrono::high_resolution_clock::now();
@@ -106,6 +116,7 @@
                    this->minI[v] = this->minIbst[v].findMin();
                    end = std::chrono::high_resolution_clock::now();
                    elapsed = end - start;
+                   this->latestTimes.currentminITime += elapsed.count();
                    this->latestTimes.minITime+= elapsed.count();
 
                    g->strategy->newu = false;
@@ -119,12 +130,14 @@
                     DifferentBalancedBinaryTree binaryTreeIncoming(this->reverseTopologicalOrder);
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
+                    this->latestTimes.currentminITime += elapsed.count();
                     this->latestTimes.minITime += elapsed.count();
 
                     start = std::chrono::high_resolution_clock::now();
                     DifferentBalancedBinaryTree binaryTreeOutgoing(this->reverseTopologicalOrder);
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
+                    this->latestTimes.currentmaxOTime += elapsed.count();
                     this->latestTimes.maxOTime += elapsed.count();
 
                     start = std::chrono::high_resolution_clock::now();
@@ -139,6 +152,7 @@
                     }
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
+                    this->latestTimes.currentdfsTime += elapsed.count();
                     this->latestTimes.dfsTime += elapsed.count();
 
                     start = std::chrono::high_resolution_clock::now();
@@ -147,6 +161,7 @@
                     this->minI[v] = this->minIbst[v].findMin();
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
+                    this->latestTimes.currentminITime += elapsed.count();
                     this->latestTimes.minITime += elapsed.count();
                     
                     start = std::chrono::high_resolution_clock::now();
@@ -156,6 +171,7 @@
                     this->maxO[v] = 1;
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
+                    this->latestTimes.currentmaxOTime += elapsed.count();
                     this->latestTimes.maxOTime += elapsed.count();
 
                     g->strategy->newv= false;
@@ -188,6 +204,7 @@
  
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
+                this->latestTimes.currentdfsTime += elapsed.count();
                 this->latestTimes.dfsTime += elapsed.count();
 
                start = std::chrono::high_resolution_clock::now();
@@ -200,6 +217,7 @@
                this->minI[v] = u;
                end = std::chrono::high_resolution_clock::now();
                elapsed = end - start;
+               this->latestTimes.currentminITime += elapsed.count();
                this->latestTimes.minITime += elapsed.count();
 
                start = std::chrono::high_resolution_clock::now();
@@ -212,6 +230,7 @@
                this->maxO[v] = 1;
                end = std::chrono::high_resolution_clock::now();
                elapsed = end - start;
+               this->latestTimes.currentmaxOTime += elapsed.count();
                this->latestTimes.maxOTime += elapsed.count(); 
 
                g->strategy->newu = false;
@@ -230,6 +249,7 @@
                 this->partialDFS(g,u,v);
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
+                this->latestTimes.currentdfsTime += elapsed.count();
                 this->latestTimes.dfsTime += elapsed.count();
 
                 this->update(g);
@@ -238,6 +258,7 @@
                 this->reset();
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
+                this->latestTimes.currentdfsTime += elapsed.count();
                 this->latestTimes.dfsTime += elapsed.count();
             }
             else {
@@ -250,6 +271,7 @@
                 this->maxO[u] = (this->maxObst[u].findMax());
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
+                this->latestTimes.currentmaxOTime += elapsed.count();
                 this->latestTimes.maxOTime += elapsed.count();
  
                 start = std::chrono::high_resolution_clock::now();
@@ -257,7 +279,8 @@
                 this->minI[v] = (this->minIbst[v].findMin());
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
-                this->latestTimes.maxOTime += elapsed.count();
+                this->latestTimes.currentminITime += elapsed.count();
+                this->latestTimes.minITime += elapsed.count();
             }    
         }
         /*
@@ -312,6 +335,7 @@
         }
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
+        this->latestTimes.currentdfsTime += elapsed.count();
         this->latestTimes.dfsTime += elapsed.count();
 
 
@@ -327,6 +351,7 @@
                 }
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
+                this->latestTimes.currentminITime += elapsed.count();
                 this->latestTimes.minITime += elapsed.count();
 
                 start = std::chrono::high_resolution_clock::now();
@@ -335,6 +360,7 @@
                 }
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
+                this->latestTimes.currentmaxOTime += elapsed.count();
                 this->latestTimes.maxOTime += elapsed.count();
             }    
         } 
@@ -353,6 +379,7 @@
         }
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
+        this->latestTimes.currentdfsTime += elapsed.count();
         this->latestTimes.dfsTime += elapsed.count(); 
 
         start = std::chrono::high_resolution_clock::now();
@@ -360,6 +387,7 @@
         this->minI[v] = this->minIbst[v].findMin();
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
+        this->latestTimes.currentminITime += elapsed.count();
         this->latestTimes.minITime += elapsed.count();
         
         start = std::chrono::high_resolution_clock::now();
@@ -367,6 +395,7 @@
         this->maxO[u] = this->maxObst[u].findMax(); 
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
+        this->latestTimes.currentmaxOTime += elapsed.count();
         this->latestTimes.maxOTime += elapsed.count();       
         
         for(int i=0; i<this->n; i++) {
@@ -385,6 +414,7 @@
                 }
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
+                this->latestTimes.currentminITime += elapsed.count();
                 this->latestTimes.minITime += elapsed.count();
 
                 
@@ -398,6 +428,7 @@
                 }
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
+                this->latestTimes.currentmaxOTime += elapsed.count();
                 this->latestTimes.maxOTime += elapsed.count();
 
             }

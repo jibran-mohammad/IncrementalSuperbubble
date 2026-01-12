@@ -65,8 +65,7 @@ def parse_file(filename: pathlib.Path, time_column_name: str):
         print(f"    Warning: File not found: {os.path.basename(filename)}. Skipping.")
         return pd.DataFrame()
 
-    print(f"    Parsing {os.path.basename(filename)}...")
-
+    print(f"    Parsing {filename.name}...")
     with open(filename, 'r') as f:
         lines = f.readlines()
 
@@ -234,6 +233,16 @@ def process_time_directory(time_dir_path: pathlib.Path):
     """
     Parses all three time files, prefixes the common metrics, and merges them.
     """
+    # ADD THIS CHECK:
+    required = ["SuperbubbleSimpleTimeOutput.txt", 
+                "SuperbubbleIncrementalDFSOutput.txt", 
+                "SuperbubbleIncrementalAVLDFSOutput.txt"]
+    
+    # Only proceed if AT LEAST one of these files exists in the current folder
+    if not any((time_dir_path / f).exists() for f in required):
+        return
+
+
     print(f"\nProcessing directory: {time_dir_path}")
     
     if not time_dir_path.is_dir():
@@ -428,8 +437,13 @@ def main():
         * Run the script using python, specifying the dataset:
 
             `python3 parse_to_csv.py -d ecoli`
-            (or `python3 parse_to_csv.py --dataset human`)
-            (or `python3 parse_to_csv.py -d all`)
+        
+            To run a specific chromosome: 
+            python3 parse_to_csv.py -d human -c 1
+            To run multiple specific chromosomes: 
+            python3 parse_to_csv.py -d human -c 1 2 22
+            To run everything (it will still find perEdge/perbatch): 
+            python3 parse_to_csv.py -d human
 
     3.  **What it does:**
         * It automatically finds the 'IncSuperbubble' repository root.
@@ -452,6 +466,10 @@ def main():
         choices=["ecoli", "human", "all"],
         required=True,
         help="The dataset to process. 'ecoli', 'human', or 'all'."
+    )
+    parser.add_argument("-c", "--chromosome",
+        nargs='+', 
+        help="Specific chromosome numbers (e.g., 1 2 21)."
     )
     args = parser.parse_args()
 
@@ -481,9 +499,21 @@ def main():
 
     # --- 1. Process Ecoli Dataset ---
     if args.dataset in ["ecoli", "all"]:
+        ecoli_time_base = OUTPUT_DIR / "Ecoli" / "timeFile"
+        if ecoli_time_base.exists():
+            # Check the main folder and the specific sub-folders
+            sub_folders = [ecoli_time_base, ecoli_time_base / "perEdge", ecoli_time_base / "perbatch"]
+            
+            for folder in sub_folders:
+                if folder.exists():
+                    process_time_directory(folder)
+        else:
+            print(f"\nℹ️ 'Ecoli/timeFile' directory not found at {ecoli_time_base}, skipping.")
+    """
+    if args.dataset in ["ecoli", "all"]:
         ecoli_time_dir = OUTPUT_DIR / "Ecoli" / "timeFile"
         process_time_directory(ecoli_time_dir)
-
+    """
     # --- 2. Process Human Dataset ---
     if args.dataset in ["human", "all"]:
         human_output_dir = OUTPUT_DIR / "Human"
@@ -494,6 +524,24 @@ def main():
             # Find all directories starting with "chromosome_"
             chromosome_dirs = sorted([d for d in human_output_dir.iterdir() if d.is_dir() and d.name.startswith("chromosome_")])
             
+            if args.chromosome:
+                # Converts ['1', '2'] into ['chromosome_1', 'chromosome_2']
+                target_names = [f"chromosome_{c}" for c in args.chromosome]
+                chromosome_dirs = [d for d in chromosome_dirs if d.name in target_names]
+
+            for chrom_dir in chromosome_dirs:
+                time_base = chrom_dir / "timeFile"
+                if not time_base.exists():
+                    continue
+                
+                # Define exactly which sub-folders to check
+                # This ensures we check timeFile/, timeFile/perEdge/, and timeFile/perbatch/
+                sub_folders = [time_base, time_base / "perEdge", time_base / "perbatch"]
+                
+                for folder in sub_folders:
+                    if folder.exists():
+                        process_time_directory(folder)
+            """
             if not chromosome_dirs:
                 print("  No 'chromosome_*' directories found.")
             else:
@@ -503,7 +551,7 @@ def main():
                 for chrom_dir in chromosome_dirs:
                     human_time_dir = chrom_dir / "timeFile"
                     process_time_directory(human_time_dir)
-
+            """
     print("\n🎉 All processing complete!")
 
 

@@ -19,7 +19,7 @@ public:
 
         // --- Variables for parsing ---
         int num_base_edges, num_nodes, x, y;
-        float dfsTime, minITime, maxOTime,insertTime, superbubbleTime, totalTime;
+        double dfsTime, minITime, maxOTime,insertTime, superbubbleTime, totalTime, currentinsertTime;
         std::string line;
         std::string graph_name;
         int update_counter = 1;
@@ -82,7 +82,13 @@ public:
         timeFile << "BaseGraph_Build " << elapsed.count() << " " << superbubble.numberOfSuperbubbles() << "\n";
 
         std::cout << "base graph processed" << std::endl;
-        timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count\n";        // --- 2. Process Haplotype Additions Incrementally ---
+        if(mode == "perEdge") {
+            timeFile << "Edge_Number Haplotype_Name Insert_Time DFS_Time MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count\n";
+        }
+        else {
+            timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count\n";
+        }
+        // --- 2. Process Haplotype Additions Incrementally ---
         while (std::getline(std::cin, line)) {
             if (line.empty() || line.find("# HAPLOTYPE:") == std::string::npos) {
                 continue;
@@ -120,8 +126,10 @@ public:
             minITime = 0.0;
             maxOTime = 0.0;
             insertTime = 0.0;
+            currentinsertTime = 0.0;
             superbubbleTime = 0.0;
             totalTime = 0.0;
+            std::string clean_hap_name = hap_name_header.substr(hap_name_header.find(":") + 2);
             //start = std::chrono::high_resolution_clock::now();
             for (int i = 0; i < hap_edge_count; ++i) {
                  std::cin >> x >> y;
@@ -130,34 +138,40 @@ public:
                  // use pointer to superbubble tree to flag affected superbubbles and all ancestors upto LCA
                  end = std::chrono::high_resolution_clock::now();
                  elapsed = end - start;
+                 currentinsertTime = elapsed.count();
                  insertTime += elapsed.count();
                  
                  if (mode == "perEdge") {
-                 start = std::chrono::high_resolution_clock::now();
-                 d.performDFS(&g);
-                 end = std::chrono::high_resolution_clock::now();
-                 elapsed = end - start;
-                 dfsTime += elapsed.count();
+                     start = std::chrono::high_resolution_clock::now();
+                     d.performDFS(&g);
+                     end = std::chrono::high_resolution_clock::now();
+                     elapsed = end - start;
+                     dfsTime = elapsed.count();
 
-                 start = std::chrono::high_resolution_clock::now();
-                 d.createMinI(&g);
-                 end = std::chrono::high_resolution_clock::now();
-                 elapsed = end - start;
-                 minITime += elapsed.count();
+                     start = std::chrono::high_resolution_clock::now();
+                     d.createMinI(&g);
+                     end = std::chrono::high_resolution_clock::now();
+                     elapsed = end - start;
+                     minITime = elapsed.count();
 
-                 start = std::chrono::high_resolution_clock::now();
-                 d.createMaxO(&g);
+                     start = std::chrono::high_resolution_clock::now();
+                     d.createMaxO(&g);
 
-                 end = std::chrono::high_resolution_clock::now();
-                 elapsed = end - start;
-                 maxOTime += elapsed.count();
+                     end = std::chrono::high_resolution_clock::now();
+                     elapsed = end - start;
+                     maxOTime = elapsed.count();
 
-                 start = std::chrono::high_resolution_clock::now();
-                 superbubble.computeSB(&d,&g);
-                 end = std::chrono::high_resolution_clock::now();
-                 elapsed = end - start;
-                 superbubbleTime += elapsed.count();
+                     start = std::chrono::high_resolution_clock::now();
+                     superbubble.computeSB(&d,&g);
+                     end = std::chrono::high_resolution_clock::now();
+                     elapsed = end - start;
+                     superbubbleTime = elapsed.count();
+                     
+                     totalTime = currentinsertTime + dfsTime + minITime + maxOTime + superbubbleTime;
+                     timeFile << i + 1 << " " << clean_hap_name << " " << currentinsertTime << " " << dfsTime << " " << minITime << " " << maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << "\n";
+                     currentinsertTime = 0.0;
                  }
+                 
 
                  
 
@@ -170,28 +184,32 @@ public:
                 d.performDFS(&g);
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
-                dfsTime += elapsed.count();
+                dfsTime = elapsed.count();
             
                 start = std::chrono::high_resolution_clock::now();
                 d.createMinI(&g); 
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
-                minITime += elapsed.count();
+                minITime = elapsed.count();
             
                 start = std::chrono::high_resolution_clock::now();
                 d.createMaxO(&g);
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
-                maxOTime += elapsed.count();
+                maxOTime = elapsed.count();
             
 
                 start = std::chrono::high_resolution_clock::now();
                 superbubble.computeSB(&d,&g);
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
-                superbubbleTime += elapsed.count();
+                superbubbleTime = elapsed.count();
+                totalTime = insertTime + dfsTime + minITime + maxOTime + superbubbleTime;
+                
+                timeFile << update_counter << " " << clean_hap_name << " " << insertTime << " " << dfsTime << " " << minITime << " " << maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << "\n";
+
             }
-            std::string clean_hap_name = hap_name_header.substr(hap_name_header.find(":") + 2);
+            timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";
             //timeFile << update_counter << " " << clean_hap_name << " " << elapsed.count() << " superbubble function" << "\n";
             //std::string clean_hap_name = hap_name_header.substr(hap_name_header.find(":") + 2);
             /*
@@ -206,9 +224,11 @@ public:
                 std::cerr << "Error opening file at: " << std::endl; 
             }
             */
+            /*
             totalTime = insertTime + dfsTime + minITime + maxOTime + superbubbleTime;
             timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";
             timeFile << update_counter << " " << clean_hap_name << " " << insertTime << " " << dfsTime << " " << minITime << " " << maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << "\n";
+            */
             update_counter++;
         }
         //outFile.close();

@@ -19,7 +19,7 @@ public:
 
         // --- Variables for parsing ---
         int num_base_edges, num_nodes, x, y;
-        double superbubbleTime, totalTime;
+        double superbubbleTime, currentsuperbubbleTime, totalTime;
         std::string line;
         std::string graph_name;
         int update_counter = 1;
@@ -80,7 +80,13 @@ public:
         timeFile << "BaseGraph_Build " << elapsed.count() << " " << superbubble.numberOfSuperbubbles() << "\n";
         
         std::cout << "base graph processed" << std::endl;
-        timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5\n";
+        if(mode == "perEdge") {
+            timeFile << "Edge_Number Haplotype_Name Insert_Time DFS_Time MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count\n";
+        }
+        else {
+            timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count\n";
+        }
+        //timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5\n";
         // --- 2. Process Haplotype Additions Incrementally ---
         while (std::getline(std::cin, line)) {
             if (line.empty() || line.find("# HAPLOTYPE:") == std::string::npos) {
@@ -116,8 +122,11 @@ public:
                  std::getline(std::cin, dummy);
                  continue;
             }
-            
+            std::string clean_hap_name = hap_name_header.substr(hap_name_header.find(":") + 2);
+            std::cout << clean_hap_name << std::endl;
+
             superbubbleTime = 0.0;
+            currentsuperbubbleTime = 0.0;
             totalTime = 0.0;
             incdfs.latestTimes.insertTime = 0.0;
             incdfs.latestTimes.dfsTime = 0.0;
@@ -141,8 +150,12 @@ public:
                     superbubble.computeSB(&d, &g);
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
+                    currentsuperbubbleTime = elapsed.count();
                     superbubbleTime += elapsed.count();
                 }
+                totalTime = incdfs.latestTimes.currentinsertTime + incdfs.latestTimes.currentdfsTime + incdfs.latestTimes.currentminITime + incdfs.latestTimes.currentmaxOTime + currentsuperbubbleTime;
+                timeFile << i + 1 << " " << clean_hap_name << " " << incdfs.latestTimes.currentinsertTime << " " << incdfs.latestTimes.currentdfsTime << " " << incdfs.latestTimes.currentminITime << " " << incdfs.latestTimes.currentmaxOTime << " " << currentsuperbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.case1 << " " << incdfs.edgeTypes.case2 << " " << incdfs.edgeTypes.case3 << " " << incdfs.edgeTypes.case4 << " " << incdfs.edgeTypes.case5 << "\n";
+                currentsuperbubbleTime = 0.0;               
             }
 
             
@@ -151,9 +164,11 @@ public:
                 superbubble.computeSB(&d, &g);
                 end = std::chrono::high_resolution_clock::now();
                 superbubbleTime = std::chrono::duration<double>(end - start).count();
+                totalTime = incdfs.latestTimes.insertTime + incdfs.latestTimes.dfsTime + incdfs.latestTimes.minITime + incdfs.latestTimes.maxOTime + superbubbleTime;
+                timeFile << update_counter << " " << clean_hap_name << " " << incdfs.latestTimes.insertTime << " " << incdfs.latestTimes.dfsTime << " " << incdfs.latestTimes.minITime << " " << incdfs.latestTimes.maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.case1 << " " << incdfs.edgeTypes.case2 << " " << incdfs.edgeTypes.case3 << " " << incdfs.edgeTypes.case4 << " " << incdfs.edgeTypes.case5 << "\n";
             }
-            std::string clean_hap_name = hap_name_header.substr(hap_name_header.find(":") + 2);
-            std::cout << clean_hap_name << std::endl;
+            //std::string clean_hap_name = hap_name_header.substr(hap_name_header.find(":") + 2);
+            //std::cout << clean_hap_name << std::endl;
             /*
             if (outFile.is_open()) {
                 outFile << update_counter << " " << clean_hap_name << "\n";
@@ -165,9 +180,9 @@ public:
             } else {
                 std::cerr << "Error opening file at: " << std::endl; 
             }*/
-            totalTime = incdfs.latestTimes.insertTime + incdfs.latestTimes.dfsTime + incdfs.latestTimes.minITime + incdfs.latestTimes.maxOTime + superbubbleTime;
+            //totalTime = incdfs.latestTimes.insertTime + incdfs.latestTimes.dfsTime + incdfs.latestTimes.minITime + incdfs.latestTimes.maxOTime + superbubbleTime;
             timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";
-            timeFile << update_counter << " " << clean_hap_name << " " << incdfs.latestTimes.insertTime << " " << incdfs.latestTimes.dfsTime << " " << incdfs.latestTimes.minITime << " " << incdfs.latestTimes.maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.case1 << " " << incdfs.edgeTypes.case2 << " " << incdfs.edgeTypes.case3 << " " << incdfs.edgeTypes.case4 << " " << incdfs.edgeTypes.case5 << "\n";
+            //timeFile << update_counter << " " << clean_hap_name << " " << incdfs.latestTimes.insertTime << " " << incdfs.latestTimes.dfsTime << " " << incdfs.latestTimes.minITime << " " << incdfs.latestTimes.maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.case1 << " " << incdfs.edgeTypes.case2 << " " << incdfs.edgeTypes.case3 << " " << incdfs.edgeTypes.case4 << " " << incdfs.edgeTypes.case5 << "\n";
             update_counter++;
         }
         //outFile.close();
