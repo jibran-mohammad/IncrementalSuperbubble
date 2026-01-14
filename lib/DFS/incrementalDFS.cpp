@@ -16,6 +16,11 @@
         this->latestTimes.currentdfsTime = 0.0;
         this->latestTimes.currentminITime = 0.0;
         this->latestTimes.currentmaxOTime = 0.0;
+        this->edgeTypes.currentcase1 = 0;
+        this->edgeTypes.currentcase2 = 0;
+        this->edgeTypes.currentcase3 = 0;
+        this->edgeTypes.currentcase4 = 0;
+        this->edgeTypes.currentcase5 = 0;
 
         auto start = std::chrono::high_resolution_clock::now();
         auto end = std::chrono::high_resolution_clock::now();   
@@ -66,6 +71,7 @@
                if(g->strategy->newu == true){
                    this->cases = 1;
                    this->edgeTypes.case1 +=1;
+                   this->edgeTypes.currentcase1 = 1;
                    //std::cout << "case 1" << std::endl;
                    start = std::chrono::high_resolution_clock::now();
                    DifferentBalancedBinaryTree binaryTreeIncoming(this->reverseTopologicalOrder);
@@ -129,6 +135,7 @@
                     //std::cout << "case 2" << std::endl;
                     this->cases=2;
                     this->edgeTypes.case2 +=1;
+                    this->edgeTypes.currentcase2 = 1;
                     start = std::chrono::high_resolution_clock::now();
                     DifferentBalancedBinaryTree binaryTreeIncoming(this->reverseTopologicalOrder);
                     end = std::chrono::high_resolution_clock::now();
@@ -184,7 +191,7 @@
             else {
                this->cases = 3;
                this->edgeTypes.case3 +=1;
-
+               this->edgeTypes.currentcase3 = 1;
                start = std::chrono::high_resolution_clock::now();
                //std::cout << "if x is 2" << std::endl; 
                this->postorder[v] = this->postorder[0];
@@ -247,7 +254,7 @@
             if(this->postorder[u] < this->postorder[v]) {
                 this->cases = 4;
                 this->edgeTypes.case4 +=1;
-
+                this->edgeTypes.currentcase4 = 1;
                 start = std::chrono::high_resolution_clock::now();
                 this->partialDFS(g,u,v);
                 end = std::chrono::high_resolution_clock::now();
@@ -268,7 +275,7 @@
             else {
                 this->cases = 5;
                 this->edgeTypes.case5 +=1;
-
+                this->edgeTypes.currentcase5 = 1;
                 start = std::chrono::high_resolution_clock::now();
                 this->maxObst[u].addNode(v,0);
                 this->maxO[u] = (this->maxObst[u].findMax());

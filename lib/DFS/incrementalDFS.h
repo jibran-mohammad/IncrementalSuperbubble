@@ -29,6 +29,11 @@ public:
     	int case3 = 0;
     	int case4 = 0;
     	int case5 = 0;
+    	int currentcase1 = 0;
+    	int currentcase2 = 0;
+    	int currentcase3 = 0;
+    	int currentcase4 = 0;
+    	int currentcase5 = 0;
     };
     IncrementalUpdateTimes latestTimes;
     TypeOfEdgeInsertion edgeTypes;
