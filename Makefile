@@ -27,9 +27,11 @@ BASEDFS_SRCS = $(DFS_DIR)/baseDFS.cpp
 SIMPLEDFS_SRCS = $(DFS_DIR)/simpleDFS.cpp 
 DFSCONTEXT_SRCS = $(DFS_DIR)/contextdfs.cpp
 INCDFS_SRCS = $(DFS_DIR)/incrementalDFS.cpp
+INCDFSSSM_SRCS = $(DFS_DIR)/incrementalDFSSSM.cpp
 NEWINC_SRCS = $(DFS_DIR)/incrementalDFSAVLTree.cpp
 NEWINCDFSH1_SRCS = $(DFS_DIR)/incrementalDFSH1.cpp
 SUPERBUBBLE_SRCS = $(SUPERBUBBLE_DIR)/superbubble.cpp
+SUPERBUBBLEH1_SRCS = $(SUPERBUBBLE_DIR)/superbubbleh1.cpp
 AVLTREE_SRCS = $(TREE_DIR)/avlTree.cpp
 DIFFERENTAVLTREE_SRCS = $(TREE_DIR)/differentAVLTree.cpp
 
@@ -40,11 +42,14 @@ SIMPLEDFS_OBJS = $(DFS_DIR)/simpleDFS.o $(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseD
 INCDFS_OBJS = $(DFS_DIR)/incremetalDFS.o $(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseDFS.o $(TEST_DIR)/testIncrementalDFS.o
 NEWINC_OBJS = $(DFS_DIR)/incrementalDFSAVLTree.o $(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseDFS.o $(TEST_DIR)/testnewIncrementalDFS.o 
 NEWINCH1_OBJS = $(DFS_DIR)/incrementalDFSH1.o $(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseDFS.o $(TEST_DIR)/testnewIncrementalDFSH1.o
-SUPERBUBBLE_OBJS = $(SUPERBUBBLE_DIR)/superbubble.o 
+SUPERBUBBLE_OBJS = $(SUPERBUBBLE_DIR)/superbubble.o
+SUPERBUBBLEH1_OBJS = $(SUPERBUBBLE_DIR)/superbubbleh1.o 
 AVLTREE_OBJS = $(TREE_DIR)/avlTree.o $(TEST_DIR)/testAVLtree.o
 DIFFERENTAVLTREE_OBJS = $(TREE_DIR)/differentAVLTree.o $(TEST_DIR)/testDifferentAvlTree.o
 SIMPLESUPERBUBBLE_OBJS = $(ALGORITHM_DIR)/superbubbledfs.o
+SIMPLESUPERBUBBLEH1_OBJS = $(ALGORITHM_DIR)/superbubbledfsh1.o
 INCSUPERBUBBLE_OBJS = $(ALGORITHM_DIR)/superbubbleIncdfs.o
+INCSUPERBUBBLESSM_OBJS = $(ALGORITHM_DIR)/superbubbleIncdfsssm.o
 NEWINCREMENTALSUPERBUBBLE_OBJS = $(ALGORITHM_DIR)/mnlognsuperbubble.o
 H1SUPERBUBBLE_OBJS = $(ALGORITHM_DIR)/mnlognH1.o
 TESTDFSALLFILES_OBJS = $(TEST_DIR)/testSIIAVLTree.o
@@ -69,6 +74,7 @@ TEST_SUPERBUBBLESIMPLEDFS_SRCS= $(TEST_DIR)/testSuperbubble.cpp
 TEST_AVLTREE_SRCS= $(TEST_DIR)/testAVLtree.cpp
 TEST_DIFFERENTAVLTREE_SRCS = $(TEST_DIR)/testDifferentAvlTree.cpp
 SUPERBUBBLE_SRCS = $(SUPERBUBBLE_DIR)/superbubble.cpp
+SUPERBUBBLEH1_SRCS = $(SUPERBUBBLE_DIR)/superbubbleh1.cpp
 SIMPLESUPERBUBBLE_SRCS = $(ALGORITHM_DIR)/superbubbledfs.cpp
 INCSUPERBUBBLE_SRCS = $(ALGORITHM_DIR)/superbubbleIncdfs.cpp
 NEWINCREMENTALSUPERBUBBLE_SRCS = $(ALGORITHM_DIR)/mnlognsuperbubble.cpp
@@ -94,7 +100,9 @@ NEWINCH1_EXEC = $(TEST_DIR)/newIncDFSH1
 AVLTREE_EXEC = $(TEST_DIR)/testavlTree
 DIFFERENTAVLTREE_EXEC = $(TEST_DIR)/differentavlTree
 SIMPLESUPERBUBBLE_EXEC = $(TEST_DIR)/superbubbledfs
+SIMPLESUPERBUBBLEH1_EXEC = $(TEST_DIR)/superbubbledfsh1
 INCSUPERBUBBLE_EXEC = $(TEST_DIR)/superbubbleIncdfs
+INCSUPERBUBBLESSM_EXEC = $(TEST_DIR)/superbubbleIncdfsssm
 NEWINCREMENTALSUPERBUBBLE_EXEC = $(TEST_DIR)/mnlognsuperbubble
 H1SUPERBUBBLE_EXEC = $(TEST_DIR)/h1Superbubble
 TESTDFSALLFILES_EXEC = $(TEST_DIR)/testAllFilesDfs
@@ -178,6 +186,12 @@ else ifeq ($(TARGET),superbubbleProbability)
 else ifeq ($(TARGET),incdfsH1)
 	TARGET_EXEC = $(NEWINCH1_EXEC)
 	TARGET_DEPS = $(NEWINCH1_OBJS) $(GRAPH_DIR)/contextGraph.o $(GRAPH_DIR)/adjacencyListGraph.o $(TREE_DIR)/differentAVLTree.o 
+else ifeq ($(TARGET),simpleSuperbubbleh1)
+	TARGET_EXEC = $(SIMPLESUPERBUBBLEH1_EXEC)
+	TARGET_DEPS = $(SIMPLESUPERBUBBLEH1_OBJS) $(SUPERBUBBLE_DIR)/superbubbleh1.o  $(DFS_DIR)/simpleDFS.o $(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseDFS.o $(GRAPH_DIR)/adjacencyListGraph.o	$(GRAPH_DIR)/contextGraph.o
+else ifeq ($(TARGET),incsuperbubblessm)
+	TARGET_EXEC = $(INCSUPERBUBBLESSM_EXEC)
+	TARGET_DEPS = $(INCSUPERBUBBLESSM_OBJS) $(SUPERBUBBLE_DIR)/superbubble.o $(DFS_DIR)/incremetalDFSSSM.o $(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseDFS.o  $(GRAPH_DIR)/adjacencyListGraph.o $(GRAPH_DIR)/contextGraph.o $(TREE_DIR)/differentAVLTree.o
 endif
 
 
@@ -202,6 +216,9 @@ $(ALGORITHM_DIR)/mnlognH1.o: $(H1SUPERBUBBLE_SRCS)
 
 $(SUPERBUBBLE_DIR)/Superbubble.o: $(SUPERBUBBLE_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(SUPERBUBBLEH1_DIR)/Superbubbleh1.o: $(SUPERBUBBLEH1_SRCS)
+	$(CC) $(CFLAGS) -c $< -o $@	
 	
 $(TESTDFSALLFILES_OBJS): $(TESTDFSALLFILES_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@	
@@ -276,6 +293,9 @@ $(DFS_DIR)/baseDFS.o: $(BASEDFS_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@	
 
 $(DFS_DIR)/contextdfs.o: $(DFSCONTEXT_SRCS)
+	$(CC) $(CFLAGS) -c $< -o $@	
+
+$(DFS_DIR)/incremetalDFSSSM.o: $()
 	$(CC) $(CFLAGS) -c $< -o $@	
 
 

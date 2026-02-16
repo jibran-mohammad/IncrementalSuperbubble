@@ -5,6 +5,7 @@
 #include "../lib/graph/adjacencyListGraph.h"
 #include "../lib/DFS/incrementalDFSAVLTree.h"
 #include "../lib/DFS/incrementalDFS.h"
+#include "../lib/findSuperbubble/superbubbleh1.h"
 
 class AlgorithmForSuperbubbles {
 public:

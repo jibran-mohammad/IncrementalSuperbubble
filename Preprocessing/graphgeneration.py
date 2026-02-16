@@ -161,6 +161,17 @@ def extract_walk_from_gaf(parts):
             return col.strip()
     return None
 
+def count_nodes_edges(gfa_path):
+    nodes = 0
+    edges = 0
+    with open(gfa_path, 'r') as f:
+        for line in f:
+            if line.startswith('S'):
+                nodes += 1
+            elif line.startswith('L'):
+                edges += 1
+    return nodes, edges
+
 def build_reference_w_line(graph_path, ref_fasta_path, gaf_dir, threads):
     """
     Return (ref_w_line, ref_seq_id) for the reference.
@@ -358,6 +369,11 @@ def gen_mg_gfa(idx):
         output_gfa=graph[idx],
         label=os.path.splitext(h[idx])[0]
         )
+
+    nodes, edges = count_nodes_edges(graph[idx])
+    print(f"\n📊 Graph Statistics (raw minigraph output)")
+    print(f"Nodes (S lines): {nodes}")
+    print(f"Edges (L lines): {edges}\n")
     
     """
     cmd = f"{shlex.quote(MINICHAIN)} -t{threads} -cxggs {shlex.quote(ref)}"

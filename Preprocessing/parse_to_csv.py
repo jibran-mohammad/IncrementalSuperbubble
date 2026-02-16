@@ -58,7 +58,7 @@ def robust_float_convert(val_str: str) -> float:
 #  Parsing Function (Updated to handle new file format)
 # ==============================================================================
 
-def parse_file(filename: pathlib.Path, time_column_name: str):
+def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     data = []
     
     if not filename.exists():
@@ -134,84 +134,200 @@ def parse_file(filename: pathlib.Path, time_column_name: str):
         data.append(base_entry)
 
         try:
-             header_line = next(line_iter).strip()
-             if not header_line.startswith("Update_ID"): header_line = next(line_iter).strip()
+            header_line = next(line_iter).strip()
+            # If the line looks like a header (contains text), skip it.
+            # If it's empty, skip and get the next one.
+            if not header_line or not header_line[0].isdigit():
+                header_line = next(line_iter).strip()
         except StopIteration:
             pass
-            
+        
+        pending_block_rows = []
+        prev_edges = initial_edges
+        prev_nodes = initial_nodes   
+        global_step = 0 
         # --- Data Lines ---
         while True:
             # --- Line N: Edges and Nodes ---
             stats_line = next(line_iter).strip()
             
-            if "PeakMemory" in stats_line: break
+            if "PeakMemory" in stats_line:
+                if mode != "perbatch" and pending_block_rows:
+                    for row in pending_block_rows:
+                        row['Edges'] = prev_edges
+                        row['Nodes'] = prev_nodes
+                        data.append(row)
+                    pending_block_rows.clear()
+                break
             if not stats_line: continue
 
             stats_parts = stats_line.split()
-            
-            if len(stats_parts) == 2 and stats_parts[0].isdigit():
+
+            if(mode == "perbatch"):
+
+                # stats_line MUST be "Edges Nodes"
+                if not (len(stats_parts) == 2 and stats_parts[0].isdigit() and stats_parts[1].isdigit()):
+                    continue  # ignore noise / wrong lines safely
+
                 current_haplotype_edges = int(stats_parts[0])
                 current_haplotype_nodes = int(stats_parts[1])
+
+                # Now the next line is the real haplotype build line
+                try:
+                    build_line = next(line_iter).strip()
+                except StopIteration:
+                    break
+
+                    
                 
-            try:
-                build_line = next(line_iter).strip()
-            except StopIteration:
-                break 
-            
-            if "PeakMemory" in build_line: break
-            if not build_line: continue
+                if "PeakMemory" in build_line: break
+                if not build_line: continue
 
-            build_parts = build_line.split()
-            
-            # --- Handle short zero-time lines ---
-            is_short_zero_entry = (
-                len(build_parts) == 4 and 
-                build_parts[0].isdigit() and 
-                robust_float_convert(build_parts[2]) == 0.0
-            )
-            
-            if len(build_parts) != EXPECTED_DATA_PARTS_LEN and not is_short_zero_entry:
-                 continue 
+                build_parts = build_line.split()
+                
+                # --- Handle short zero-time lines ---
+                is_short_zero_entry = (
+                    len(build_parts) == 4 and 
+                    build_parts[0].isdigit() and 
+                    robust_float_convert(build_parts[2]) == 0.0
+                )
+                
+                if len(build_parts) != EXPECTED_DATA_PARTS_LEN and not is_short_zero_entry:
+                     continue 
 
-            if is_short_zero_entry:
-                step = int(build_parts[0])
+                if is_short_zero_entry:
+                    step = int(build_parts[0])
+                    haplotype_name = build_parts[1]
+                    sb_count = int(build_parts[3])
+                    
+                    metrics = [0.0] * (len(BASE_METRIC_COLUMNS) - 1) + [sb_count] 
+                    if is_incremental_file:
+                        metrics += [0] * len(CASE_COLUMNS)
+                
+                else: 
+                    step = int(build_parts[0])
+                    haplotype_name = build_parts[1]
+                    
+                    metrics = []
+                    for i, val in enumerate(build_parts[2:]):
+                        col_name = FULL_METRIC_COLUMNS[i]
+                        if 'Time' in col_name or col_name == 'SB_Compute_Time':
+                            metrics.append(robust_float_convert(val))
+                        else:
+                            try:
+                                metrics.append(int(val))
+                            except ValueError:
+                                 metrics.append(0)
+
+                entry = {
+                    'Step': step,
+                    'Haplotype_Name': haplotype_name,
+                    'Nodes': current_haplotype_nodes,
+                    'Edges': current_haplotype_edges,
+                }
+                
+                # Map metrics with the prefix
+                for name, value in zip(FULL_METRIC_COLUMNS, metrics):
+                    entry[f'{prefix}{name}'] = value
+
+                # Assign the dynamic comparison time column
+                entry[f'{prefix}Time_s'] = entry[f'{prefix}{source_time_metric}']
+
+                data.append(entry)
+            else:
+                # =================== PER-EDGE MODE ===================
+                # In this mode file format is:
+                #
+                #   Edges Nodes
+                #   Edge_Number Haplotype_Name ...
+                #   <edge rows...>
+                #   Edges Nodes
+                #   <edge rows...>
+                #   ...
+                #   PeakMemory ...
+                #
+                # Important: "Edges Nodes" line ends the PREVIOUS block.
+                # So we keep edge rows in a buffer and flush them when the next
+                # "Edges Nodes" appears (or at PeakMemory/EOF).
+
+                # (1) If this is an "Edges Nodes" line
+                if len(stats_parts) == 2 and stats_parts[0].isdigit() and stats_parts[1].isdigit():
+                    new_edges = int(stats_parts[0])
+                    new_nodes = int(stats_parts[1])
+
+                    # Flush the previously collected edge rows (if any)
+                    if pending_block_rows:
+                        # Apply the PREVIOUS block sizes
+                        for row in pending_block_rows:
+                            row['Edges'] = prev_edges
+                            row['Nodes'] = prev_nodes
+                            data.append(row)
+
+                        pending_block_rows.clear()
+
+                    # Update the "previous block size" to this new metadata
+                    prev_edges = new_edges
+                    prev_nodes = new_nodes
+
+                    # Move on to next line
+                    continue
+
+
+                # (3) Otherwise, treat it as an edge-update row
+                build_parts = stats_parts
+
+                is_short_zero_entry = (
+                    len(build_parts) == 4 and
+                    build_parts[0].isdigit() and
+                    robust_float_convert(build_parts[2]) == 0.0
+                )
+
+                if len(build_parts) != EXPECTED_DATA_PARTS_LEN and not is_short_zero_entry:
+                    # ignore noise lines safely
+                    continue
+
+                # edge number in the file (YOU WANT THIS EXACTLY)
+                local_edge_no = int(build_parts[0])
+                global_step += 1
+                step = global_step
                 haplotype_name = build_parts[1]
-                sb_count = int(build_parts[3])
-                
-                metrics = [0.0] * (len(BASE_METRIC_COLUMNS) - 1) + [sb_count] 
-                if is_incremental_file:
-                    metrics += [0] * len(CASE_COLUMNS)
-            
-            else: 
-                step = int(build_parts[0])
-                haplotype_name = build_parts[1]
-                
-                metrics = []
-                for i, val in enumerate(build_parts[2:]):
-                    col_name = FULL_METRIC_COLUMNS[i]
-                    if 'Time' in col_name or col_name == 'SB_Compute_Time':
-                        metrics.append(robust_float_convert(val))
-                    else:
-                        try:
-                            metrics.append(int(val))
-                        except ValueError:
-                             metrics.append(0)
 
-            entry = {
-                'Step': step,
-                'Haplotype_Name': haplotype_name,
-                'Nodes': current_haplotype_nodes,
-                'Edges': current_haplotype_edges,
-            }
-            
-            # Map metrics with the prefix
-            for name, value in zip(FULL_METRIC_COLUMNS, metrics):
-                entry[f'{prefix}{name}'] = value
+                # Parse metrics
+                if is_short_zero_entry:
+                    # edgeNo hapName 0 SB_Count
+                    sb_count = int(build_parts[3])
 
-            # Assign the dynamic comparison time column
-            entry[f'{prefix}Time_s'] = entry[f'{prefix}{source_time_metric}']
+                    metrics = [0.0] * (len(BASE_METRIC_COLUMNS) - 1) + [sb_count]
+                    if is_incremental_file:
+                        metrics += [0] * len(CASE_COLUMNS)
+                else:
+                    metrics = []
+                    for i, val in enumerate(build_parts[2:]):
+                        col_name = FULL_METRIC_COLUMNS[i]
+                        if 'Time' in col_name or col_name == 'SB_Compute_Time':
+                            metrics.append(robust_float_convert(val))
+                        else:
+                            try:
+                                metrics.append(int(val))
+                            except ValueError:
+                                metrics.append(0)
 
-            data.append(entry)
+                # Buffer the row; Nodes/Edges will be filled when we see the next "Edges Nodes"
+                entry = {
+                    'Step': step,                 # GLOBAL step (unique in CSV)
+                    'LocalEdgeNo': local_edge_no, # edge number in that haplotype block
+                    'Haplotype_Name': haplotype_name,
+                    'Nodes': 0,
+                    'Edges': 0,
+                }
+
+                for name, value in zip(FULL_METRIC_COLUMNS, metrics):
+                    entry[f'{prefix}{name}'] = value
+
+                entry[f'{prefix}Time_s'] = entry[f'{prefix}{source_time_metric}']
+
+                pending_block_rows.append(entry)
+                    
             
     except StopIteration:
         pass
@@ -229,7 +345,7 @@ def parse_file(filename: pathlib.Path, time_column_name: str):
 #  New Processing Function
 # ==============================================================================
 
-def process_time_directory(time_dir_path: pathlib.Path):
+def process_time_directory(time_dir_path: pathlib.Path, mode: str):
     """
     Parses all three time files, prefixes the common metrics, and merges them.
     """
@@ -238,9 +354,23 @@ def process_time_directory(time_dir_path: pathlib.Path):
                 "SuperbubbleIncrementalDFSOutput.txt", 
                 "SuperbubbleIncrementalAVLDFSOutput.txt"]
     
+    dir_name = time_dir_path.name.lower()
+
+    if mode == "peredge" and "peredge" not in dir_name:
+        return
+
+    if mode == "perbatch" and "perbatch" not in dir_name:
+        return
+
+    # Skip timeFile directories always
+    if "timefile" in dir_name or "timefiles" in dir_name:
+        return
+
+
     # Only proceed if AT LEAST one of these files exists in the current folder
     if not any((time_dir_path / f).exists() for f in required):
         return
+    
 
 
     print(f"\nProcessing directory: {time_dir_path}")
@@ -260,7 +390,7 @@ def process_time_directory(time_dir_path: pathlib.Path):
     all_data = []
     
     for filepath, time_col in files_to_parse.items():
-        df = parse_file(filepath, time_col)
+        df = parse_file(filepath, time_col, mode)
         if not df.empty:
             all_data.append(df)
 
@@ -278,13 +408,18 @@ def process_time_directory(time_dir_path: pathlib.Path):
         PREFIXES = ['Simple_', 'INC_', 'BST_']
         
         # 2. Perform the full merge
-        merged_df = all_data[0].copy().set_index('Step')
+        merge_keys = ['Step']
+        if mode == "peredge":
+            merge_keys = ['Step', 'Haplotype_Name']
 
-        # Join the remaining DataFrames, which are already fully prefixed
+        merged_df = all_data[0].copy().set_index(merge_keys)
+
         for df in all_data[1:]:
-            df_to_join = df.set_index('Step')
-            cols_to_join = [col for col in df_to_join.columns if col not in COMMON_MERGE_COLS]
-            
+            df_to_join = df.set_index(merge_keys)
+
+            # join only metric columns (not the shared identity columns)
+            cols_to_join = [col for col in df_to_join.columns
+                            if col not in COMMON_MERGE_COLS and col != 'LocalEdgeNo']
             merged_df = merged_df.join(df_to_join[cols_to_join], how='outer')
 
         merged_df = merged_df.reset_index()
@@ -435,15 +570,39 @@ def main():
         * Open your terminal or command prompt.
         * Navigate to the directory containing this script.
         * Run the script using python, specifying the dataset:
-
+\begin{table}[ht]
+\centering
+\begin{tabular}{|c|c|c|c|c|c|}
+\hline
+\textbf{Dataset} & \textbf{Simple\_Total} & \textbf{INC\_Total} & \textbf{BST\_Total} & \textbf{INC\_Imp(%)} & \textbf{BST\_Imp(%)} \\
+\hline
+Ecoli & 50.0653 & 50.3293 & 50.8285 & -0.53 & -1.52 \\
+\hline
+chr13 & 22.8268 & 22.0818 & 24.2408 & 3.26 & -6.19 \\
+\hline
+chr15 & 26.0925 & 25.4394 & 27.7923 & 2.50 & -6.51 \\
+\hline
+chr21 & 20.5835 & 19.9686 & 21.8919 & 2.99 & -6.36 \\
+\hline
+chromosome\_X & 89.9178 & 85.0560 & 91.8650 & 5.41 & -2.17 \\
+\hline
+\end{tabular}
+\caption{SBCompute total time comparison across datasets}
+\label{tab:sbcompute_summary}
+\end{table}
             `python3 parse_to_csv.py -d ecoli`
         
             To run a specific chromosome: 
             python3 parse_to_csv.py -d human -c 1
-            To run multiple specific chromosomes: 
+            To rually downn multiple specific chromosomes: 
             python3 parse_to_csv.py -d human -c 1 2 22
             To run everything (it will still find perEdge/perbatch): 
             python3 parse_to_csv.py -d human
+
+            python3 parse_to_csv.py -d human -m peredge or 
+            python3 parse_to_csv.py -d ecoli -m peredge
+            python3 parse_to_csv.py -d ecoli -m perbatch
+
 
     3.  **What it does:**
         * It automatically finds the 'IncSuperbubble' repository root.
@@ -471,6 +630,13 @@ def main():
         nargs='+', 
         help="Specific chromosome numbers (e.g., 1 2 21)."
     )
+    parser.add_argument(
+        "-m", "--mode",
+        choices=["perbatch", "peredge"],
+        default="perbatch",
+        help="Parsing mode based on file format (counts before or after data)."
+    )
+
     args = parser.parse_args()
 
     try:
@@ -506,7 +672,7 @@ def main():
             
             for folder in sub_folders:
                 if folder.exists():
-                    process_time_directory(folder)
+                    process_time_directory(folder,args.mode)
         else:
             print(f"\nℹ️ 'Ecoli/timeFile' directory not found at {ecoli_time_base}, skipping.")
     """
@@ -540,7 +706,7 @@ def main():
                 
                 for folder in sub_folders:
                     if folder.exists():
-                        process_time_directory(folder)
+                        process_time_directory(folder,args.mode)
             """
             if not chromosome_dirs:
                 print("  No 'chromosome_*' directories found.")

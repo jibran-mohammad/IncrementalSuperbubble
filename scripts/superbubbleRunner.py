@@ -37,7 +37,9 @@ import argparse
 # 
 # 9. For Batch processing: python3 superbubbleRunner.py -d Human -m perBatch
 
-#    For Every-Edge processing: python3 superbubbleRunner.py -d Human -m perEdge  
+# 10.For Every-Edge processing: python3 superbubbleRunner.py -d Human -m perEdge
+  
+# 11.  python3 superbubbleRunner.py -d Ecoli -a SimpleSuperbubbleH1 -m perEdge 
 #
 # --- END HOW TO RUN ---
 
@@ -77,6 +79,16 @@ ALGORITHMS = [
         "name": "AnotherAlgorithm",
         "target": "newincrementalSuperbubble",
         "output_filename": "SuperbubbleIncrementalAVLDFSOutput.txt"
+    },
+    {
+        "name": "SimpleSuperbubbleH1",
+        "target": "simpleSuperbubbleh1",
+        "output_filename": "SuperbubbleSimpleTimeOutputH1.txt"
+    },
+    {
+        "name": "incsuperbubblessm",
+        "target": "incsuperbubblessm",
+        "output_filename": "SuperbubbleIncrementalDFSOutputSSM.txt"
     }
 ]
 # ---------------------
