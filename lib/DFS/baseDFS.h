@@ -1,6 +1,7 @@
 #ifndef BASEDFS_
 #define BASEDFS_
 #include "dfs.h"
+#include <chrono>
 
 
 class BaseDFS: public IDFS {
@@ -19,6 +20,13 @@ public:
 		this->visit.assign(this->n, 0); 
         this->reversePostorder.clear();
 	}
+	struct IncrementalUpdateTimes {
+	    double dfsTime = 0.0;
+	    double topologicalOrderTime = 0.0;
+	    double currentdfsTime = 0.0;
+	    double currenttopologicalOrderTime = 0.0;
+    };
+    IncrementalUpdateTimes latestTimes;
 public:
 	void dfs(GraphContext *g) override;
 	void dfsUtil(GraphContext *G, int v);

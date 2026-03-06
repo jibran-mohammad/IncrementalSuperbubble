@@ -15,10 +15,12 @@ public:
 	struct IncrementalUpdateTimes {
     double insertTime = 0.0;
     double dfsTime = 0.0;
+    double topologicalOrderTime = 0.0;
     double minITime = 0.0;
     double maxOTime = 0.0;
     double currentinsertTime = 0.0;
     double currentdfsTime = 0.0;
+    double currenttopologicalOrderTime = 0.0;
     double currentminITime = 0.0;
     double currentmaxOTime = 0.0;
     };

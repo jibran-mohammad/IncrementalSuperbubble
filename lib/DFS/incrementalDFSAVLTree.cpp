@@ -15,6 +15,7 @@
         int x;
         this->latestTimes.currentinsertTime = 0.0;
         this->latestTimes.currentdfsTime = 0.0;
+        this->latestTimes.currenttopologicalOrderTime = 0.0;
         this->latestTimes.currentminITime = 0.0;
         this->latestTimes.currentmaxOTime = 0.0;
         this->edgeTypes.currentcase1 = 0;
@@ -39,7 +40,7 @@
         v=g->strategy->reverseMapping[v];
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
-        this->latestTimes.currentinsertTime = elapsed.count();
+        this->latestTimes.currenttopologicalOrderTime = elapsed.count();
         this->latestTimes.insertTime += elapsed.count();
         //std::cout << "new U= "<< u << " " << "new v= " << v << std::endl;
         if(x>0) {
@@ -107,8 +108,8 @@
                    }
                    end = std::chrono::high_resolution_clock::now();
                    elapsed = end - start;
-                   this->latestTimes.currentdfsTime += elapsed.count();
-                   this->latestTimes.dfsTime += elapsed.count();
+                   this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+                   this->latestTimes.topologicalOrderTime += elapsed.count();
 
                    start = std::chrono::high_resolution_clock::now();
                    this->maxObst[u].addNode(v,0);
@@ -160,8 +161,8 @@
                     }
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
-                    this->latestTimes.currentdfsTime += elapsed.count();
-                    this->latestTimes.dfsTime += elapsed.count();
+                    this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+                    this->latestTimes.topologicalOrderTime += elapsed.count();
 
                     start = std::chrono::high_resolution_clock::now();
                     binaryTreeIncoming.addNode(u,0);
@@ -212,8 +213,8 @@
  
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
-                this->latestTimes.currentdfsTime += elapsed.count();
-                this->latestTimes.dfsTime += elapsed.count();
+                this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+                this->latestTimes.topologicalOrderTime += elapsed.count();
 
                start = std::chrono::high_resolution_clock::now();
                DifferentBalancedBinaryTree binaryTreeIncomingu(this->reverseTopologicalOrder);
@@ -266,8 +267,8 @@
                 this->reset();
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
-                this->latestTimes.currentdfsTime += elapsed.count();
-                this->latestTimes.dfsTime += elapsed.count();
+                this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+                this->latestTimes.topologicalOrderTime += elapsed.count();
             }
             else {
                 //std::cout << "right to left  edge" << std::endl;
@@ -343,8 +344,8 @@
         }
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
-        this->latestTimes.currentdfsTime += elapsed.count();
-        this->latestTimes.dfsTime += elapsed.count();
+        this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+        this->latestTimes.topologicalOrderTime += elapsed.count();
 
 
         for(int i=0; i<this->n; i++) {
@@ -387,8 +388,8 @@
         }
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
-        this->latestTimes.currentdfsTime += elapsed.count();
-        this->latestTimes.dfsTime += elapsed.count(); 
+        this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+        this->latestTimes.topologicalOrderTime += elapsed.count(); 
 
         start = std::chrono::high_resolution_clock::now();
         this->minIbst[v].addNode(u,0);

@@ -70,21 +70,25 @@ ALGORITHMS = [
         "target": "simpleSuperbubble",
         "output_filename": "SuperbubbleSimpleTimeOutput.txt"
     },
-    {
-        "name": "IncrementalAlgorithm",
-        "target": "incsuperbubble",
-        "output_filename": "SuperbubbleIncrementalDFSOutput.txt"
-    },
+
+   
+    #{
+    #    "name": "IncrementalAlgorithm",
+    #   "target": "incsuperbubble",
+    #   "output_filename": "SuperbubbleIncrementalDFSOutput.txt"
+    #},
     {
         "name": "AnotherAlgorithm",
         "target": "newincrementalSuperbubble",
         "output_filename": "SuperbubbleIncrementalAVLDFSOutput.txt"
     },
-    {
-        "name": "SimpleSuperbubbleH1",
-        "target": "simpleSuperbubbleh1",
-        "output_filename": "SuperbubbleSimpleTimeOutputH1.txt"
-    },
+     
+    #{
+    #    "name": "SimpleSuperbubbleH1",
+    #    "target": "simpleSuperbubbleh1",
+    #    "output_filename": "SuperbubbleSimpleTimeOutputH1.txt"
+    #},
+
     {
         "name": "incsuperbubblessm",
         "target": "incsuperbubblessm",

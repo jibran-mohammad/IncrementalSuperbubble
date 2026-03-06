@@ -19,7 +19,7 @@ public:
 
         // --- Variables for parsing ---
         int num_base_edges, num_nodes, x, y;
-        double dfsTime, minITime, maxOTime,insertTime, superbubbleTime, totalTime, currentinsertTime;
+        double minITime, maxOTime,insertTime, superbubbleTime, totalTime, currentinsertTime;
         std::string line;
         std::string graph_name;
         int update_counter = 1;
@@ -83,10 +83,10 @@ public:
 
         std::cout << "base graph processed" << std::endl;
         if(mode == "perEdge") {
-            timeFile << "Edge_Number Haplotype_Name Insert_Time DFS_Time MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count\n";
+            timeFile << "Edge_Number Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count\n";
         }
         else {
-            timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count\n";
+            timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count\n";
         }
         // --- 2. Process Haplotype Additions Incrementally ---
         while (std::getline(std::cin, line)) {
@@ -122,7 +122,6 @@ public:
                  std::getline(std::cin, dummy);
                  continue;
             }
-            dfsTime = 0.0;
             minITime = 0.0;
             maxOTime = 0.0;
             insertTime = 0.0;
@@ -142,11 +141,9 @@ public:
                  insertTime += elapsed.count();
                  
                  if (mode == "perEdge") {
-                     start = std::chrono::high_resolution_clock::now();
+                     
                      d.performDFS(&g);
-                     end = std::chrono::high_resolution_clock::now();
-                     elapsed = end - start;
-                     dfsTime = elapsed.count();
+                
 
                      start = std::chrono::high_resolution_clock::now();
                      d.createMinI(&g);
@@ -167,8 +164,8 @@ public:
                      elapsed = end - start;
                      superbubbleTime = elapsed.count();
                      
-                     totalTime = currentinsertTime + dfsTime + minITime + maxOTime + superbubbleTime;
-                     timeFile << i + 1 << " " << clean_hap_name << " " << currentinsertTime << " " << dfsTime << " " << minITime << " " << maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << "\n";
+                     totalTime = currentinsertTime + simdfs.latestTimes.dfsTime + simdfs.latestTimes.topologicalOrderTime + minITime + maxOTime + superbubbleTime;
+                     timeFile << i + 1 << " " << clean_hap_name << " " << currentinsertTime << " " << simdfs.latestTimes.dfsTime << " " << simdfs.latestTimes.topologicalOrderTime << " " << minITime << " " << maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << "\n";
                      currentinsertTime = 0.0;
                  }
                  
@@ -180,11 +177,8 @@ public:
             //timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";
             
             if (mode == "perBatch") {
-                start = std::chrono::high_resolution_clock::now();
+                
                 d.performDFS(&g);
-                end = std::chrono::high_resolution_clock::now();
-                elapsed = end - start;
-                dfsTime = elapsed.count();
             
                 start = std::chrono::high_resolution_clock::now();
                 d.createMinI(&g); 
@@ -204,9 +198,9 @@ public:
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
                 superbubbleTime = elapsed.count();
-                totalTime = insertTime + dfsTime + minITime + maxOTime + superbubbleTime;
+                totalTime = insertTime + simdfs.latestTimes.dfsTime + simdfs.latestTimes.topologicalOrderTime + minITime + maxOTime + superbubbleTime;
                 
-                timeFile << update_counter << " " << clean_hap_name << " " << insertTime << " " << dfsTime << " " << minITime << " " << maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << "\n";
+                timeFile << update_counter << " " << clean_hap_name << " " << insertTime << " " << simdfs.latestTimes.dfsTime << " " << simdfs.latestTimes.topologicalOrderTime << " " << minITime << " " << maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << "\n";
 
             }
             timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";

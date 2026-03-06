@@ -2,7 +2,7 @@
 
     
     /*
-      insert function used for insertion of an edge and for maintaining all relevant datastructures like 
+      insert function used for insertion of an edge and for maintaining all datastructures like 
       reversetopological order, minI, maxO etc. It handles five cases. 
       1) edge (u,v) inserted, one new node inserted and u is new node.
       2) edge (u,v) inserted, one new node inserted and v is new node.
@@ -14,6 +14,7 @@
         int x;
         this->latestTimes.currentinsertTime = 0.0;
         this->latestTimes.currentdfsTime = 0.0;
+        this->latestTimes.currenttopologicalOrderTime = 0.0;
         this->latestTimes.currentminITime = 0.0;
         this->latestTimes.currentmaxOTime = 0.0;
         this->edgeTypes.currentcase1 = 0;
@@ -28,7 +29,9 @@
 
         start = std::chrono::high_resolution_clock::now();
         x=this->n;
+        //std::cout << "before insert" << std::endl;
         g->insertEdge(u,v);
+        //std::cout << "after insert" << std::endl;
         this->n=g->displayNumberVertices();
         x=this->n-x;
         //std::cout << "original U= "<< u << " " << "original v= " << v << std::endl;
@@ -42,8 +45,8 @@
         this->latestTimes.insertTime += elapsed.count();
         //std::cout << "new U= "<< u << " " << "new v= " << v << std::endl;
         if(x>0) {
-            //std::cout << " x= " << x << std::endl;
-            //std::cout << " n= " << n << std::endl;
+            std::cout << " x= " << x << std::endl;
+            std::cout << " n= " << n << std::endl;
             start = std::chrono::high_resolution_clock::now();
             this->reversePostorder.resize(this->n);
             this->postorder.resize(this->n);
@@ -52,11 +55,6 @@
             this->reverseTopologicalOrder.resize(this->n);
             this->minI.resize(this->n);
             this->maxO.resize(this->n);
-            //std::cout << "after maxO ds" << std::endl;
-            this->minIbst.resize(this->n);
-            //std::cout << "after minIbst" << std::endl;
-            this->maxObst.resize(this->n);
-            //std::cout << "after maxobst" << std::endl;
             this->marked.resize(this->n);
             this->intermediatepostorder.resize(this->n);
             this->postorderChanged.resize(this->n);
@@ -64,9 +62,9 @@
             elapsed = end - start;
             this->latestTimes.insertTime += elapsed.count();
             this->latestTimes.insertTime += elapsed.count();
-            //std::cout << "after resize" << std::endl;
+            std::cout << "after resize" << std::endl;
             if(x == 1) { 
-               //std::cout << "x is equal to 1" << std::endl;
+               std::cout << "x is equal to 1" << std::endl;
                //case where u is new node
                if(g->strategy->newu == true){
                    this->cases = 1;
@@ -110,8 +108,8 @@
                     }
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
-                    this->latestTimes.currentdfsTime += elapsed.count();
-                    this->latestTimes.dfsTime += elapsed.count();
+                    this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+                    this->latestTimes.topologicalOrderTime += elapsed.count();
 
                     start = std::chrono::high_resolution_clock::now();
                     this->maxObst[u].addNode(v,0);
@@ -132,7 +130,7 @@
                     g->strategy->newu = false;
                 }    
                 else {
-                    //std::cout << "case 2" << std::endl;
+                    std::cout << "case 2" << std::endl;
                     this->cases=2;
                     this->edgeTypes.case2 +=1;
                     this->edgeTypes.currentcase2 = 1;
@@ -163,8 +161,8 @@
                     }
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
-                    this->latestTimes.currentdfsTime += elapsed.count();
-                    this->latestTimes.dfsTime += elapsed.count();
+                    this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+                    this->latestTimes.topologicalOrderTime += elapsed.count();
                     
                     start = std::chrono::high_resolution_clock::now();
                     binaryTreeIncoming.addNode(u,0);
@@ -193,7 +191,7 @@
                this->edgeTypes.case3 +=1;
                this->edgeTypes.currentcase3 = 1;
                start = std::chrono::high_resolution_clock::now();
-               //std::cout << "if x is 2" << std::endl; 
+               std::cout << "if x is 2" << std::endl; 
                this->postorder[v] = this->postorder[0];
                this->reversePostorder[postorder[v]] = v;
                this->reverseTopologicalOrder[v] = (this->n - 1) -  this->postorder[v];
@@ -214,8 +212,8 @@
                 }
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
-                this->latestTimes.currentdfsTime += elapsed.count();
-                this->latestTimes.dfsTime += elapsed.count();
+                this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+                this->latestTimes.topologicalOrderTime += elapsed.count();
                
                start = std::chrono::high_resolution_clock::now();
                DifferentBalancedBinaryTree binaryTreeIncomingu(this->reverseTopologicalOrder);
@@ -250,7 +248,7 @@
         }    
         else {
             
-            //std::cout << "if no new node added" << std::endl;
+            std::cout << "if no new node added and edge is from left to right" << std::endl;
             if(this->postorder[u] < this->postorder[v]) {
                 this->cases = 4;
                 this->edgeTypes.case4 +=1;
@@ -268,11 +266,12 @@
                 this->reset();
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
-                this->latestTimes.currentdfsTime += elapsed.count();
-                this->latestTimes.dfsTime += elapsed.count();
+                this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+                this->latestTimes.topologicalOrderTime += elapsed.count();
 
     	    }
             else {
+                std::cout << "if no new node added and edge is from right to left" << std::endl;
                 this->cases = 5;
                 this->edgeTypes.case5 +=1;
                 this->edgeTypes.currentcase5 = 1;
@@ -341,8 +340,8 @@
     	}
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
-        this->latestTimes.currentdfsTime += elapsed.count();
-        this->latestTimes.dfsTime += elapsed.count();
+        this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+        this->latestTimes.topologicalOrderTime += elapsed.count();
 
     	for(int i=0; i<this->n; i++) {
             if(this->intermediatepostorder[i]!=0) {
@@ -365,7 +364,7 @@
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
                 this->latestTimes.currentmaxOTime += elapsed.count();
-                this->latestTimes.maxOTime += elapsed.count();
+                //this->latestTimes.maxOTime += elapsed.count();
             }    
         } 
 
@@ -384,8 +383,8 @@
         }
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
-        this->latestTimes.currentdfsTime += elapsed.count();
-        this->latestTimes.dfsTime += elapsed.count();
+        this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+        this->latestTimes.topologicalOrderTime += elapsed.count();
         
         start = std::chrono::high_resolution_clock::now();
         this->minIbst[v].addNode(u,0);
@@ -393,7 +392,7 @@
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
         this->latestTimes.currentminITime += elapsed.count();
-        this->latestTimes.minITime += elapsed.count();
+        //this->latestTimes.minITime += elapsed.count();
 
         start = std::chrono::high_resolution_clock::now();
         this->maxObst[u].addNode(v,0);
@@ -401,7 +400,7 @@
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
         this->latestTimes.currentmaxOTime += elapsed.count();
-        this->latestTimes.maxOTime += elapsed.count();
+        //this->latestTimes.maxOTime += elapsed.count();
         
         for(int i=0; i<this->n; i++) {
             if(this->intermediatepostorder[i]!=0) {  
@@ -419,7 +418,7 @@
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
                 this->latestTimes.currentminITime += elapsed.count();
-                this->latestTimes.minITime += elapsed.count();
+                //this->latestTimes.minITime += elapsed.count();
 
                 start = std::chrono::high_resolution_clock::now();
                 for (int u : g->displayIncomingNeighbours(i)) {
