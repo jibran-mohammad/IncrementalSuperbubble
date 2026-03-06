@@ -23,6 +23,8 @@
         this->edgeTypes.currentcase3 = 0;
         this->edgeTypes.currentcase4 = 0;
         this->edgeTypes.currentcase5 = 0;
+        this->vertexCount.currentcountAffectedVertices = 0;
+        this->vertexCount.currentcountExploredVertices = 0;
 
         auto start = std::chrono::high_resolution_clock::now();
         auto end = std::chrono::high_resolution_clock::now();   
@@ -332,6 +334,7 @@
 
         start = std::chrono::high_resolution_clock::now();
         for(int i = this->postorder[this->u]; i <= this->postorder[this->v]; i++) {
+            this->vertexCount.currentcountAffectedVertices ++;
             index = this->reversePostorder[i];
             if(this->marked[index]==1) {
                 this->intermediatepostorder[index] = this->postorder[this->u] + this->postorderChanged[index] - 1;
@@ -350,6 +353,7 @@
 
         for(int i=0; i<this->n; i++) {
             if(this->reachable[i]!=0) {
+                this->vertexCount.currentcountExploredVertices ++;
                 if(i == 0 || i == 1) {
                     continue;
                 }
@@ -442,6 +446,8 @@
 
             }
         }
+        this->vertexCount.countAffectedVertices += this->vertexCount.currentcountAffectedVertices;
+        this->vertexCount.countExploredVertices += this->vertexCount.currentcountExploredVertices;
 
     }
     

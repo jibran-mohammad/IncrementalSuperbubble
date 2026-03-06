@@ -36,8 +36,15 @@ public:
     	int currentcase4 = 0;
     	int currentcase5 = 0;
     };
+    struct CountOfVertices {
+    	int countAffectedVertices = 0;
+    	int countExploredVertices = 0;
+    	int currentcountAffectedVertices = 0;
+    	int currentcountExploredVertices = 0;
+    };
     IncrementalUpdateTimes latestTimes;
     TypeOfEdgeInsertion edgeTypes;
+    CountOfVertices vertexCount;
     std::vector<int> marked;
     std::vector<int> postorderChanged;
     std::vector<int> intermediatepostorder;
