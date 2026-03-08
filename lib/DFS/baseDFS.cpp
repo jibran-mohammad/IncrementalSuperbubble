@@ -13,6 +13,7 @@
            }
         }
         end = std::chrono::high_resolution_clock::now();
+        elapsed = end - start;
         this->latestTimes.dfsTime = elapsed.count();
         this->latestTimes.dfsTime = this->latestTimes.dfsTime - this->latestTimes.topologicalOrderTime;
         this->latestTimes.topologicalOrderTime = 0.0;
