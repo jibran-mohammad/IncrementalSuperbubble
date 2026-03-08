@@ -64,7 +64,7 @@
             this->postorderChanged.resize(this->n);
             end = std::chrono::high_resolution_clock::now();
             elapsed = end - start;
-            this->latestTimes.insertTime += elapsed.count();
+            this->latestTimes.currentinsertTime += elapsed.count();
             this->latestTimes.insertTime += elapsed.count();
 
             if(x == 1) {
@@ -263,8 +263,11 @@
                 this->latestTimes.currentdfsTime += elapsed.count();
                 this->latestTimes.dfsTime += elapsed.count();
 
+                this->deleteReachableFromBST(g);
+
                 this->update(g);
 
+                this->insertReachableIntoBST(g);
                 start = std::chrono::high_resolution_clock::now();
                 this->reset();
                 end = std::chrono::high_resolution_clock::now();
@@ -351,6 +354,36 @@
         this->latestTimes.topologicalOrderTime += elapsed.count();
 
 
+        
+
+        start = std::chrono::high_resolution_clock::now();       
+        for(int i=0; i<this->n; i++) {
+            if(i == 0 || i == 1) {
+                    continue;
+            }
+            if(this->intermediatepostorder[i]!=0) {
+                this->postorder[i] = this->intermediatepostorder[i];
+                this->reversePostorder[this->intermediatepostorder[i]]=i;
+                this->reverseTopologicalOrder[i]=(this->n-1) - this->postorder[i];
+                this->topOrd[this->reverseTopologicalOrder[i]] = i;
+            } 
+        }
+        end = std::chrono::high_resolution_clock::now();
+        elapsed = end - start;
+        this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+        this->latestTimes.topologicalOrderTime += elapsed.count(); 
+
+        
+        this->vertexCount.countAffectedVertices += this->vertexCount.currentcountAffectedVertices;
+        this->vertexCount.countExploredVertices += this->vertexCount.currentcountExploredVertices;
+
+    }
+    
+    void IncrementalDFSTREE::deleteReachableFromBST(GraphContext *g)
+    {
+        auto start = std::chrono::high_resolution_clock::now();
+        auto end = std::chrono::high_resolution_clock::now();   
+        std::chrono::duration<double> elapsed = end - start;
         for(int i=0; i<this->n; i++) {
             if(this->reachable[i]!=0) {
                 this->vertexCount.currentcountExploredVertices ++;
@@ -377,24 +410,13 @@
                 this->latestTimes.maxOTime += elapsed.count();
             }    
         } 
+    }
 
-        start = std::chrono::high_resolution_clock::now();       
-        for(int i=0; i<this->n; i++) {
-            if(i == 0 || i == 1) {
-                    continue;
-            }
-            if(this->intermediatepostorder[i]!=0) {
-                this->postorder[i] = this->intermediatepostorder[i];
-                this->reversePostorder[this->intermediatepostorder[i]]=i;
-                this->reverseTopologicalOrder[i]=(this->n-1) - this->postorder[i];
-                this->topOrd[this->reverseTopologicalOrder[i]] = i;
-            } 
-        }
-        end = std::chrono::high_resolution_clock::now();
-        elapsed = end - start;
-        this->latestTimes.currenttopologicalOrderTime += elapsed.count();
-        this->latestTimes.topologicalOrderTime += elapsed.count(); 
-
+    void IncrementalDFSTREE::insertReachableIntoBST(GraphContext *g)
+    {   
+        auto start = std::chrono::high_resolution_clock::now();
+        auto end = std::chrono::high_resolution_clock::now();   
+        std::chrono::duration<double> elapsed = end - start; 
         start = std::chrono::high_resolution_clock::now();
         this->minIbst[v].addNode(u,0);
         this->minI[v] = this->minIbst[v].findMin();
@@ -446,11 +468,8 @@
 
             }
         }
-        this->vertexCount.countAffectedVertices += this->vertexCount.currentcountAffectedVertices;
-        this->vertexCount.countExploredVertices += this->vertexCount.currentcountExploredVertices;
-
     }
-    
+
     void IncrementalDFSTREE::reset() {
         std::fill(this->marked.begin(), this->marked.end(), 0);
         std::fill(this->postorderChanged.begin(), this->postorderChanged.end(), 0);

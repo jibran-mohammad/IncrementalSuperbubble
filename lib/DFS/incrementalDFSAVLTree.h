@@ -1,4 +1,4 @@
-#ifndef INCREMENTAL_DFS_AVK_TREE
+#ifndef INCREMENTAL_DFS_AVL_TREE
 #define INCREMENTAL_DFS_AVL_TREE
 #include "baseDFS.h"
 #include "minImaxOdatastructure.h"
@@ -109,6 +109,8 @@ public:
 	void printMaxO() const override;
 	void printtreeminIncoming();
 	void printtreemaxOutgoing();
+	void deleteReachableFromBST(GraphContext *g);
+	void insertReachableIntoBST(GraphContext *g);
 
 };
 #endif
