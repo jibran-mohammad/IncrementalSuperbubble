@@ -167,6 +167,8 @@ public:
                      totalTime = currentinsertTime + simdfs.latestTimes.dfsTime + simdfs.latestTimes.topologicalOrderTime + minITime + maxOTime + superbubbleTime;
                      timeFile << i + 1 << " " << clean_hap_name << " " << currentinsertTime << " " << simdfs.latestTimes.dfsTime << " " << simdfs.latestTimes.topologicalOrderTime << " " << minITime << " " << maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << "\n";
                      currentinsertTime = 0.0;
+                     simdfs.latestTimes.topologicalOrderTime = 0.0;
+                     simdfs.latestTimes.dfsTime = 0.0;
                  }
                  
 
@@ -201,6 +203,8 @@ public:
                 totalTime = insertTime + simdfs.latestTimes.dfsTime + simdfs.latestTimes.topologicalOrderTime + minITime + maxOTime + superbubbleTime;
                 
                 timeFile << update_counter << " " << clean_hap_name << " " << insertTime << " " << simdfs.latestTimes.dfsTime << " " << simdfs.latestTimes.topologicalOrderTime << " " << minITime << " " << maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << "\n";
+                simdfs.latestTimes.dfsTime = 0.0;
+                simdfs.latestTimes.topologicalOrderTime = 0.0;
 
             }
             timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";

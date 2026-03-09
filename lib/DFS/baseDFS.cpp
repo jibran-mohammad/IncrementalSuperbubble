@@ -16,7 +16,7 @@
         elapsed = end - start;
         this->latestTimes.dfsTime = elapsed.count();
         this->latestTimes.dfsTime = this->latestTimes.dfsTime - this->latestTimes.topologicalOrderTime;
-        this->latestTimes.topologicalOrderTime = 0.0;
+        
 
        //std::cout <<" Nodes and edges " << this->a << " " << this->b << std::endl;
     }
