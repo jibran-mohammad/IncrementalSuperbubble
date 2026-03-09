@@ -42,7 +42,7 @@
         v=g->strategy->reverseMapping[v];
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
-        this->latestTimes.currenttopologicalOrderTime = elapsed.count();
+        this->latestTimes.currentinsertTime = elapsed.count();
         this->latestTimes.insertTime += elapsed.count();
         //std::cout << "new U= "<< u << " " << "new v= " << v << std::endl;
         if(x>0) {
