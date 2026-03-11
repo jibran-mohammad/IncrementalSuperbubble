@@ -38,12 +38,9 @@ class GraphUpdater:
 
     def write_temp_gfa(self):
 
-        temp=tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=".gfa"
-        )
+        temp_name = "/tmp/temp_graph.gfa"
 
-        with open(temp.name,'w') as f:
+        with open(temp_name,'w') as f:
 
             for line in self.base_lines:
                 f.write(line)
@@ -55,8 +52,6 @@ class GraphUpdater:
                 u=u[:-1]
                 v=v[:-1]
 
-                f.write(
-                    f"L\t{u}\t+\t{v}\t+\t0M\n"
-                )
+                f.write(f"L\t{u}\t+\t{v}\t+\t0M\n")
 
-        return temp.name
+        return temp_name
