@@ -2,6 +2,7 @@ import pandas as pd
 import matplotlib
 matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
+plt.rcParams.update({'font.size': 12})
 import sys
 import os
 import numpy as np # Import numpy for bar chart positioning
@@ -9,10 +10,17 @@ from matplotlib.lines import Line2D
 import argparse
 
 # Define the components and their corresponding column names
-# --- MODIFIED: 'Insert' component has been removed from this dictionary ---
+
+ALGORITHMS = ["Simple", "INC", "BST"]
+
 TIME_COMPONENTS = {
     'Insert': ['SimpleInsertTime', 'INCInsertTime', 'BSTInsertTime'],
     'DFS': ['SimpleDFSTime', 'INCDFSTime', 'BSTDFSTime'],
+    'TopologicalOrder': [
+        'SimpleTopologicalOrderTime',
+        'INCTopologicalOrderTime',
+        'BSTTopologicalOrderTime'
+    ],
     'MinI': ['SimpleMinITime', 'INCMinITime', 'BSTMinITime'],
     'MaxO': ['SimpleMaxOTime', 'INCMaxOTime', 'BSTMaxOTime'],
     'SBCompute': ['SimpleSBComputeTime', 'INCSBComputeTime', 'BSTSBComputeTime'],
@@ -23,10 +31,11 @@ TIME_COMPONENTS = {
 # --- MODIFIED: 'Insert' color has been removed entirely ---
 STACK_COLORS = {
     'Insert': '#4C72B0',
-    'DFS': '#55A868',         # Green
-    'MinI': '#C44E52',        # Red
-    'MaxO': '#8172B2',        # Purple
-    'SBCompute': '#CCB974',   # Yellow/Brown
+    'DFS': '#55A868',
+    'TopologicalOrder': '#DD8452',  
+    'MinI': '#C44E52',
+    'MaxO': '#8172B2',
+    'SBCompute': '#CCB974',
 }
 
 # Define line styles for the three versions in line plots
@@ -36,7 +45,49 @@ VERSION_STYLES = {
     'BST': {'color': 'green', 'marker': '^', 'linestyle': '-.',  "linewidth": 0.7, "markersize": 2},
 }
 
-def plot_total_time_bar(df, output_dir, dataset_name="dataset"):
+def build_plot_filename(dataset, mode, scale, plot_type):
+    """
+    Standardized filename generator.
+
+    Example:
+    GRCh38_chr1_peredge_log_components.png
+    ecoli_perbatch_linear_total_bar.png
+    """
+    return f"{dataset}_{mode}_{scale}_{plot_type}.png"
+
+def plot_vertex_activity(df, output_dir, dataset_name, mode, scale):
+
+    if "AffectedVertices" not in df.columns or "ExploredVertices" not in df.columns:
+        print("Affected/Explored columns not found. Skipping vertex activity plot.")
+        return
+
+    df_plot = df[df["Step"] != 0].copy()
+
+    fig, ax = plt.subplots(figsize=(12,6))
+
+    ax.plot(df_plot["Step"], df_plot["AffectedVertices"], label="Affected Vertices")
+    ax.plot(df_plot["Step"], df_plot["ExploredVertices"], label="Explored Vertices")
+
+    ax.set_xlabel("Step")
+    ax.set_ylabel("Vertices")
+    ax.set_title(f"Affected vs Explored Vertices — {dataset_name}")
+
+    ax.legend()
+    ax.grid(True, linestyle="--", alpha=0.6)
+
+
+    
+
+    plot_filename = os.path.join(
+        output_dir,
+        build_plot_filename(dataset_name, mode, scale, "vertex_activity")
+    )
+
+    plt.tight_layout()
+    plt.savefig(plot_filename, dpi=200)
+    plt.close(fig)
+
+def plot_total_time_bar(df, output_dir, dataset_name, mode, scale):
     """
     Plot total time (sum across all steps excluding Base)
     for Simple, INC, BST as a single bar chart.
@@ -46,7 +97,7 @@ def plot_total_time_bar(df, output_dir, dataset_name="dataset"):
 
     df_plot = df[df["Step"] != 0].copy()
 
-    versions = ["Simple", "INC", "BST"]
+    versions = ALGORITHMS
     totals = []
 
     for v in versions:
@@ -74,7 +125,10 @@ def plot_total_time_bar(df, output_dir, dataset_name="dataset"):
 
     plt.tight_layout()
 
-    filename = os.path.join(output_dir, f"{dataset_name}_plot_total_time_bar.png")
+    filename = os.path.join(
+    output_dir,
+    build_plot_filename(dataset_name, mode, scale, "total_time_bar")
+    )
     plt.savefig(filename, dpi=200, bbox_inches="tight")
     print(f"Saved total time bar plot to {filename}")
     plt.close(fig)
@@ -95,9 +149,9 @@ def clean_and_normalize_df(df):
         raise KeyError("Required column 'Step' not found in CSV")
 
     # 2) expected components and versions
-    versions = ['Simple', 'INC', 'BST']
+    versions = ALGORITHMS
     # NOTE: 'Insert' is kept here for data cleaning, but excluded from TIME_COMPONENTS for plotting
-    components = ['Insert', 'DFS', 'MinI', 'MaxO', 'SBCompute', 'Total']  
+    components = ['Insert', 'DFS', 'TopologicalOrder', 'MinI', 'MaxO', 'SBCompute', 'Total']  
 
     # 3) build canonical column names and check presence (allow small variations)
     # For robustness, accept lowercase variants or missing 'Time' suffix
@@ -123,7 +177,7 @@ def clean_and_normalize_df(df):
             if not found:
                 # Not fatal for some components (you may allow missing SBCompute), but warn/raise as needed
                 # Here we'll raise for core components, warn for SuperBubble
-                if comp in ['Insert', 'DFS', 'MinI', 'MaxO']:
+                if comp in ['Insert', 'TopologicalOrder', 'DFS', 'MinI', 'MaxO']:
                     raise KeyError(f"Missing required column for plotting: tried {candidates}")
                 else:
                     # Fill missing SBCompute/Total with zeros
@@ -145,8 +199,8 @@ def clean_and_normalize_df(df):
 def convert_seconds_to_ms(df):
     """Convert all canonical time columns from seconds to milliseconds."""
     df = df.copy()
-    versions = ['Simple', 'INC', 'BST']
-    components = ['Insert', 'DFS', 'MinI', 'MaxO', 'SBCompute', 'Total']
+    versions = ALGORITHMS
+    components = ['Insert', 'DFS', 'TopologicalOrder', 'MinI', 'MaxO', 'SBCompute', 'Total']
 
     for v in versions:
         for comp in components:
@@ -163,8 +217,8 @@ def smooth_df_rolling(df, window=15):
     """
     df = df.sort_values("Step").copy()
 
-    versions = ['Simple', 'INC', 'BST']
-    components = ['Insert','DFS', 'MinI', 'MaxO', 'SBCompute', 'Total']  # Insert excluded in plots
+    versions = ALGORITHMS
+    components = ['Insert','DFS','TopologicalOrder', 'MinI', 'MaxO', 'SBCompute', 'Total']  # Insert excluded in plots
 
     for v in versions:
         for comp in components:
@@ -174,7 +228,7 @@ def smooth_df_rolling(df, window=15):
 
     return df
 
-def plot_separate_time_components(df, output_dir, dataset_name, scale):
+def plot_separate_time_components(df, output_dir, dataset_name, mode, scale):
     """
     Generates a 3x2 grid of subplots showing time component performance
     (log scale) vs. Haplotype Step for all three versions.
@@ -188,7 +242,7 @@ def plot_separate_time_components(df, output_dir, dataset_name, scale):
     df_plot = df[df['Step'] != 0].copy()
     
     # Change from (2, 3) to (3, 2) for 5 plots
-    fig, axes = plt.subplots(3, 2, figsize=(15, 15))
+    fig, axes = plt.subplots(3, 2, figsize=(16, 12))
     axes = axes.flatten() # Flattens the 2D array of axes into a 1D array
 
     for ax in axes:
@@ -197,7 +251,7 @@ def plot_separate_time_components(df, output_dir, dataset_name, scale):
 
     i = 0
     # Loop through the components (DFS, MinI, MaxO, SBCompute, Total)
-    for component, cols in TIME_COMPONENTS.items():
+    for component, cols in list(TIME_COMPONENTS.items())[:-1]:
         
         ax = axes[i]
         
@@ -231,8 +285,6 @@ def plot_separate_time_components(df, output_dir, dataset_name, scale):
     for j in range(i, len(axes)):
         axes[j].axis("off")
         
-    # Create the legend based on the plots from the first subplot (axes[0])
-    handles, labels = axes[0].get_legend_handles_labels()
     
     legend_handles = [
     Line2D([0], [0], color=VERSION_STYLES['Simple']['color'],
@@ -262,14 +314,72 @@ def plot_separate_time_components(df, output_dir, dataset_name, scale):
     # tighten layout (respect the reserved top area) and save including legend
     plt.tight_layout(rect=[0, 0, 1, 0.9])
 
-    # define filename BEFORE saving
-    plot_filename = os.path.join(output_dir,f"{dataset_name}_plot1_time_component_comparison.png")
+
+    plot_filename = os.path.join(
+    output_dir,
+    build_plot_filename(dataset_name, mode, scale, "components")
+    )
     plt.savefig(plot_filename, dpi=200, bbox_inches='tight')
     print(f"Saved Plot 1 to {plot_filename}")
     plt.close(fig)  # Close the figure
 
+def plot_total_time_line(df, output_dir, dataset_name, mode, scale):
+    """
+    Plot Total Time vs Step for Simple, INC, BST.
+    This shows the overall runtime behaviour.
+    """
 
-def plot_stacked_bar_breakdown(df, output_dir,dataset_name, num_steps=5):
+    print("Generating Plot: Total Time vs Step (Line Plot)...")
+
+    df_plot = df[df["Step"] != 0].copy()
+
+    fig, ax = plt.subplots(figsize=(10,6))
+
+    eps = 1e-9
+
+    ax.plot(
+        df_plot["Step"],
+        df_plot["SimpleTotalTime"] + eps,
+        **VERSION_STYLES["Simple"],
+        label="Simple"
+    )
+
+    ax.plot(
+        df_plot["Step"],
+        df_plot["INCTotalTime"] + eps,
+        **VERSION_STYLES["INC"],
+        label="INC"
+    )
+
+    ax.plot(
+        df_plot["Step"],
+        df_plot["BSTTotalTime"] + eps,
+        **VERSION_STYLES["BST"],
+        label="BST"
+    )
+
+    if scale == "log":
+        ax.set_yscale("log", nonpositive="clip")
+
+    ax.set_xlabel("Step")
+    ax.set_ylabel("Total Time (ms)")
+    ax.set_title(f"Total Time vs Step — {dataset_name}")
+
+    ax.grid(True, linestyle="--", alpha=0.6)
+    ax.legend()
+
+    plot_filename = os.path.join(
+        output_dir,
+        build_plot_filename(dataset_name, mode, scale, "total_time_line")
+    )
+
+    plt.tight_layout()
+    plt.savefig(plot_filename, dpi=200)
+    plt.close(fig)
+
+    print(f"Saved Total Time Line Plot to {plot_filename}")
+
+def plot_stacked_bar_breakdown(df, output_dir, dataset_name, mode, scale, num_steps=5):
     """
     Generates a stacked bar chart showing the breakdown of Total Time
     into component times for the Simple, INC, and BST versions across
@@ -285,8 +395,8 @@ def plot_stacked_bar_breakdown(df, output_dir,dataset_name, num_steps=5):
         return
 
     # --- MODIFIED: 'Insert' component has been removed ---
-    components = ['Insert','DFS', 'MinI', 'MaxO', 'SBCompute']
-    versions = ['Simple', 'INC', 'BST']
+    components = ['Insert','DFS', 'TopologicalOrder', 'MinI', 'MaxO', 'SBCompute']
+    versions = ALGORITHMS
     
     # Create the figure
     fig, ax = plt.subplots(figsize=(15, 8))
@@ -377,72 +487,17 @@ def plot_stacked_bar_breakdown(df, output_dir,dataset_name, num_steps=5):
     ax.grid(axis='y', ls='--', alpha=0.6)
     plt.tight_layout()
     
-    plot_filename = os.path.join(output_dir, f"{dataset_name}_plot2_stacked_time_breakdown.png")
+    plot_filename = os.path.join(
+        output_dir,
+        build_plot_filename(dataset_name, mode, scale, "stacked_breakdown")
+    )
     plt.savefig(plot_filename, dpi=200)
     print(f"Saved Plot 2 to {plot_filename}")
     plt.close(fig)
 
 
-def plot_haplotype_data(filename, output_dir):
-    """
-    Reads the haplotype comparison CSV, cleans it using clean_and_normalize_df(),
-    and produces three plots:
-      1) plot_separate_time_components (3x2 line plots)
-      2) plot_aggregated_version_bars (one stacked bar per algorithm)
-      3) plot_stacked_bar_breakdown (first N steps stacked bars)
 
-    Usage: plot_haplotype_data("myfile.csv", "plots/")
-    """
-    # --- Load CSV ---
-    try:
-        df = pd.read_csv(filename)
-        print(f"Successfully loaded '{filename}'. Found {len(df)} rows.")
-    except FileNotFoundError:
-        print(f"Error: The file '{filename}' was not found.")
-        return
-    except Exception as e:
-        print(f"An error occurred while reading the file '{filename}': {e}")
-        return
-
-    # --- Clean & normalize the DataFrame (fails fast with readable errors) ---
-    try:
-        df = clean_and_normalize_df(df)
-    except KeyError as ke:
-        print(f"Data cleaning error: {ke}")
-        return
-    except Exception as e:
-        print(f"Unexpected error during data cleaning: {e}")
-        return
-
-    # --- Create output directory if it doesn't exist ---
-    try:
-        os.makedirs(output_dir, exist_ok=True)
-    except Exception as e:
-        print(f"Error: Could not create output directory '{output_dir}': {e}")
-        return
-
-    # --- Plot generation (wrapped so a failure in one plot doesn't stop the others) ---
-    try:
-        # 1) Component comparison line plots (3x2 subplots)
-        plot_separate_time_components(df, output_dir, dataset_name, scale)
-    except Exception as e:
-        print(f"Error while generating plot_separate_time_components: {e}")
-
-    try:
-        # 2) Aggregated single stacked bar per version (Simple/INC/BST)
-        plot_aggregated_version_bars(df, output_dir, dataset_name)
-    except Exception as e:
-        print(f"Error while generating plot_aggregated_version_bars: {e}")
-
-    try:
-        # 3) Stacked bar breakdown for the first few steps (default num_steps=5)
-        plot_stacked_bar_breakdown(df, output_dir, dataset_name, num_steps=5)
-    except Exception as e:
-        print(f"Error while generating plot_stacked_bar_breakdown: {e}")
-
-    print(f"\nAll requested plotting attempts finished. Check '{output_dir}' for generated images.")
-
-def plot_aggregated_version_bars(df, output_dir, dataset_name):
+def plot_aggregated_version_bars(df, output_dir, dataset_name, mode, scale):
     """
     Produce a single stacked bar per version (Simple / INC / BST).
     Each bar is the sum over all steps (excluding Step==0/'Base') of the component times.
@@ -454,9 +509,9 @@ def plot_aggregated_version_bars(df, output_dir, dataset_name):
         print("No non-base rows found; skipping aggregated bar plot.")
         return
 
-    versions = ['Simple', 'INC', 'BST']
+    versions = ALGORITHMS
     # --- MODIFIED: 'Insert' component has been removed ---
-    components = ['Insert','DFS', 'MinI', 'MaxO', 'SBCompute']
+    components = ['Insert','DFS','TopologicalOrder', 'MinI', 'MaxO', 'SBCompute']
 
     # compute sums for each (version, component)
     sums = {v: [] for v in versions}
@@ -494,7 +549,11 @@ def plot_aggregated_version_bars(df, output_dir, dataset_name):
     ax.grid(axis='y', ls='--', alpha=0.5)
     plt.tight_layout()
 
-    plot_filename = os.path.join(output_dir, f"{dataset_name}_plot_aggregated_version_bars.png")
+
+    plot_filename = os.path.join(
+        output_dir,
+        build_plot_filename(dataset_name, mode, scale, "aggregated_versions")
+    )
     plt.savefig(plot_filename, dpi=200)
     print(f"Saved aggregated bar plot to {plot_filename}")
     plt.close(fig)
@@ -516,12 +575,12 @@ def prepare_peredge_df(df, max_points=5000):
     return df
 
 
-def plot_separate_time_components_peredge(df, output_dir, dataset_name, scale):
+def plot_separate_time_components_peredge(df, output_dir, dataset_name, mode, scale):
     print("Generating Plot 1 (perEdge): Time Component Comparison (Line Plot)...")
 
     df_plot = df.copy()
 
-    fig, axes = plt.subplots(3, 2, figsize=(15, 15))
+    fig, axes = plt.subplots(3, 2, figsize=(16, 12))
     axes = axes.flatten()
 
     for ax in axes:
@@ -529,7 +588,7 @@ def plot_separate_time_components_peredge(df, output_dir, dataset_name, scale):
             ax.get_legend().remove()
 
     i = 0
-    for component, cols in TIME_COMPONENTS.items():
+    for component, cols in list(TIME_COMPONENTS.items())[:-1]:
         if i >= 6:
             break
 
@@ -570,13 +629,20 @@ def plot_separate_time_components_peredge(df, output_dir, dataset_name, scale):
     fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.98), ncol=3)
 
     plt.tight_layout(rect=[0, 0, 1, 0.9])
-    plot_filename = os.path.join(output_dir, f"{dataset_name}_plot1_time_component_comparison_peredge.png")
+    
+
+
+    plot_filename = os.path.join(
+        output_dir,
+        build_plot_filename(dataset_name, mode, scale, "components")
+    )
+    
     plt.savefig(plot_filename, dpi=200, bbox_inches="tight")
     print(f"Saved Plot 1 to {plot_filename}")
     plt.close(fig)
 
 
-def plot_stacked_bar_breakdown_peredge(df, output_dir, dataset_name, num_steps=10):
+def plot_stacked_bar_breakdown_peredge(df, output_dir, dataset_name, mode, scale, num_steps=10):
     print(f"Generating Plot 2 (perEdge): Total Time Stacked Breakdown (First {num_steps} Edge Updates)...")
 
     df_plot = df.head(num_steps).copy()
@@ -584,8 +650,8 @@ def plot_stacked_bar_breakdown_peredge(df, output_dir, dataset_name, num_steps=1
         print("Not enough data to generate stacked bar chart.")
         return
 
-    components = ['Insert',"DFS", "MinI", "MaxO", "SBCompute"]
-    versions = ["Simple", "INC", "BST"]
+    components = ['Insert',"DFS","TopologicalOrder", "MinI", "MaxO", "SBCompute"]
+    versions = ALGORITHMS
 
     fig, ax = plt.subplots(figsize=(15, 8))
 
@@ -647,7 +713,12 @@ def plot_stacked_bar_breakdown_peredge(df, output_dir, dataset_name, num_steps=1
     ax.legend(title="Component", loc="upper right")
     ax.grid(True, axis="y", linestyle="--", alpha=0.5)
 
-    plot_filename = os.path.join(output_dir, f"{dataset_name}_plot2_stacked_total_breakdown_peredge.png")
+
+    plot_filename = os.path.join(
+        output_dir,
+        build_plot_filename(dataset_name, mode, scale, "stacked_breakdown")
+    )
+    
     plt.tight_layout()
     plt.savefig(plot_filename, dpi=200, bbox_inches="tight")
     print(f"Saved Plot 2 to {plot_filename}")
@@ -661,12 +732,64 @@ def run_perbatch(csv_path, output_dir,dataset_name, scale):
 
     # smoothing (batch steps are fewer, so small window)
     df_smooth = smooth_df_rolling(df, window=3)
-    plot_separate_time_components(df_smooth, output_dir,dataset_name, scale)
-    plot_stacked_bar_breakdown(df, output_dir,dataset_name, num_steps=5)
-    plot_aggregated_version_bars(df, output_dir,dataset_name)
-    
-    plot_total_time_bar(df, output_dir, dataset_name)
+    mode = "perbatch"
 
+    plot_separate_time_components(df_smooth, output_dir, dataset_name, mode, scale)
+
+    plot_stacked_bar_breakdown(df, output_dir, dataset_name, mode, scale, num_steps=5)
+
+    plot_aggregated_version_bars(df, output_dir, dataset_name, mode, scale)
+
+    plot_total_time_bar(df, output_dir, dataset_name, mode, scale)
+
+    plot_total_time_line(df_smooth, output_dir, dataset_name, mode, scale)
+
+    plot_vertex_activity(df, output_dir, dataset_name, mode, scale)
+
+def plot_chromosome_comparison(csv_files, labels, output_dir):
+
+    totals = {alg: [] for alg in ALGORITHMS}
+
+    for file in csv_files:
+
+        df = pd.read_csv(file)
+        df = clean_and_normalize_df(df)
+        df = convert_seconds_to_ms(df)
+
+        df = df[df["Step"] != 0]
+
+        for alg in ALGORITHMS:
+            col = f"{alg}TotalTime"
+            totals[alg].append(df[col].sum())
+
+    x = np.arange(len(labels))
+    width = 0.2
+
+    fig, ax = plt.subplots(figsize=(10,6))
+
+    for i, alg in enumerate(ALGORITHMS):
+
+        ax.bar(
+            x + i*width,
+            totals[alg],
+            width,
+            label=alg
+        )
+
+    ax.set_xticks(x + width)
+    ax.set_xticklabels(labels)
+
+    ax.set_ylabel("Total Time (ms)")
+    ax.set_title("Chromosome Algorithm Comparison")
+
+    ax.legend()
+    ax.grid(axis="y", linestyle="--", alpha=0.6)
+
+    plt.tight_layout()
+
+    filename = os.path.join(output_dir, "chromosome_comparison.png")
+    plt.savefig(filename, dpi=200)
+    plt.close(fig)
 
 def run_peredge(csv_path, output_dir,dataset_name, scale):
     df = pd.read_csv(csv_path)
@@ -688,11 +811,18 @@ def run_peredge(csv_path, output_dir,dataset_name, scale):
     # smoothing for edge updates (bigger window)
     df_smooth = smooth_df_rolling(df, window=50)
 
-    plot_separate_time_components_peredge(df_smooth, output_dir,dataset_name, scale)
-    plot_stacked_bar_breakdown_peredge(df, output_dir,dataset_name, num_steps=10)
-    plot_aggregated_version_bars(df, output_dir,dataset_name)
-    
-    plot_total_time_bar(df, output_dir, dataset_name)
+    mode = "peredge"
+
+    plot_separate_time_components_peredge(df_smooth, output_dir, dataset_name, mode, scale)
+    plot_total_time_line(df_smooth, output_dir, dataset_name, mode, scale)
+
+    plot_stacked_bar_breakdown_peredge(df, output_dir, dataset_name, mode, scale, num_steps=10)
+
+    plot_aggregated_version_bars(df, output_dir, dataset_name, mode, scale)
+
+    plot_total_time_bar(df, output_dir, dataset_name, mode, scale)
+
+    plot_vertex_activity(df, output_dir, dataset_name, mode, scale)
 
 
 def main():
@@ -730,11 +860,11 @@ if __name__ == "__main__":
     2. The path to the output directory for plots.
     
     Example:
-    python3 plotcsv.py --csv file.csv --out plots --mode perbatch --dataset Ecoli
-    python3 plotcsv.py --csv file.csv --out plots --mode peredge --dataset Ecoli
-    python3 plotcsv.py --csv file.csv --out plots --mode peredge --dataset Ecoli --scale linear
-    python3 plotcsv.py --csv file.csv --out plots --mode peredge --dataset Ecoli --scale log
 
+    python plotcsv.py --csv chr5.csv --out plots --mode peredge --dataset GRCh38_chr5 --scale log
+
+    python plotcsv.py --csv chr5.csv --out plots --mode perbatch --dataset GRCh38_chr5 --scale log
+    python plotcsv.py --csv chr5.csv --out plots --mode peredge --dataset GRCh38_chr5 --scale linear
     """
     
     # Ensure the user has the required packages

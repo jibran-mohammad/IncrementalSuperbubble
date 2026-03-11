@@ -15,6 +15,7 @@ ALGORITHMS = {
 # Metrics -> column suffix used in CSV
 METRICS = {
     "DFS": "DFSTime",
+    "TopoOrder": "TopologicalOrderTime",
     "MinI": "MinITime",
     "MaxO": "MaxOTime",
     "SBCompute": "SBComputeTime",
@@ -95,7 +96,7 @@ def pct_improvement(simple_val: float, other_val: float) -> float:
 def format_float(x: float, precision: int = 4) -> str:
     if pd.isna(x):
         return "-"
-    return f"{x:.{precision}f}"
+    return f"{x:.{precision}f}".rstrip('0').rstrip('.')
 
 
 def generate_latex_table(df: pd.DataFrame, columns: list, caption: str, label: str, out_tex: str):
@@ -118,7 +119,7 @@ def generate_latex_table(df: pd.DataFrame, columns: list, caption: str, label: s
     for _, row in df.iterrows():
         row_vals = []
         for c in columns:
-            row_vals.append(latex_escape(row[c]))
+            row_vals.append(latex_escape(row.get(c, "-")))
         lines.append(" & ".join(row_vals) + r" \\")
         lines.append(r"\hline")
     lines.append(r"\end{tabular}")
@@ -142,6 +143,7 @@ def build_summary_rows_for_metric(csv_paths: list, metric_name: str, mode: str):
 
     for path in csv_paths:
         df = pd.read_csv(path)
+        df = normalize_dataframe(df, path)
         name = infer_dataset_name_from_path(path)
 
         simple_total = sum_metric(df, ALGORITHMS["Simple"], metric_suffix)
@@ -179,6 +181,7 @@ def build_case_table(csv_paths: list):
 
     for path in csv_paths:
         df = pd.read_csv(path)
+        df = normalize_dataframe(df, path)
         name = infer_dataset_name_from_path(path)
 
         present_cases = [c for c in CASE_COLUMNS_CANDIDATES if c in df.columns]
@@ -203,6 +206,37 @@ def build_case_table(csv_paths: list):
 
     return pd.DataFrame(rows)
 
+def build_vertex_activity_table(csv_paths):
+
+    """
+    Dataset | AffectedVertices | ExploredVertices | ReductionRatio
+    """
+
+    rows = []
+
+    for path in csv_paths:
+        df = pd.read_csv(path)
+        df = normalize_dataframe(df, path)
+
+        name = infer_dataset_name_from_path(path)
+
+        affected = df.get("INCAffectedVertices", 0).sum()
+        explored = df.get("BSTExploredVertices", 0).sum()
+
+        if explored == 0:
+            ratio = float("nan")
+        else:
+            ratio = affected / explored
+
+        rows.append({
+            "Dataset": name,
+            "AffectedVertices": format_float(affected, 0),
+            "ExploredVertices": format_float(explored, 0),
+            "ReductionRatio": format_float(ratio, 2)
+        })
+
+    return pd.DataFrame(rows)
+
 def build_total_time_table(csv_paths: list, mode: str):
     """
     Dataset | Simple_TotalTime | INC_TotalTime | BST_TotalTime | INC_Imp(%) | BST_Imp(%) | PeakMemory
@@ -211,6 +245,7 @@ def build_total_time_table(csv_paths: list, mode: str):
 
     for path in csv_paths:
         df = pd.read_csv(path)
+        df = normalize_dataframe(df, path)
         name = infer_dataset_name_from_path(path)
 
         peak_col = find_peak_memory_column(df)
@@ -232,7 +267,6 @@ def build_total_time_table(csv_paths: list, mode: str):
                 "Simple": format_float(simple_total),
                 "INC": format_float(inc_total),
                 "BST": format_float(bst_total),
-                "PeakMemory": format_float(peak_mem, precision=2),
                 "INC_Speedup": format_float(inc_speedup, precision=2),
                 "BST_Speedup": format_float(bst_speedup, precision=2),
                 "PeakMemory": format_float(peak_mem, precision=2),
@@ -259,7 +293,7 @@ def build_size_haplotype_table(csv_paths: list):
 
         # haplotypes
         if "HaplotypeName" in df.columns:
-            hap_count = int(df["HaplotypeName"].nunique())
+            hap_count = int(df["HaplotypeName"].nunique()) if "HaplotypeName" in df.columns else len(df)
         else:
             hap_count = 0
 
@@ -286,6 +320,7 @@ def build_case_metric_table(csv_paths: list, case_name: str, metric_name: str, m
 
     for path in csv_paths:
         df = pd.read_csv(path)
+        df = normalize_dataframe(df, path)
         name = infer_dataset_name_from_path(path)
 
         if case_name not in df.columns:
@@ -327,6 +362,35 @@ def build_case_metric_table(csv_paths: list, case_name: str, metric_name: str, m
 
     return pd.DataFrame(rows)    
 
+def detect_mode_from_path(path):
+
+    p = path.lower()
+
+    if "perbatch" in p:
+        return "perBatch"
+
+    if "peredge" in p:
+        return "perEdge"
+
+    return "perEdge"
+
+def normalize_dataframe(df, path):
+
+    mode = detect_mode_from_path(path)
+
+    if mode == "perBatch":
+
+        numeric_cols = df.select_dtypes(include="number").columns.difference(["Nodes","Edges"])
+
+        df = (
+            df
+            .groupby("HaplotypeName")[numeric_cols]
+            .sum()
+            .reset_index()
+        )
+
+    return df    
+
 def main():
     import argparse
 
@@ -356,7 +420,7 @@ def main():
     csv_paths = args.csv
     mode = args.mode
     # -------- 4 metric tables --------
-    for metric_name in ["DFS", "MinI", "MaxO", "SBCompute"]:
+    for metric_name in ["DFS", "TopoOrder", "MinI", "MaxO", "SBCompute"]:
         summary_df = build_summary_rows_for_metric(csv_paths, metric_name, mode)
 
         out_tex = os.path.join(args.outdir, f"table_{metric_name}.tex")
@@ -417,7 +481,7 @@ def main():
 
     # -------- case specific metric tables --------
     for case_name in CASE_COLUMNS_CANDIDATES:
-        for metric_name in ["DFS", "MinI", "MaxO", "SBCompute"]:
+        for metric_name in ["DFS", "TopoOrder", "MinI", "MaxO", "SBCompute"]:
 
             case_df = build_case_metric_table(csv_paths, case_name, metric_name, mode)
 
@@ -446,6 +510,18 @@ def main():
                 out_tex=out_tex
             )
 
+
+    vertex_df = build_vertex_activity_table(csv_paths)
+
+    out_tex = os.path.join(args.outdir, "table_vertex_activity.tex")
+
+    generate_latex_table(
+        vertex_df,
+        columns=["Dataset","AffectedVertices","ExploredVertices","ReductionRatio"],
+        caption="Affected vertices vs explored vertices and their reduction ratio across datasets",
+        label="tab:vertex_activity",
+        out_tex=out_tex
+    )
 
 if __name__ == "__main__":
     main()

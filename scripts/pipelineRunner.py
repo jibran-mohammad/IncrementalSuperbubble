@@ -108,7 +108,7 @@ def run_preprocessing(gfa_file, dataset):
 
         print("Running:", " ".join(map(str,cmd)))
 
-        subprocess.run(cmd,check=True,env=env)
+        subprocess.run(cmd, check=True, env=env)
 
 
 
@@ -134,7 +134,10 @@ def run_superbubble(dataset,algorithm,mode,chromosomes):
         cmd += ["-c"]+chromosomes
 
 
-    subprocess.run(cmd,check=True)
+    env = os.environ.copy()
+    env["SUPERBUBBLE_PIPELINE_MODE"] = "1"
+
+    subprocess.run(cmd, check=True, env=env)
 
 
 

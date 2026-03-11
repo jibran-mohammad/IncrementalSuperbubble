@@ -4,6 +4,10 @@ CC = g++
 # Compiler flags
 CFLAGS = -std=c++11 -Wall -g -I../graph/  -I../tree/
 
+# Enable benchmark mode when BENCHMARK=1 is passed
+ifeq ($(BENCHMARK),1)
+CFLAGS += -DBENCHMARK
+endif
 # Directories
 LIB_DIR = lib
 TEST_DIR = test

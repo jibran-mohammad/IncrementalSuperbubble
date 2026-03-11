@@ -4,6 +4,13 @@
 #include <chrono>
 #include <string>
 #include <sstream>
+
+#ifdef BENCHMARK
+#define LOG(x)
+#else
+#define LOG(x) x
+#endif
+
 class IncrementalSuperbubbleSMM: public AlgorithmForSuperbubbles {
 public:  
     long getMemoryUsageInKB() {
@@ -15,7 +22,9 @@ public:
 
         // --- File path configuration ---
         //std::ofstream outFile("/home/dell/Research/Superbubble/Experiment/IncSuperbubble/output/Human/HaplotypeTestingData/outFile/SuperbubbleIncrementalDFSOutput.txt");
+        #ifndef BENCHMARK
         std::ofstream timeFile(output_path);
+        #endif
 
         // --- Variables for parsing ---
         int num_base_edges, num_nodes, x, y;
@@ -33,7 +42,7 @@ public:
         // --- 1. Process the Base Graph ---
         graph_name = line;
         std::cin >> num_base_edges >> num_nodes;
-        std::cout << num_base_edges << " " << num_nodes << std::endl;
+        LOG(std::cout << num_base_edges << " " << num_nodes << std::endl;)
         // Initialize graph objects
         // <-- CORRECTED LINE: Initialize with the number of edges, as per your class design.
         AdjacencyListGraph adl(num_base_edges); 
@@ -41,30 +50,37 @@ public:
         IncrementalDFSSMM incdfs(&g);
         DFSCONTEXT d(&incdfs);
         SuperbubbleCalculation superbubble;
-        std::cout << "creating of objects classes" << std::endl;
+        LOG(std::cout << "creating of objects classes" << std::endl;)
         // Write initial header to time file
         
+        #ifndef BENCHMARK
         if (!timeFile.is_open()) {
-            std::cerr << "Error opening time file!" << std::endl;
+            LOG(std::cerr << "Error opening time file!" << std::endl;)
             return;
         }
-        std::cout << num_base_edges << std::endl;
+        #endif
+        LOG(std::cout << num_base_edges << std::endl;)
         
         // BATCH INSERT all edges from the base graph first.
         for (int i = 0; i < num_base_edges; ++i) {
             std::cin >> x >> y;
-            std::cout << x << " "<< y << std::endl;
+            LOG(std::cout << x << " "<< y << std::endl;)
             d.updateEdge(&g, x, y); 
         }
-        std::cout << "Base processing done" << std::endl;
+        LOG(std::cout << "Base processing done" << std::endl;)
         // Now, perform the first full calculation on the complete base graph
+
+        #ifndef BENCHMARK
         auto start = std::chrono::high_resolution_clock::now();
+        #endif
         d.performDFS(&g);
         d.createMinI(&g);
         d.createMaxO(&g);
         superbubble.computeSB(&d, &g);
+        #ifndef BENCHMARK
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
+        #endif
         /*
         outFile << graph_name << "\n";
         if (outFile.is_open()) {
@@ -77,15 +93,25 @@ public:
         }
         */
         // Record timing for the entire base graph construction
+        
+        #ifndef BENCHMARK
         timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";
         timeFile << "BaseGraph_Build " << elapsed.count() << " " << superbubble.numberOfSuperbubbles() << "\n";
-        
-        std::cout << "base graph processed" << std::endl;
+        #endif
+
+        LOG(std::cout << "base graph processed" << std::endl;)
         if(mode == "perEdge") {
+            
+            #ifndef BENCHMARK
             timeFile << "Edge_Number Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5 AffectedVertices\n";
+            #endif
+        
         }
         else {
+
+            #ifndef BENCHMARK
             timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5 AffectedVertices\n";
+            #endif
         }
         //timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5\n";
         // --- 2. Process Haplotype Additions Incrementally ---
@@ -117,15 +143,18 @@ public:
             
             if (hap_edge_count == 0) {
                  std::string clean_hap_name = hap_name_header.substr(hap_name_header.find(":") + 2);
+                 #ifndef BENCHMARK
                  timeFile << update_counter << " " << clean_hap_name << " " << 0.0 << " " << superbubble.numberOfSuperbubbles() << "\n";
+                 #endif
                  update_counter++;
                  std::string dummy;
                  std::getline(std::cin, dummy);
                  continue;
             }
             std::string clean_hap_name = hap_name_header.substr(hap_name_header.find(":") + 2);
-            std::cout << clean_hap_name << std::endl;
-
+            LOG(std::cout << clean_hap_name << std::endl;)
+            
+            #ifndef BENCHMARK
             superbubbleTime = 0.0;
             currentsuperbubbleTime = 0.0;
             totalTime = 0.0;
@@ -140,7 +169,7 @@ public:
             incdfs.edgeTypes.case3 = 0;
             incdfs.edgeTypes.case4 = 0;
             incdfs.edgeTypes.case5 = 0;
-
+            #endif
             
              // BATCH INSERT all edges for this haplotype
             for (int i = 0; i < hap_edge_count; ++i) {
@@ -150,20 +179,34 @@ public:
 
                 if(mode == "perEdge") {
                      
+                    #ifndef BENCHMARK 
                     start = std::chrono::high_resolution_clock::now();
+                    #endif
                     d.createMinI(&g);
+                    
+                    #ifndef BENCHMARK
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
                     incdfs.latestTimes.currentminITime = elapsed.count();
+                    #endif
 
+                    
+                    #ifndef BENCHMARK
                     start = std::chrono::high_resolution_clock::now();
+                    #endif
                     d.createMaxO(&g);
+                    #ifndef BENCHMARK
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
                     incdfs.latestTimes.currentmaxOTime = elapsed.count();
+                    #endif
 
+                    #ifndef BENCHMARK
                     start = std::chrono::high_resolution_clock::now();
+                    #endif
                     superbubble.computeSB(&d, &g);
+
+                    #ifndef BENCHMARK
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
                     currentsuperbubbleTime = elapsed.count();
@@ -171,30 +214,43 @@ public:
                     totalTime = incdfs.latestTimes.currentinsertTime + incdfs.latestTimes.currentdfsTime + incdfs.latestTimes.currenttopologicalOrderTime + incdfs.latestTimes.currentminITime + incdfs.latestTimes.currentmaxOTime + currentsuperbubbleTime;
                     timeFile << i + 1 << " " << clean_hap_name << " " << incdfs.latestTimes.currentinsertTime << " " << incdfs.latestTimes.currentdfsTime << " " << incdfs.latestTimes.currenttopologicalOrderTime << " " << incdfs.latestTimes.currentminITime << " " << incdfs.latestTimes.currentmaxOTime << " " << currentsuperbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.currentcase1 << " " << incdfs.edgeTypes.currentcase2 << " " << incdfs.edgeTypes.currentcase3 << " " << incdfs.edgeTypes.currentcase4 << " " << incdfs.edgeTypes.currentcase5 << " " << incdfs.vertexCount.currentcountAffectedVertices << "\n";
                     currentsuperbubbleTime = 0.0;
+                    #endif
                 }
                                
             }
 
             
             if (mode == "perBatch") {
+
+                    #ifndef BENCHMARK
                     start = std::chrono::high_resolution_clock::now();
+                    #endif
                     d.createMinI(&g);
+
+                    #ifndef BENCHMARK
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
                     incdfs.latestTimes.minITime = elapsed.count();
+                    #endif
 
+                    #ifndef BENCHMARK
                     start = std::chrono::high_resolution_clock::now();
+                    #endif
                     d.createMaxO(&g);
+                    #ifndef BENCHMARK
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
                     incdfs.latestTimes.maxOTime = elapsed.count();
-
+                    
                 start = std::chrono::high_resolution_clock::now();
+                #endif
                 superbubble.computeSB(&d, &g);
+                #ifndef BENCHMARK
                 end = std::chrono::high_resolution_clock::now();
                 superbubbleTime = std::chrono::duration<double>(end - start).count();
                 totalTime = incdfs.latestTimes.insertTime + incdfs.latestTimes.dfsTime + incdfs.latestTimes.topologicalOrderTime + incdfs.latestTimes.minITime + incdfs.latestTimes.maxOTime + superbubbleTime;
                 timeFile << update_counter << " " << clean_hap_name << " " << incdfs.latestTimes.insertTime << " " << incdfs.latestTimes.dfsTime << " " << incdfs.latestTimes.currenttopologicalOrderTime << " " << incdfs.latestTimes.minITime << " " << incdfs.latestTimes.maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.case1 << " " << incdfs.edgeTypes.case2 << " " << incdfs.edgeTypes.case3 << " " << incdfs.edgeTypes.case4 << " " << incdfs.edgeTypes.case5 << " " << incdfs.vertexCount.countAffectedVertices << "\n";
+                #endif
             }
             //std::string clean_hap_name = hap_name_header.substr(hap_name_header.find(":") + 2);
             //std::cout << clean_hap_name << std::endl;
@@ -210,14 +266,19 @@ public:
                 std::cerr << "Error opening file at: " << std::endl; 
             }*/
             //totalTime = incdfs.latestTimes.insertTime + incdfs.latestTimes.dfsTime + incdfs.latestTimes.minITime + incdfs.latestTimes.maxOTime + superbubbleTime;
+            
+            #ifndef BENCHMARK
             timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";
             //timeFile << update_counter << " " << clean_hap_name << " " << incdfs.latestTimes.insertTime << " " << incdfs.latestTimes.dfsTime << " " << incdfs.latestTimes.minITime << " " << incdfs.latestTimes.maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.case1 << " " << incdfs.edgeTypes.case2 << " " << incdfs.edgeTypes.case3 << " " << incdfs.edgeTypes.case4 << " " << incdfs.edgeTypes.case5 << "\n";
             update_counter++;
+            #endif
         }
         //outFile.close();
         // --- Finalization ---
+        #ifndef BENCHMARK
         timeFile << "PeakMemory(KB): " << getMemoryUsageInKB() << "\n";
         timeFile.close();
+        #endif
     }
 };
 int main(int argc, char* argv[]){

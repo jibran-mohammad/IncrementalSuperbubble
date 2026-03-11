@@ -55,6 +55,10 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 #    The 'make' command will be run here.
 MAKE_DIR = PROJECT_ROOT
 
+PIPELINE_MODE = os.environ.get("SUPERBUBBLE_PIPELINE_MODE") == "1"
+
+print("PIPELINE MODE:", PIPELINE_MODE)
+
 # --- CONFIGURATION ---
 
 # 1. A list describing each of your C++ algorithms.
@@ -131,7 +135,10 @@ def compile_target_with_make(cpp_dir, target):
     Returns the executable path on success, None on failure.
     """
     print(f"-> Compiling target '{target}' using Makefile in '{cpp_dir}'...")
-    make_command = ["make", f"TARGET={target}"]
+    if PIPELINE_MODE:
+        make_command = ["make", f"TARGET={target}", "BENCHMARK=1"]
+    else:
+        make_command = ["make", f"TARGET={target}"]
     try:
         # Run the make command, capturing its output.
         result = subprocess.run(
@@ -246,6 +253,10 @@ def main():
     )
     
     args = parser.parse_args()
+    if PIPELINE_MODE:
+        print("Running in PIPELINE BENCHMARK mode")
+    else:
+        print("Running in NORMAL EXPERIMENT mode")
 
     if args.algorithms:
         algorithms_to_run = [algo for algo in ALGORITHMS if algo['name'] in args.algorithms]

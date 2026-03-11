@@ -9,11 +9,16 @@ import argparse
 CASE_COLUMNS = ["Case1", "Case2", "Case3", "Case4", "Case5"]
 
 METRICS = {
+    "Insert": "InsertTime",
     "DFS": "DFSTime",
+    "Topo": "TopologicalOrderTime",
     "MinI": "MinITime",
     "MaxO": "MaxOTime",
-    "Insert": "InsertTime",
     "SBCompute": "SBComputeTime",
+}
+VERTEX_METRICS = {
+    "Affected": ["INCAffectedVertices", "BSTAffectedVertices"],
+    "Explored": ["BSTExploredVertices"],
 }
 
 ALGORITHMS = ["Simple", "INC", "BST"]
@@ -41,10 +46,21 @@ def compute_percent(simple_val, other_val):
     return 100.0 * (simple_val - other_val) / simple_val
 
 
-def format_value(x, precision=4):
+def format_value(x, precision=6):
+
     if pd.isna(x):
         return "-"
-    return f"{x:.{precision}f}"
+
+    if abs(x) < 1e-12:
+        x = 0.0
+
+    if x < 0:
+        x = 0.0
+
+    if abs(x) < 1e-3:
+        return f"{x:.6e}"
+
+    return f"{x:.6f}"
 
 
 def latex_escape(s):
@@ -54,6 +70,35 @@ def latex_escape(s):
 # ============================================================
 # Core Logic
 # ============================================================
+
+def build_vertex_table(df, metric_name):
+
+    cols = VERTEX_METRICS[metric_name]
+
+    rows = []
+
+    for col in cols:
+
+        row = {"Metric": col.replace("Vertices","").replace("INC","INC ").replace("BST","BST ")}
+
+        for case in CASE_COLUMNS:
+
+            if case not in df.columns:
+                row[case] = "-"
+                continue
+
+            case_df = df[df[case] > 0]
+
+            if col in case_df.columns:
+                row[case] = int(case_df[col].astype(float).sum())
+            else:
+                row[case] = "-"
+
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
+    
 
 def build_metric_table(df, metric_name, mode):
     """
@@ -81,9 +126,9 @@ def build_metric_table(df, metric_name, mode):
         case_df = df[df[case] > 0]
 
         # Compute sums per algorithm
-        simple_total = case_df[f"Simple{metric_suffix}"].sum()
-        inc_total = case_df[f"INC{metric_suffix}"].sum()
-        bst_total = case_df[f"BST{metric_suffix}"].sum()
+        simple_total = case_df.get(f"Simple{metric_suffix}", pd.Series(dtype=float)).sum()
+        inc_total = case_df.get(f"INC{metric_suffix}", pd.Series(dtype=float)).sum()
+        bst_total = case_df.get(f"BST{metric_suffix}", pd.Series(dtype=float)).sum()
 
         # Store raw values
         rows_dict["Simple"][case] = format_value(simple_total)
@@ -131,7 +176,7 @@ def generate_latex_table(df, metric_name, dataset_name, out_path):
     lines.append(r"\hline")
 
     for _, row in df.iterrows():
-        row_vals = [latex_escape(row[c]) for c in columns]
+        row_vals = [latex_escape(str(row[c])) for c in columns]
         lines.append(" & ".join(row_vals) + r" \\")
         lines.append(r"\hline")
 
@@ -189,6 +234,10 @@ def main():
     os.makedirs(args.outdir, exist_ok=True)
 
     df = pd.read_csv(args.csv)
+    for col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors="ignore")
+    if "Step" in df.columns:
+        df = df[df["Step"] != "Base"]
 
     for metric in METRICS.keys():
 
@@ -206,9 +255,25 @@ def main():
             out_file
         )
 
+    for vmetric in VERTEX_METRICS.keys():
+
+        v_df = build_vertex_table(df, vmetric)
+
+        out_file = os.path.join(
+            args.outdir,
+            f"{args.dataset}_{vmetric}.tex"
+        )
+
+        generate_latex_table(
+            v_df,
+            vmetric,
+            args.dataset,
+            out_file
+        )    
+
 """
 python3 datasetWiseCaseTables.py \
-  --csv /path/to/Ecoli/haplotype_build_comparison.csv \
+  --csv /path/to/timeFile/perEdge/haplotype_build_comparison.csv \
   --dataset Ecoli \
   --outdir latex_tables \
   --mode time
@@ -216,7 +281,7 @@ python3 datasetWiseCaseTables.py \
 or 
 
 python3 datasetWiseCaseTables.py \
-  --csv /path/to/Ecoli/haplotype_build_comparison.csv \
+  --csv /path/to/timeFile/perbatch/haplotype_build_comparison.csv \
   --dataset Ecoli \
   --outdir latex_tables \
   --mode percent

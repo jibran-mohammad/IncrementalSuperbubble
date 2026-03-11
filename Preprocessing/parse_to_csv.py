@@ -72,23 +72,38 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     line_iter = iter(lines)
     
     # Define metric columns
-    BASE_METRIC_COLUMNS = ['Insert_Time', 'DFS_Time', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time', 'SB_Count']
+    BASE_METRIC_COLUMNS = ['Insert_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time', 'SB_Count', 'AffectedVertices', 'ExploredVertices']
     
-    is_incremental_file = time_column_name in ["INC_DFS_Time_s", "BST_INC_DFS_Time_s"]
+    is_incremental_file = "Incremental" in filename.name
+    has_explored = "AVL" in filename.name
     if is_incremental_file:
         CASE_COLUMNS = ['Case1', 'Case2', 'Case3', 'Case4', 'Case5']
-        FULL_METRIC_COLUMNS = BASE_METRIC_COLUMNS + CASE_COLUMNS
+        if has_explored:
+            EXTRA_COLUMNS = ['AffectedVertices', 'ExploredVertices']
+        else:
+            EXTRA_COLUMNS = ['AffectedVertices']
+
+        FULL_METRIC_COLUMNS = BASE_METRIC_COLUMNS[:-2] + CASE_COLUMNS + EXTRA_COLUMNS
         EXPECTED_DATA_PARTS_LEN = 2 + len(FULL_METRIC_COLUMNS)
     else:
         CASE_COLUMNS = []
-        FULL_METRIC_COLUMNS = BASE_METRIC_COLUMNS
+        FULL_METRIC_COLUMNS = [
+            'Insert_Time',
+            'DFS_Time',
+            'TopologicalOrderTime',
+            'MinI_Time',
+            'MaxO_Time',
+            'SB_Compute_Time',
+            'Total_Time',
+            'SB_Count'
+        ]
         EXPECTED_DATA_PARTS_LEN = 2 + len(FULL_METRIC_COLUMNS)
         
     # Determine PREFIX and SOURCE METRIC
     if filename.name == "SuperbubbleSimpleTimeOutput.txt":
         source_time_metric = 'Total_Time'
         prefix = 'Simple_'
-    elif filename.name == "SuperbubbleIncrementalDFSOutput.txt":
+    elif filename.name == "SuperbubbleIncrementalDFSOutputSSM.txt":
         source_time_metric = 'DFS_Time'
         prefix = 'INC_'
     else: # SuperbubbleIncrementalAVLDFSOutput.txt
@@ -200,9 +215,8 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
                     haplotype_name = build_parts[1]
                     sb_count = int(build_parts[3])
                     
-                    metrics = [0.0] * (len(BASE_METRIC_COLUMNS) - 1) + [sb_count] 
-                    if is_incremental_file:
-                        metrics += [0] * len(CASE_COLUMNS)
+                    metrics = [0] * len(FULL_METRIC_COLUMNS)
+                    metrics[FULL_METRIC_COLUMNS.index('SB_Count')] = sb_count 
                 
                 else: 
                     step = int(build_parts[0])
@@ -297,9 +311,9 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
                     # edgeNo hapName 0 SB_Count
                     sb_count = int(build_parts[3])
 
-                    metrics = [0.0] * (len(BASE_METRIC_COLUMNS) - 1) + [sb_count]
-                    if is_incremental_file:
-                        metrics += [0] * len(CASE_COLUMNS)
+                    metrics = [0] * len(FULL_METRIC_COLUMNS)
+                    metrics[FULL_METRIC_COLUMNS.index('SB_Count')] = sb_count
+                    
                 else:
                     metrics = []
                     for i, val in enumerate(build_parts[2:]):
@@ -351,7 +365,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
     """
     # ADD THIS CHECK:
     required = ["SuperbubbleSimpleTimeOutput.txt", 
-                "SuperbubbleIncrementalDFSOutput.txt", 
+                "SuperbubbleIncrementalDFSOutputSSM.txt", 
                 "SuperbubbleIncrementalAVLDFSOutput.txt"]
     
     dir_name = time_dir_path.name.lower()
@@ -360,10 +374,6 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         return
 
     if mode == "perbatch" and "perbatch" not in dir_name:
-        return
-
-    # Skip timeFile directories always
-    if "timefile" in dir_name or "timefiles" in dir_name:
         return
 
 
@@ -380,12 +390,16 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         return
 
     # Define files, corresponding time columns, and their prefixes
-    files_info = [
-        ("SuperbubbleSimpleTimeOutput.txt", "Simple_Time_s", "Simple_"),
-        ("SuperbubbleIncrementalDFSOutput.txt", "INC_DFS_Time_s", "INC_"),
-        ("SuperbubbleIncrementalAVLDFSOutput.txt", "BST_INC_DFS_Time_s", "BST_")
-    ]
-    files_to_parse = {time_dir_path / f[0]: f[1] for f in files_info}
+    ALGORITHMS = {
+        "Simple": "SuperbubbleSimpleTimeOutput.txt",
+        "INC": "SuperbubbleIncrementalDFSOutputSSM.txt",
+        "BST": "SuperbubbleIncrementalAVLDFSOutput.txt"
+    }
+
+    files_to_parse = {
+        time_dir_path / fname: f"{prefix}_Time_s"
+        for prefix, fname in ALGORITHMS.items()
+    }
 
     all_data = []
     
@@ -404,7 +418,8 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         COMMON_MERGE_COLS = ['Step', 'Haplotype_Name', 'Nodes', 'Edges']
         
         # 1. Define time metric structures for use in merging and filtering (FIX: SCOPE)
-        BASE_TIME_METRICS = ['Insert_Time', 'DFS_Time', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time']
+        BASE_TIME_METRICS = ['Insert_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time']
+        BASE_VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices']
         PREFIXES = ['Simple_', 'INC_', 'BST_']
         
         # 2. Perform the full merge
@@ -426,19 +441,20 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
 
         
         # 3. Collect all time/compute columns
-        time_cols = []
+        metric_cols = []
+
         for prefix in PREFIXES:
-            for metric in BASE_TIME_METRICS:
+            for metric in BASE_TIME_METRICS + BASE_VERTEX_METRICS:
                 col = f'{prefix}{metric}'
                 if col in merged_df.columns:
-                    time_cols.append(col)
+                    metric_cols.append(col)
 
         # 4. Separate the 'Base' step (must be preserved)
         non_base_df = merged_df[merged_df['Step'] != 'Base'].copy()
         base_df = merged_df[merged_df['Step'] == 'Base'].copy()
         
         # 5. Filter non-base rows: convert time columns to numeric and sum
-        valid_time_cols = [col for col in time_cols if col in non_base_df.columns]
+        valid_time_cols = [col for col in metric_cols if col in non_base_df.columns]
 
         for col in valid_time_cols:
              non_base_df[col] = pd.to_numeric(non_base_df[col], errors='coerce').fillna(0.0)
@@ -502,10 +518,17 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         # --- Define Final Order using the new PascalCase names ---
         
         BASE_COLS = ['Step', 'HaplotypeName', 'Nodes', 'Edges']
-        TIME_METRICS = ['InsertTime', 'DFSTime', 'MinITime', 'MaxOTime', 'SBComputeTime', 'TotalTime']
+        TIME_METRICS = ['InsertTime', 'DFSTime', 'TopologicalOrderTime', 'MinITime', 'MaxOTime', 'SBComputeTime', 'TotalTime']
+        VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices']
         PREFIXES = ['Simple', 'INC', 'BST']
-        
+
         final_order = BASE_COLS + ['SuperbubbleCount']
+
+        for metric in VERTEX_METRICS:
+            for prefix in PREFIXES:
+                col_name = f'{prefix}{metric}'
+                if col_name in merged_df.columns:
+                    final_order.append(col_name)
         
         # 1. Add all detailed time metrics (3 columns each)
         for metric in TIME_METRICS:
@@ -570,26 +593,7 @@ def main():
         * Open your terminal or command prompt.
         * Navigate to the directory containing this script.
         * Run the script using python, specifying the dataset:
-\begin{table}[ht]
-\centering
-\begin{tabular}{|c|c|c|c|c|c|}
-\hline
-\textbf{Dataset} & \textbf{Simple\_Total} & \textbf{INC\_Total} & \textbf{BST\_Total} & \textbf{INC\_Imp(%)} & \textbf{BST\_Imp(%)} \\
-\hline
-Ecoli & 50.0653 & 50.3293 & 50.8285 & -0.53 & -1.52 \\
-\hline
-chr13 & 22.8268 & 22.0818 & 24.2408 & 3.26 & -6.19 \\
-\hline
-chr15 & 26.0925 & 25.4394 & 27.7923 & 2.50 & -6.51 \\
-\hline
-chr21 & 20.5835 & 19.9686 & 21.8919 & 2.99 & -6.36 \\
-\hline
-chromosome\_X & 89.9178 & 85.0560 & 91.8650 & 5.41 & -2.17 \\
-\hline
-\end{tabular}
-\caption{SBCompute total time comparison across datasets}
-\label{tab:sbcompute_summary}
-\end{table}
+
             `python3 parse_to_csv.py -d ecoli`
         
             To run a specific chromosome: 

@@ -3,29 +3,33 @@
     void BaseDFS::dfs(GraphContext *G) { 
         //this->a=0;
         //this->b=0;
+        #ifndef BENCHMARK
         auto start = std::chrono::high_resolution_clock::now();
         auto end = std::chrono::high_resolution_clock::now();   
         std::chrono::duration<double> elapsed = end - start;
         start = std::chrono::high_resolution_clock::now();
+        #endif
         for (int i = 0; i <this->n; ++i) {
             if (!this->visit[i]) {
                this->dfsUtil(G, i);
            }
         }
+        #ifndef BENCHMARK
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
         this->latestTimes.dfsTime = elapsed.count();
         this->latestTimes.dfsTime = this->latestTimes.dfsTime - this->latestTimes.topologicalOrderTime;
-        
+        #endif
 
        //std::cout <<" Nodes and edges " << this->a << " " << this->b << std::endl;
     }
  
     void BaseDFS::dfsUtil(GraphContext *G, int v) {
+        #ifndef BENCHMARK
         auto start = std::chrono::high_resolution_clock::now();
         auto end = std::chrono::high_resolution_clock::now();   
         std::chrono::duration<double> elapsed = end - start;
-
+        #endif
         this->visit[v] = 1; // Mark the current vertex as visited
         //this->a++;
         // Recur for all adjacent vertices of the current vertex
@@ -37,17 +41,20 @@
         } 
           
         // After visiting all adjacent vertices, add the current vertex to the postorder
+        #ifndef BENCHMARK
         start = std::chrono::high_resolution_clock::now();
+        #endif
         this->postorder[v]=this->postorderNumber;
         this->reversePostorder[this->postorderNumber] = v;
         this->reverseTopologicalOrder[v]=(this->n-1) - this->postorder[v];
         this->topOrd[this->reverseTopologicalOrder[v]]=v;
         this->postorderNumber++; 
+        #ifndef BENCHMARK
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
         this->latestTimes.currenttopologicalOrderTime = elapsed.count();
         this->latestTimes.topologicalOrderTime += elapsed.count();  
-        
+        #endif
         
          
     }
