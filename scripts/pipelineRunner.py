@@ -76,7 +76,11 @@ def run_preprocessing(gfa_file, dataset):
     # ---------- Environment variables ----------
     env = os.environ.copy()
 
-    env["PIPELINE_DATASET_NAME"] = dataset
+    if dataset == "Human":
+        chrom = pathlib.Path(gfa_file).parent.parent.name
+        env["PIPELINE_DATASET_NAME"] = f"Human/{chrom}"
+    else:
+        env["PIPELINE_DATASET_NAME"] = dataset
 
 
     # Derive reference fasta from GFA name
@@ -147,26 +151,59 @@ def run_superbubble(dataset,algorithm,mode,chromosomes):
 
 def discover_gfa_files(dataset, chromosomes):
 
-    def is_original_gfa(filename):
+    gfas = []
 
-        if not filename.endswith(".gfa"):
-            return False
+    forbidden_suffixes = [
+        "_mg.gfa",
+        "_pos.gfa",
+        "reduced_graph.gfa",
+        "_normalized.gfa",
+        "_sorted.gfa"
+    ]
 
-        # Ignore intermediate graphs
-        forbidden = [
-            "_mg.gfa",
-            "_pos.gfa",
-            "reduced_graph.gfa",
-            "_normalized.gfa",
-            "_sorted.gfa"
-        ]
+    if dataset == "Ecoli":
 
-        for f in forbidden:
-            if filename.endswith(f):
-                return False
+        gfa_dir = INPUT_DIR / "Ecoli" / "Graphs"
 
-        return True
+        for f in os.listdir(gfa_dir):
 
+            if f.endswith(".gfa") and not any(f.endswith(x) for x in forbidden_suffixes):
+
+                gfas.append(gfa_dir / f)
+
+    elif dataset == "Human":
+
+        if not chromosomes:
+            raise RuntimeError(
+                "Human dataset requires chromosome selection (-c c1,c2,...,cX)"
+            )
+
+        for c in chromosomes:
+
+            gfa_dir = INPUT_DIR / "Human" / c / "Graphs"
+            expected = f"{c}.gfa"
+
+            gfa_file = gfa_dir / expected
+
+            if not gfa_file.exists():
+                raise RuntimeError(
+                    f"Expected GFA file not found:\n{gfa_file}"
+                )
+
+            # Safety check (paranoia mode)
+            if any(expected.endswith(x) for x in forbidden_suffixes):
+                raise RuntimeError(
+                    f"Invalid GFA selected (intermediate file): {gfa_file}"
+                )
+
+            gfas.append(gfa_file)
+
+    print("\nSelected input GFA:")
+    for g in gfas:
+        print("  ", g)
+    print()
+
+    return gfas
 
     gfas = []
 
@@ -187,7 +224,7 @@ def discover_gfa_files(dataset, chromosomes):
         if chromosomes:
             chrs = chromosomes
         else:
-            chrs = os.listdir(INPUT_DIR / "Human")
+            chrs = [d for d in os.listdir(INPUT_DIR / "Human") if d.startswith("chromosome_")]
 
 
         for c in chrs:
