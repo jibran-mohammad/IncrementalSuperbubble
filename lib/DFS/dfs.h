@@ -15,6 +15,7 @@ public:
     std::vector<int> postorder;
     std::vector<int> reversePostorder;
     std::vector<int> reverseTopologicalOrder;
+    std::vector<int> oldReverseTopologicalOrder;
     std::vector<int> minI;
     std::vector<int> maxO;
     int n;

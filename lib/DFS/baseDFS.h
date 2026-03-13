@@ -12,6 +12,7 @@ public:
     	this->postorderNumber = 0;
     	this->postorder.resize(n);
     	this->reverseTopologicalOrder.resize(n);
+    	this->oldReverseTopologicalOrder.resize(n);
     	this->visit.resize(n);
     	this->topOrd.resize(n);
     	this->reversePostorder.resize(n);

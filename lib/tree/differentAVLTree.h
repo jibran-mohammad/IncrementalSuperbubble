@@ -20,14 +20,20 @@ class DifferentBalancedBinaryTree {
 
 
     public:
+        TopologicalCompare comp;
         std::map<int,int,TopologicalCompare> avlTree;
         DifferentBalancedBinaryTree() = default;
-        DifferentBalancedBinaryTree(std::vector<int> &order) : avlTree(TopologicalCompare(order)) {}
+        DifferentBalancedBinaryTree(std::vector<int> &order) : comp(order), avlTree(comp) {}
         void addNode(int index, int reversePostOrder);
         int findMax();
         int findMin();
         void deleteNode(int index);
         void printTree();
         void assignTopologicalOrder();
+        
+        void setTopo(std::vector<int>& order) {
+            comp.reversePostOrder = &order;
+        }
+
 };
 #endif

@@ -107,6 +107,7 @@
         if(x>0) {
             this->postorderNumber = 0;
             this->reversePostorder.resize(this->n);
+            this->oldReverseTopologicalOrder.resize(this->n);
             this->postorder.resize(this->n);
             this->visit.resize(this->n);
             this->topOrd.resize(this->n);
@@ -127,6 +128,7 @@
         std::fill(this->visit.begin(), this->visit.end(), 0);
         std::fill(this->topOrd.begin(), this->topOrd.end(), 0);
         std::fill(this->reverseTopologicalOrder.begin(), this->reverseTopologicalOrder.end(), 0);
+        std::fill(this->oldReverseTopologicalOrder.begin(), this->oldReverseTopologicalOrder.end(), 0);
         std::fill(this->minI.begin(), this->minI.end(), 0);
         std::fill(this->maxO.begin(), this->maxO.end(), 0);
     }

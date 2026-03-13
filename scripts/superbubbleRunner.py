@@ -97,6 +97,12 @@ ALGORITHMS = [
         "name": "incsuperbubblessm",
         "target": "incsuperbubblessm",
         "output_filename": "SuperbubbleIncrementalDFSOutputSSM.txt"
+    },
+
+    {
+        "name": "IncrementalSuperbubbleBatch",
+        "target": "incsuperbubblebatch",
+        "output_filename": "SuperbubbleIncrementalBatchDFSOutput.txt"
     }
 ]
 # ---------------------
