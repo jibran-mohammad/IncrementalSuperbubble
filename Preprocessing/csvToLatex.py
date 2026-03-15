@@ -14,6 +14,7 @@ ALGORITHMS = {
 
 # Metrics -> column suffix used in CSV
 METRICS = {
+    "Insert": "InsertTime",
     "DFS": "DFSTime",
     "TopoOrder": "TopologicalOrderTime",
     "MinI": "MinITime",
@@ -420,7 +421,7 @@ def main():
     csv_paths = args.csv
     mode = args.mode
     # -------- 4 metric tables --------
-    for metric_name in ["DFS", "TopoOrder", "MinI", "MaxO", "SBCompute"]:
+    for metric_name in ["Insert","DFS", "TopoOrder", "MinI", "MaxO", "SBCompute"]:
         summary_df = build_summary_rows_for_metric(csv_paths, metric_name, mode)
 
         out_tex = os.path.join(args.outdir, f"table_{metric_name}.tex")
@@ -481,7 +482,7 @@ def main():
 
     # -------- case specific metric tables --------
     for case_name in CASE_COLUMNS_CANDIDATES:
-        for metric_name in ["DFS", "TopoOrder", "MinI", "MaxO", "SBCompute"]:
+        for metric_name in ["Insert","DFS", "TopoOrder", "MinI", "MaxO", "SBCompute"]:
 
             case_df = build_case_metric_table(csv_paths, case_name, metric_name, mode)
 

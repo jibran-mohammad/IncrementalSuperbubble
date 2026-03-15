@@ -120,8 +120,7 @@
                        this->reverseTopologicalOrder[0] = (this->n - 1) -  this->postorder[0];
                        this->topOrd[reverseTopologicalOrder[0]] = 0;
 
-                       this->minIbst[u]= binaryTreeIncoming;
-                       this->maxObst[u]= binaryTreeOutgoing;
+                       
                     
                        for(int i=0; i<this->n;i++) {
                           this->reverseTopologicalOrder[i] = (this->n - 1) - postorder[i];
@@ -135,6 +134,7 @@
 
                        start = std::chrono::high_resolution_clock::now();
                        #endif
+                       this->maxObst[u]= binaryTreeOutgoing;
                        this->maxObst[u].addNode(v,0);
                        this->maxO[u] =  this->maxObst[u].findMax();
                        #ifndef BENCHMARK
@@ -145,6 +145,7 @@
 
                        start = std::chrono::high_resolution_clock::now();
                        #endif
+                       this->minIbst[u]= binaryTreeIncoming;
                        this->minIbst[v].addNode(u,0);
                        this->minI[v] = this->minIbst[v].findMin();
                        #ifndef BENCHMARK
