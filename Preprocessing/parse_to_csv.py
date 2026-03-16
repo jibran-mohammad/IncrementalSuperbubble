@@ -75,7 +75,10 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     BASE_METRIC_COLUMNS = ['Insert_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time', 'SB_Count', 'AffectedVertices', 'ExploredVertices']
     
     is_incremental_file = "Incremental" in filename.name
-    has_explored = "AVL" in filename.name
+    has_explored = (
+            "AVL" in filename.name or
+            "Batch" in filename.name
+        )
     if is_incremental_file:
         CASE_COLUMNS = ['Case1', 'Case2', 'Case3', 'Case4', 'Case5']
         if has_explored:
@@ -106,9 +109,12 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     elif filename.name == "SuperbubbleIncrementalDFSOutputSSM.txt":
         source_time_metric = 'DFS_Time'
         prefix = 'INC_'
-    else: # SuperbubbleIncrementalAVLDFSOutput.txt
+    elif filename.name == "SuperbubbleIncrementalAVLDFSOutput.txt":
         source_time_metric = 'DFS_Time'
         prefix = 'BST_'
+    elif filename.name == "SuperbubbleIncrementalBatchDFSOutput.txt":
+        source_time_metric = 'DFS_Time'
+        prefix = 'INCBATCH_'    
 
     current_haplotype_edges = 0
     current_haplotype_nodes = 0
@@ -366,7 +372,8 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
     # ADD THIS CHECK:
     required = ["SuperbubbleSimpleTimeOutput.txt", 
                 "SuperbubbleIncrementalDFSOutputSSM.txt", 
-                "SuperbubbleIncrementalAVLDFSOutput.txt"]
+                "SuperbubbleIncrementalAVLDFSOutput.txt",
+                "SuperbubbleIncrementalBatchDFSOutput.txt"]
     
     dir_name = time_dir_path.name.lower()
 
@@ -393,7 +400,8 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
     ALGORITHMS = {
         "Simple": "SuperbubbleSimpleTimeOutput.txt",
         "INC": "SuperbubbleIncrementalDFSOutputSSM.txt",
-        "BST": "SuperbubbleIncrementalAVLDFSOutput.txt"
+        "BST": "SuperbubbleIncrementalAVLDFSOutput.txt",
+        "INCBATCH": "SuperbubbleIncrementalBatchDFSOutput.txt"
     }
 
     files_to_parse = {
@@ -420,7 +428,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         # 1. Define time metric structures for use in merging and filtering (FIX: SCOPE)
         BASE_TIME_METRICS = ['Insert_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time']
         BASE_VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices']
-        PREFIXES = ['Simple_', 'INC_', 'BST_']
+        PREFIXES = ['Simple_', 'INC_', 'BST_','INCBATCH_']
         
         # 2. Perform the full merge
         merge_keys = ['Step']
@@ -504,7 +512,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
                 prefix = name.split('_')[0]
                 return prefix + 'TimeS'
 
-            if name.startswith(('Simple_', 'INC_', 'BST_')):
+            if name.startswith(('Simple_', 'INC_', 'BST_', 'INCBATCH_')):
                 parts = name.split('_')
                 # Keep inner parts exactly (no .capitalize()), just glue them:
                 # 'Simple_DFS_Time' -> ['Simple','DFS','Time'] -> 'Simple' + 'DFS' + 'Time' -> 'SimpleDFSTime'
@@ -520,7 +528,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         BASE_COLS = ['Step', 'HaplotypeName', 'Nodes', 'Edges']
         TIME_METRICS = ['InsertTime', 'DFSTime', 'TopologicalOrderTime', 'MinITime', 'MaxOTime', 'SBComputeTime', 'TotalTime']
         VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices']
-        PREFIXES = ['Simple', 'INC', 'BST']
+        PREFIXES = ['Simple', 'INC', 'BST', 'INCBATCH']
 
         final_order = BASE_COLS + ['SuperbubbleCount']
 

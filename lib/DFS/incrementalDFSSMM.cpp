@@ -67,7 +67,7 @@
             #ifndef BENCHMARK
             end = std::chrono::high_resolution_clock::now();
             elapsed = end - start;
-            this->latestTimes.insertTime += elapsed.count();
+            this->latestTimes.currentinsertTime += elapsed.count();
             this->latestTimes.insertTime += elapsed.count();
             #endif
             //std::cout << "after resize" << std::endl;
