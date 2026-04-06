@@ -60,13 +60,14 @@ The pipeline uses several external bioinformatics tools. These executables must 
 | **vg** | Must be installed inside the **`Pangenome_Construction/vgTool/`** directory. |
 | **mash** | The executable must be placed directly inside **`Pangenome_Construction/`**. |
 | **minichain** | The executable must be placed directly inside **`Pangenome_Construction/`**. |
+| **minigraph**| The executable must be places directly inside **`Pangenome_Construction/`**. |
 
 ## 🚀 Pipeline Execution Guide
 
 The workflow is divided into four phases. You must complete Phase 0 before running any other steps.
 
 ### Phase 0: External Tool Setup (One-Time)
-This step ensures that the required external bioinformatics tools (vg, mash, minichain) are present in the correct locations for the preprocessing scripts to function.
+This step ensures that the required external bioinformatics tools (vg, mash, minichain, minigraph) are present in the correct locations for the preprocessing scripts to function.
 
 Create the required directory structure:
 
@@ -81,6 +82,8 @@ mkdir -p Pangenome_Construction/vgTool
 **Pangenome_Construction/Mash**
 
 **Pangenome_Construction/minichain**
+
+**Pangenome_Construction/minigraph**
 
 ### Phase 1: Preprocessing and Graph Generation (graphRunner.py)
 This script runs the entire preprocessing pipeline to create the graph file (numeric_edgelist.txt) which is required for Phase 2.
@@ -104,16 +107,22 @@ This step handles C++ compilation via the Makefile and executes the algorithms o
 
 **Script location: scripts/superbubbleRunner.py**
 
-**Available Algorithms: SimpleSuperbubble, IncrementalAlgorithm, AnotherAlgorithm.**
+**Available Algorithms: SimpleSuperbubble, AnotherAlgorithm, incsuperbubblessm,IncrementalSuperbubbleBatch .**
 
 Examples:
 ```Bash
 
-# Run all algorithms on E. coli
-python3 scripts/superbubbleRunner.py --dataset Ecoli
+# Run all algorithms on E. coli in batch mode
+python3 scripts/superbubbleRunner.py --dataset Ecoli -m perBatch
 
-# Run specific algorithms on chromosome_1
-python3 scripts/superbubbleRunner.py --dataset Human --algorithms IncrementalAlgorithm --chromosomes chromosome_1
+# Run all algorithms on E. coli in Edge mode
+python3 scripts/superbubbleRunner.py --dataset Ecoli -m perEdge
+
+# Run specific algorithms on chromosome_1 in batch mode
+python3 scripts/superbubbleRunner.py --dataset Human --algorithms AnotherAlgorithm --chromosomes chromosome_1 -m perBatch
+
+# Run specific algorithms on chromosome_1 in edge mode
+python3 scripts/superbubbleRunner.py --dataset Human --algorithms AnotherAlgorithm --chromosomes chromosome_1 -m perEdge
 ```
 ### Phase 3: Data Analysis and Plotting
 This final phase processes the raw time outputs into readable CSVs and generates performance charts.
@@ -123,22 +132,32 @@ This script merges the raw time output files from the three algorithms into a si
 
 ```Bash
 
-# Example: Process E. coli output
-python3 Preprocessing/parse_to_csv.py --dataset ecoli
+# Example: Process E. coli output in Edge mode
+python3 Preprocessing/parse_to_csv.py --dataset ecoli -m peredge
 
-# Example: Process all Human chromosome outputs
-python3 Preprocessing/parse_to_csv.py --dataset human 
+# Example: Process E. coli output in Batch mode
+python3 Preprocessing/parse_to_csv.py --dataset ecoli -m perbatch
+
+# Example: Process all Human chromosome outputs in Edge mode
+python3 Preprocessing/parse_to_csv.py --dataset human -m peredge
+
+# Example: Process all Human chromosome outputs in batch mode
+python3 Preprocessing/parse_to_csv.py --dataset human -m perbatch 
 ```
 #### Step 3b: Generate Plots (plotcsv.py)
 This script reads the CSV generated in 3a and produces performance charts (PNG files). You must specify the path to the CSV and the desired output directory for the plots.
 
 ```Bash
 
-# Example: Generate plots for the E. coli data and save them in a new 'plots/ecoli_charts/' directory
-python3 plotcsv.py output/Ecoli/timeFile/haplotype_build_comparison.csv plots/ecoli_charts/
+# Example: Generate plots for the E. coli data and save them in a new 'plots/ecoli_charts/' directory in edge mode with Ecoli data set in log scale
+python plotcsv.py --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv --out plots/ecoli_charts/ --mode peredge --dataset Ecoli --scale log
 
-# Example: Generate plots for chromosome_1 data
-python3 plotcsv.py output/Human/chromosome_1/timeFile/haplotype_build_comparison.csv plots/chr1_charts/
+# Example: Generate plots for the E. coli data and save them in a new 'plots/ecoli_charts/' directory in edge mode with Ecoli data set in linear scale
+python plotcsv.py --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv --out plots/ecoli_charts/ --mode peredge --dataset Ecoli --scale linear
+
+
+# Example: Generate plots for chromosome_11 data in log scale in batch mode.
+python3 plotcsv.py --csv output/Human/chromosome_11/timeFile/perEdge/haplotype_build_comparison.csv  --out plots/ecoli_charts/ --mode perbatch --dataset GRCh38_chr5 --scale log
 ```
 
 ## 🧪 Test Run Instructions (Quick Start Example)
@@ -153,21 +172,21 @@ source venv/bin/activate
 
 This step processes the five genomes and generates the numeric_edgelist.txt file.
  ```Bash
-python3 scripts/graphRunner.py --dataset Ecoli
+python3 scripts/graphRunner.py --dataset Ecoli 
 ```
 **Step 3** — Run Superbubble Algorithms
 
 This will compile the C++ code and run all available algorithms on the generated graph.
 ```Bash
-python3 scripts/superbubbleRunner.py --dataset Ecoli
+python3 scripts/superbubbleRunner.py --dataset Ecoli -m perEdge
 ```
 **Step 4** — Generate CSV Output
 ```Bash
-python3 Preprocessing/parse_to_csv.py --dataset Ecoli
+python3 Preprocessing/parse_to_csv.py --dataset Ecoli -m peredge
 ```
 **Step 5** — Produce Performance Plots
 ```Bash
-python3 Preprocessing/plotcsv.py output/Ecoli/timeFile/haplotype_build_comparison.csv output/Ecoli/timeFile/
+python3 --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv --out output/Ecoli/timeFile --mode peredge --dataset Ecoli --scale log
 ```
 ## 📦 Expected Output
 
