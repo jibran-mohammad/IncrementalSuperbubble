@@ -75,6 +75,12 @@ ALGORITHMS = [
         "output_filename": "SuperbubbleSimpleTimeOutput.txt"
     },
 
+    {
+        "name": "incsuperbubbleDifferentMaxO",
+        "target": "incsuperbubbleDifferentMaxO",
+        "output_filename": "SuperbubbleDifferentMaxO.txt"
+    },
+
    
     #{
     #    "name": "IncrementalAlgorithm",
@@ -259,6 +265,13 @@ def main():
     )
     
     args = parser.parse_args()
+
+    mode_dir_map = {
+        "perBatch": "perbatch",
+        "perEdge": "perEdge"
+    }
+    mode_dir = mode_dir_map[args.mode]
+
     if PIPELINE_MODE:
         print("Running in PIPELINE BENCHMARK mode")
     else:
@@ -270,6 +283,15 @@ def main():
     else:
         algorithms_to_run = ALGORITHMS
         print("--- Starting Superbubble Algorithm Pipeline (all algorithms) ---")
+
+    if args.mode == "perEdge":
+        removed = [algo['name'] for algo in algorithms_to_run if algo['name'] == "IncrementalSuperbubbleBatch"]
+        algorithms_to_run = [
+            algo for algo in algorithms_to_run
+            if algo['name'] != "IncrementalSuperbubbleBatch"
+        ]
+        if removed:
+            print("[INFO] Skipping IncrementalSuperbubbleBatch (only valid for perBatch mode)")
 
     print(f"--- Target Dataset: {args.dataset} ---")
 
@@ -296,7 +318,7 @@ def main():
              sys.exit(1)
              
         for algo in algorithms_to_run:
-            output_dir = os.path.join(PROJECT_ROOT, "output", "Ecoli", "timeFile")
+            output_dir = os.path.join(PROJECT_ROOT, "output", "Ecoli", "timeFile", mode_dir)
             full_output_path = os.path.join(output_dir, algo['output_filename'])
             jobs_to_run.append({
                 "algo_name": algo['name'],
@@ -341,7 +363,7 @@ def main():
             for algo in algorithms_to_run:
                 # This builds the output path exactly as you requested:
                 # .../output/Human/chromosome_1/timeFile/
-                output_dir = os.path.join(PROJECT_ROOT, "output", "Human", chr_name, "timeFile")
+                output_dir = os.path.join(PROJECT_ROOT, "output", "Human", chr_name, "timeFile", mode_dir)
                 full_output_path = os.path.join(output_dir, algo['output_filename'])
                 
                 jobs_to_run.append({

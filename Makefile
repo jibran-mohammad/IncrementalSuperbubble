@@ -36,6 +36,7 @@ INCDFSBATCH_SRCS = $(DFS_DIR)/incDFSBatch.cpp
 NEWINC_SRCS = $(DFS_DIR)/incrementalDFSAVLTree.cpp
 INCDFSSMM_SRCS = $(DFS_DIR)/incrementalDFSSMM.cpp
 NEWINCDFSH1_SRCS = $(DFS_DIR)/incrementalDFSH1.cpp
+NEWINCDFSH4_SRCS = $(DFS_DIR)/incrementalDFSAVLTreeH4.cpp
 SUPERBUBBLE_SRCS = $(SUPERBUBBLE_DIR)/superbubble.cpp
 SUPERBUBBLEH1_SRCS = $(SUPERBUBBLE_DIR)/superbubbleh1.cpp
 AVLTREE_SRCS = $(TREE_DIR)/avlTree.cpp
@@ -66,6 +67,7 @@ SIMPLESUPERBUBBLEH1_OBJS = $(ALGORITHM_DIR)/superbubbledfsh1.o
 INCSUPERBUBBLE_OBJS = $(ALGORITHM_DIR)/superbubbleIncdfs.o
 INCSUPERBUBBLESSM_OBJS = $(ALGORITHM_DIR)/superbubbleIncdfsssm.o
 INCSUPERBUBBLEBATCH_OBJS = $(ALGORITHM_DIR)/superbubbleIncdfsBatch.o
+INCSUPERBUBBLEDIFFERENTMAXO_OBJS = $(ALGORITHM_DIR)/mnlognsuperbubbleH4.o
 NEWINCREMENTALSUPERBUBBLE_OBJS = $(ALGORITHM_DIR)/mnlognsuperbubble.o
 H1SUPERBUBBLE_OBJS = $(ALGORITHM_DIR)/mnlognH1.o
 TESTDFSALLFILES_OBJS = $(TEST_DIR)/testSIIAVLTree.o
@@ -96,6 +98,7 @@ INCSUPERBUBBLE_SRCS = $(ALGORITHM_DIR)/superbubbleIncdfs.cpp
 NEWINCREMENTALSUPERBUBBLE_SRCS = $(ALGORITHM_DIR)/mnlognsuperbubble.cpp
 INCREMENTALSUPERBUBBLESSM_SRCS = $(ALGORITHM_DIR)/superbubbleIncdfsSMM.cpp
 INCSUPERBUBBLEBATCH_SRCS = $(ALGORITHM_DIR)/superbubbleIncdfsBatch.cpp
+INCSUPERBUBBLEDIFFERENTMAXO_SRCS = $(ALGORITHM_DIR)/mnlognsuperbubbleH4.cpp
 H1SUPERBUBBLE_SRCS = $(ALGORITHM_DIR)/mnlognH1.cpp
 TESTDFSALLFILES_SRCS = $(TEST_DIR)/testSIIAVLTree.cpp
 TESTALLFILESSUPERBUBBLE_SRCS = $(TEST_DIR)/testAllSuperbubble.cpp
@@ -122,6 +125,7 @@ SIMPLESUPERBUBBLEH1_EXEC = $(TEST_DIR)/superbubbledfsh1
 INCSUPERBUBBLE_EXEC = $(TEST_DIR)/superbubbleIncdfs
 INCSUPERBUBBLESSM_EXEC = $(TEST_DIR)/superbubbleIncdfsssm
 INCSUPERBUBBLEBATCH_EXEC = $(TEST_DIR)/superbubbleIncdfsBatch
+INCSUPERBUBBLEDIFFERENTMAXO_EXEC = $(TEST_DIR)/mnlognsuperbubbleH4
 NEWINCREMENTALSUPERBUBBLE_EXEC = $(TEST_DIR)/mnlognsuperbubble
 H1SUPERBUBBLE_EXEC = $(TEST_DIR)/h1Superbubble
 TESTDFSALLFILES_EXEC = $(TEST_DIR)/testAllFilesDfs
@@ -243,6 +247,16 @@ else ifeq ($(TARGET),incsuperbubblebatch)
 	              $(GRAPH_DIR)/adjacencyListGraph.o \
 	              $(GRAPH_DIR)/contextGraph.o \
 	              $(TREE_DIR)/differentAVLTree.o
+else ifeq ($(TARGET),incsuperbubbleDifferentMaxO)
+	TARGET_EXEC = $(INCSUPERBUBBLEDIFFERENTMAXO_EXEC)
+	TARGET_DEPS = $(INCSUPERBUBBLEDIFFERENTMAXO_OBJS) \
+	              $(SUPERBUBBLE_DIR)/superbubble.o \
+	              $(DFS_DIR)/incrementalDFSAVLTreeH4.o \
+	              $(DFS_DIR)/contextdfs.o \
+	              $(DFS_DIR)/baseDFS.o \
+	              $(GRAPH_DIR)/adjacencyListGraph.o \
+	              $(GRAPH_DIR)/contextGraph.o \
+	              $(TREE_DIR)/differentAVLTree.o	              
 endif
 
 
@@ -260,6 +274,9 @@ $(ALGORITHM_DIR)/superbubbleIncdfs.o: $(INCSUPERBUBBLE_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@	
 
 $(ALGORITHM_DIR)/mnlognsuperbubble.o: $(NEWINCREMENTALSUPERBUBBLE_SRCS)
+	$(CC) $(CFLAGS) -c $< -o $@	
+
+$(ALGORITHM_DIR)/mnlognsuperbubbleH4.o: $(INCSUPERBUBBLEDIFFERENTMAXO_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@	
 
 $(ALGORITHM_DIR)/superbubbleIncdfsssm.o: $(INCREMENTALSUPERBUBBLESSM_SRCS)
@@ -326,6 +343,9 @@ $(DFS_DIR)/newIncrementalDFS.o: $(NEWINC_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@	
 
 $(DFS_DIR)/incrementalDFSH1.o: $(NEWINCDFSH1_SRCS)
+	$(CC) $(CFLAGS) -c $< -o $@	
+
+$(DFS_DIR)/incrementalDFSAVLTreeH4.o: $(NEWINCDFSH4_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@		
 
 
@@ -406,7 +426,8 @@ clean:
 	 $(EXTRACTDAGS_OBJS) $(EXTRACTDAGS_EXEC) $(SUPERBUBBLEPROBABILITY_EXEC) \
 	 $(SUPERBUBBLEPROBABILITY_OBJS) $(NEWINCH1_OBJS) $(NEWINCH1_EXEC) \
 	 $(INCSUPERBUBBLESSM_EXEC) $(INCSUPERBUBBLESSM_OBJS) $(INCDFSSMM_OBJS) \
-	 $(INCSUPERBUBBLEBATCH_OBJS) $(INCSUPERBUBBLEBATCH_EXEC)
+	 $(INCSUPERBUBBLEBATCH_OBJS) $(INCSUPERBUBBLEBATCH_EXEC) $(INCSUPERBUBBLEDIFFERENTMAXO_OBJS) \
+	 $(INCSUPERBUBBLEDIFFERENTMAXO_EXEC)
 	unset TARGET
 # Phony target to avoid conflicts with files named "clean"
 .PHONY: clean

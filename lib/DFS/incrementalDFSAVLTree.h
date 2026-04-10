@@ -41,6 +41,8 @@ public:
     	int countExploredVertices = 0;
     	int currentcountAffectedVertices = 0;
     	int currentcountExploredVertices = 0;
+    	int totalEdges = 0;
+    	int currentTotalEdges =0;
     };
     IncrementalUpdateTimes latestTimes;
     TypeOfEdgeInsertion edgeTypes;

@@ -29,6 +29,7 @@
             this->edgeTypes.currentcase5 = 0;
             this->vertexCount.currentcountAffectedVertices = 0;
             this->vertexCount.currentcountExploredVertices = 0;
+            this->vertexCount.currentTotalEdges = 0;
 
             auto start = std::chrono::high_resolution_clock::now();
             auto end = std::chrono::high_resolution_clock::now();   
@@ -39,6 +40,8 @@
             x=this->n;
             g->insertEdge(u,v);
             this->n=g->displayNumberVertices();
+            this->vertexCount.currentTotalEdges = g->displayNumberEdges();
+            this->vertexCount.totalEdges += this->vertexCount.currentTotalEdges;
             x=this->n-x;
             //std::cout << "original U= "<< u << " " << "original v= " << v << std::endl;
             this->u=g->strategy->reverseMapping[u];

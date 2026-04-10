@@ -4,7 +4,6 @@ import time
 import argparse
 import subprocess
 import pathlib
-
 # =============================
 # Dynamic repo discovery
 # =============================
@@ -28,7 +27,8 @@ PREPROCESS_DIR = REPO_ROOT / "Preprocessing"
 SCRIPT_DIR = REPO_ROOT / "scripts"
 
 INPUT_DIR = REPO_ROOT / "input"
-OUTPUT_DIR = REPO_ROOT / "output"
+BASE_OUTPUT_DIR = REPO_ROOT / "output"
+OUTPUT_DIR = BASE_OUTPUT_DIR / "pipelineRunner"
 
 SUPERBUBBLE_RUNNER = SCRIPT_DIR / "superbubbleRunner.py"
 
@@ -173,28 +173,25 @@ def discover_gfa_files(dataset, chromosomes):
 
     elif dataset == "Human":
 
-        if not chromosomes:
-            raise RuntimeError(
-                "Human dataset requires chromosome selection (-c c1,c2,...,cX)"
-            )
+        base_dir = INPUT_DIR / "Human"
 
-        for c in chromosomes:
+        if chromosomes:
+            chrs = chromosomes
+        else:
+            # AUTO: pick all chromosomes
+            chrs = [
+                d for d in os.listdir(base_dir)
+                if d.startswith("chromosome_")
+            ]
 
-            gfa_dir = INPUT_DIR / "Human" / c / "Graphs"
+        for c in chrs:
+
+            gfa_dir = base_dir / c / "Graphs"
             expected = f"{c}.gfa"
-
             gfa_file = gfa_dir / expected
 
             if not gfa_file.exists():
-                raise RuntimeError(
-                    f"Expected GFA file not found:\n{gfa_file}"
-                )
-
-            # Safety check (paranoia mode)
-            if any(expected.endswith(x) for x in forbidden_suffixes):
-                raise RuntimeError(
-                    f"Invalid GFA selected (intermediate file): {gfa_file}"
-                )
+                raise RuntimeError(f"Missing GFA: {gfa_file}")
 
             gfas.append(gfa_file)
 
@@ -205,7 +202,6 @@ def discover_gfa_files(dataset, chromosomes):
 
     return gfas
 
-    gfas = []
 
 
     if dataset == "Ecoli":
@@ -297,6 +293,20 @@ def normalize_chromosome_names(chromosomes):
 
     return normalized
 
+def build_output_filename(dataset, chrom, algorithm, mode):
+
+    parts = [dataset]
+
+    if chrom:
+        parts.append(chrom)
+
+    if algorithm:
+        parts.append(algorithm)
+
+    parts.append(mode)
+
+    return "_".join(parts) + ".txt"
+
 # =============================
 # Main
 # =============================
@@ -307,7 +317,7 @@ def main():
 
     parser.add_argument("-d",default="Ecoli")
 
-    parser.add_argument("-a")
+    parser.add_argument("-a", nargs="+")
 
     parser.add_argument("-c",nargs="+")
 
@@ -317,6 +327,20 @@ def main():
     args=parser.parse_args()
 
 
+    from superbubbleRunner import ALGORITHMS
+
+    AVAILABLE_ALGORITHMS = [algo["name"] for algo in ALGORITHMS]
+
+    if args.a:
+        algorithms = args.a
+        for algo in algorithms:
+            if algo not in AVAILABLE_ALGORITHMS:
+                raise ValueError(f"Invalid algorithm: {algo}")
+    else:
+        algorithms = AVAILABLE_ALGORITHMS
+
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
     chromosomes=normalize_chromosome_names(args.c)
 
     gfa_files=discover_gfa_files(args.d,chromosomes)
@@ -324,33 +348,56 @@ def main():
     total_start=time.time()
 
 
-    for gfa in gfa_files:
+    for algo in algorithms:
 
-        print("\nProcessing:",gfa)
+        if args.m == "perEdge" and algo == "IncrementalSuperbubbleBatch":
+            print(f"[SKIP] {algo} not valid for perEdge")
+            continue
 
-        run_preprocessing(str(gfa), args.d)
+        start = time.time()
+
+        run_superbubble(
+            args.d,
+            algo,
+            args.m,
+            [chrom_name] if chrom_name else None
+        )
+
+        elapsed = time.time() - start
+
+        filename = build_output_filename(
+            args.d,
+            chrom_name,
+            algo,
+            args.m
+        )
+
+        out_file = OUTPUT_DIR / filename
+
+        with open(out_file, "w") as f:
+            f.write(f"Dataset: {args.d}\n")
+            if chrom_name:
+                f.write(f"Chromosome: {chrom_name}\n")
+            f.write(f"Algorithm: {algo}\n")
+            f.write(f"Mode: {args.m}\n")
+            f.write(f"Time: {elapsed:.6f} seconds\n")
+
+        total_time=time.time()-total_start
 
 
-    run_superbubble(
-        args.d,
-        args.a,
-        args.m,
-        chromosomes
-    )
+        print("\n===================")
+        print("TOTAL PIPELINE TIME")
+        print("===================")
 
-    total_time=time.time()-total_start
+        print(total_time,"seconds")
 
 
-    print("\n===================")
-    print("TOTAL PIPELINE TIME")
-    print("===================")
+        total_file = OUTPUT_DIR / "TOTAL_PIPELINE_TIME.txt"
 
-    print(total_time,"seconds")
+        with open(total_file, "w") as f:
+            f.write(f"Total Pipeline Time: {total_time:.6f} seconds\n")
 
-
-    out_file=OUTPUT_DIR/"TotalPipelineTime.txt"
-
-    with open(out_file,"w") as f:
+        with open(out_file,"w") as f:
 
         f.write(str(total_time))
 
@@ -360,7 +407,8 @@ if __name__=="__main__":
 
 
 """
-python3 pipelineRunner.py -d Ecoli -a SimpleSuperbubble -m perBatch
+python3 pipelineRunner.py -d Human -a SimpleSuperbubble -m perEdge
+Runs all chromosomes for SimpleSuperbubble
 python3 pipelineRunner.py -d Ecoli -a SimpleSuperbubble -m perEdge
 python3 pipelineRunner.py -d Human -c c1 -a SimpleSuperbubble -m perEdge
 

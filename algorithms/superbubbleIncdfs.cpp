@@ -138,7 +138,7 @@ public:
             incdfs.edgeTypes.case3 = 0;
             incdfs.edgeTypes.case4 = 0;
             incdfs.edgeTypes.case5 = 0;
-
+            incdfs.vertexCount.totalEdges = 0;
             
              // BATCH INSERT all edges for this haplotype
             for (int i = 0; i < hap_edge_count; ++i) {
