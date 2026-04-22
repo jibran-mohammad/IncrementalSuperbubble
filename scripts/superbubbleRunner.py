@@ -57,6 +57,9 @@ MAKE_DIR = PROJECT_ROOT
 
 PIPELINE_MODE = os.environ.get("SUPERBUBBLE_PIPELINE_MODE") == "1"
 
+# Number of repetitions for averaging
+NUM_RUNS = 100
+
 print("PIPELINE MODE:", PIPELINE_MODE)
 
 # --- CONFIGURATION ---
@@ -384,44 +387,113 @@ def main():
         
     print(f"   ...Generated {len(jobs_to_run)} total jobs.")
 
-    # --- PHASE 2: Compile and Run All Jobs ---
-    print("\n[PHASE 2: Compiling and Running Algorithms]")
-    
+    # --- PHASE 2: Compile and Run All Jobs (NUM_RUNS times into temp dirs) ---
+    print(f"\n[PHASE 2: Compiling and Running Algorithms ({NUM_RUNS} runs for averaging)]")
+
     # Keep track of compiled targets so we don't re-compile
     compiled_executables = {}
 
-    for i, job in enumerate(jobs_to_run):
-        job_name = job.get("job_name", job['algo_name'])
-        print(f"\n--- Processing Job {i+1}/{len(jobs_to_run)}: {job_name} ---")
-        
-        target_name = job['target']
-        
-        # Step 1: Compile (if we haven't already)
-        if target_name not in compiled_executables:
-            executable_path = compile_target_with_make(MAKE_DIR, target_name)
-            if not executable_path:
-                 print(f"\nAborting pipeline due to compilation error for {target_name}.", file=sys.stderr)
-                 sys.exit(1)
-            if not os.path.exists(executable_path):
-                print(f"[!] ERROR: Makefile produced invalid path '{executable_path}'", file=sys.stderr)
-                sys.exit(1)
-            compiled_executables[target_name] = executable_path
-        else:
-            executable_path = compiled_executables[target_name]
-            print(f"-> Target '{target_name}' already compiled.")
+    # Temporary root directory that holds one sub-folder per run
+    tmp_runs_dir = os.path.join(PROJECT_ROOT, "_tmp_runs")
 
-        # Step 2: Create output directory
+    for run_idx in range(1, NUM_RUNS + 1):
+        print(f"\n====== RUN {run_idx}/{NUM_RUNS} ======")
+        for i, job in enumerate(jobs_to_run):
+            job_name = job.get("job_name", job['algo_name'])
+            print(f"\n--- Processing Job {i+1}/{len(jobs_to_run)}: {job_name} ---")
+
+            target_name = job['target']
+
+            # Step 1: Compile only once (first run)
+            if target_name not in compiled_executables:
+                executable_path = compile_target_with_make(MAKE_DIR, target_name)
+                if not executable_path:
+                    print(f"\nAborting pipeline due to compilation error for {target_name}.", file=sys.stderr)
+                    sys.exit(1)
+                if not os.path.exists(executable_path):
+                    print(f"[!] ERROR: Makefile produced invalid path '{executable_path}'", file=sys.stderr)
+                    sys.exit(1)
+                compiled_executables[target_name] = executable_path
+            else:
+                executable_path = compiled_executables[target_name]
+                print(f"-> Target '{target_name}' already compiled.")
+
+            # Step 2: Build a per-run temp output path that mirrors the real output path
+            rel_output_dir = os.path.relpath(job['output_dir'], PROJECT_ROOT)
+            tmp_output_dir = os.path.join(tmp_runs_dir, f"run_{run_idx:03d}", rel_output_dir)
+            tmp_output_path = os.path.join(tmp_output_dir, os.path.basename(job['full_output_path']))
+            try:
+                os.makedirs(tmp_output_dir, exist_ok=True)
+            except OSError as e:
+                print(f"[!] ERROR: Could not create temp directory '{tmp_output_dir}': {e}", file=sys.stderr)
+                sys.exit(1)
+
+            # Step 3: Run the job, writing to the temp path
+            if not run_cpp_program(executable_path, job['input_path'], tmp_output_path, args.mode):
+                print(f"\nAborting pipeline due to execution error on job {job_name}.", file=sys.stderr)
+                sys.exit(1)
+
+    # --- PHASE 3: Average the NUM_RUNS outputs and write final files ---
+    print(f"\n[PHASE 3: Averaging {NUM_RUNS} runs and writing final output files]")
+
+    for job in jobs_to_run:
+        rel_output_dir = os.path.relpath(job['output_dir'], PROJECT_ROOT)
+        filename = os.path.basename(job['full_output_path'])
+
+        # Collect per-run files for this job
+        run_files = [
+            os.path.join(tmp_runs_dir, f"run_{r:03d}", rel_output_dir, filename)
+            for r in range(1, NUM_RUNS + 1)
+        ]
+
+        # Read all run files
+        all_lines = []
+        for rf in run_files:
+            if not os.path.exists(rf):
+                print(f"[!] WARNING: Expected run file missing: '{rf}'. Skipping averaging for {filename}.", file=sys.stderr)
+                all_lines = []
+                break
+            with open(rf, 'r') as fh:
+                all_lines.append(fh.readlines())
+
+        if not all_lines:
+            continue
+
+        # Per-line averaging: numeric tokens are averaged; non-numeric tokens kept from run 1
+        num_lines = len(all_lines[0])
+        averaged_lines = []
+        for line_idx in range(num_lines):
+            tokens_per_run = [all_lines[r][line_idx].rstrip('\n').split() for r in range(NUM_RUNS)]
+            template_tokens = tokens_per_run[0]
+            avg_tokens = []
+            for tok_idx, tok in enumerate(template_tokens):
+                try:
+                    values = [float(tokens_per_run[r][tok_idx]) for r in range(NUM_RUNS)]
+                    avg_val = sum(values) / len(values)
+                    # Preserve integer formatting when all values were whole numbers
+                    if all(v == int(v) for v in values):
+                        avg_tokens.append(str(int(avg_val)))
+                    else:
+                        avg_tokens.append(f"{avg_val:.6f}")
+                except (ValueError, IndexError):
+                    avg_tokens.append(tok)
+            averaged_lines.append(' '.join(avg_tokens) + '\n')
+
+        # Write to the real final output path — same as before, so downstream scripts work
         try:
             os.makedirs(job['output_dir'], exist_ok=True)
         except OSError as e:
             print(f"[!] ERROR: Could not create output directory '{job['output_dir']}': {e}", file=sys.stderr)
             sys.exit(1)
 
-        # Step 3: Run the job
-        if not run_cpp_program(executable_path, job['input_path'], job['full_output_path'], args.mode):
-            print(f"\nAborting pipeline due to execution error on job {job_name}.", file=sys.stderr)
-            sys.exit(1)
-            
+        with open(job['full_output_path'], 'w') as fh:
+            fh.writelines(averaged_lines)
+        print(f"   ...Averaged output written to: {job['full_output_path']}")
+
+    # Clean up temporary run directories
+    shutil.rmtree(tmp_runs_dir, ignore_errors=True)
+    print(f"\n   ...Temporary run files cleaned up.")
+
     print("\n--- Pipeline completed successfully! ---")
 
 
