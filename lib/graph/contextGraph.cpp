@@ -31,3 +31,7 @@
     int GraphContext::displayNumberVertices() {
     	return this->strategy->getNumberOfVertices();
     }
+
+    int GraphContext::getInDegree(int x)  { return this->strategy->getInDegree(x);  }
+    int GraphContext::getOutDegree(int x) { return this->strategy->getOutDegree(x); }
+    int GraphContext::getDegree(int x)    { return this->strategy->getDegree(x);    }

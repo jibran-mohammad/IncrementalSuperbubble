@@ -96,12 +96,12 @@ public:
         #endif
         if(mode == "perEdge") {
             #ifndef BENCHMARK
-            timeFile << "Edge_Number Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5 AffectedVertices ExploredVertices TotalVertices TotalEdges \n";
+            timeFile << "Edge_Number Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5 AffectedVertices ExploredVertices TotalVertices TotalEdges TotalAffectedEdges TotalExploredEdges\n";
             #endif
         }
         else {
             #ifndef BENCHMARK
-            timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5 AffectedVertices ExploredVertices TotalVertices TotalEdges\n";
+            timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5 AffectedVertices ExploredVertices TotalVertices TotalEdges TotalAffectedEdges TotalExploredEdges\n";
             #endif
         }
         //timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5\n";
@@ -162,6 +162,8 @@ public:
             incdfs.edgeTypes.case4 = 0;
             incdfs.edgeTypes.case5 = 0;
             incdfs.vertexCount.totalEdges = 0;
+            incdfs.vertexCount.totalExploredEdges = 0;
+            incdfs.vertexCount.totalAffectedEdges = 0;
             #endif
             // Start the timer for this entire haplotype update
             
@@ -182,7 +184,7 @@ public:
                     currentsuperbubbleTime = elapsed.count();
                     superbubbleTime += elapsed.count();
                     totalTime = incdfs.latestTimes.currentinsertTime + incdfs.latestTimes.currentdfsTime + incdfs.latestTimes.currenttopologicalOrderTime + incdfs.latestTimes.currentminITime + incdfs.latestTimes.currentmaxOTime + currentsuperbubbleTime;
-                    timeFile << i + 1 << " " << clean_hap_name << " " << incdfs.latestTimes.currentinsertTime << " " << incdfs.latestTimes.currentdfsTime << " " << incdfs.latestTimes.currenttopologicalOrderTime << " " << incdfs.latestTimes.currentminITime << " " << incdfs.latestTimes.currentmaxOTime << " " << currentsuperbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.currentcase1 << " " << incdfs.edgeTypes.currentcase2 << " " << incdfs.edgeTypes.currentcase3 << " " << incdfs.edgeTypes.currentcase4 << " " << incdfs.edgeTypes.currentcase5 << " " << incdfs.vertexCount.currentcountAffectedVertices << " " << incdfs.vertexCount.currentcountExploredVertices << " " << incdfs.n << " " << incdfs.vertexCount.currentTotalEdges << "\n";
+                    timeFile << i + 1 << " " << clean_hap_name << " " << incdfs.latestTimes.currentinsertTime << " " << incdfs.latestTimes.currentdfsTime << " " << incdfs.latestTimes.currenttopologicalOrderTime << " " << incdfs.latestTimes.currentminITime << " " << incdfs.latestTimes.currentmaxOTime << " " << currentsuperbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.currentcase1 << " " << incdfs.edgeTypes.currentcase2 << " " << incdfs.edgeTypes.currentcase3 << " " << incdfs.edgeTypes.currentcase4 << " " << incdfs.edgeTypes.currentcase5 << " " << incdfs.vertexCount.currentcountAffectedVertices << " " << incdfs.vertexCount.currentcountExploredVertices << " " << incdfs.n << " " << incdfs.vertexCount.currentTotalEdges << " " << incdfs.vertexCount.currentTotalAffectedEdges << " " << incdfs.vertexCount.currentTotalExploredEdges <<"\n";
                     currentsuperbubbleTime = 0.0;
                     #endif
                 } 
@@ -198,7 +200,7 @@ public:
                 end = std::chrono::high_resolution_clock::now();
                 superbubbleTime = std::chrono::duration<double>(end - start).count();
                 totalTime = incdfs.latestTimes.insertTime + incdfs.latestTimes.dfsTime + incdfs.latestTimes.topologicalOrderTime + incdfs.latestTimes.minITime + incdfs.latestTimes.maxOTime + superbubbleTime;
-                timeFile << update_counter << " " << clean_hap_name << " " << incdfs.latestTimes.insertTime << " " << incdfs.latestTimes.dfsTime << " " << incdfs.latestTimes.topologicalOrderTime << " " << incdfs.latestTimes.minITime << " " << incdfs.latestTimes.maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.case1 << " " << incdfs.edgeTypes.case2 << " " << incdfs.edgeTypes.case3 << " " << incdfs.edgeTypes.case4 << " " << incdfs.edgeTypes.case5 << " "<< incdfs.vertexCount.countAffectedVertices << " " << incdfs.vertexCount.countExploredVertices << " " << incdfs.n << " " << incdfs.vertexCount.totalEdges << "\n";
+                timeFile << update_counter << " " << clean_hap_name << " " << incdfs.latestTimes.insertTime << " " << incdfs.latestTimes.dfsTime << " " << incdfs.latestTimes.topologicalOrderTime << " " << incdfs.latestTimes.minITime << " " << incdfs.latestTimes.maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.case1 << " " << incdfs.edgeTypes.case2 << " " << incdfs.edgeTypes.case3 << " " << incdfs.edgeTypes.case4 << " " << incdfs.edgeTypes.case5 << " "<< incdfs.vertexCount.countAffectedVertices << " " << incdfs.vertexCount.countExploredVertices << " " << incdfs.n << " " << incdfs.vertexCount.totalEdges << " " << incdfs.vertexCount.totalAffectedEdges << " " << incdfs.vertexCount.totalExploredEdges << "\n";
                 #endif 
             }
             //std::string clean_hap_name = hap_name_header.substr(hap_name_header.find(":") + 2);

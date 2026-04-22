@@ -171,3 +171,27 @@
    int AdjacencyListGraph::getNumberOfEdges() const {
        return this->sizeE;
    }
+
+    int AdjacencyListGraph::getInDegree(int x) const {
+        if (x < 0 || x >= this->adjLIncoming.size()) {
+            std::cout << "ERROR: Node " << x << " not found" << std::endl;
+            return -1;
+        }
+        return this->adjLIncoming[x].size();
+    }
+
+    int AdjacencyListGraph::getOutDegree(int x) const {
+        
+        if (x < 0 || x >= this->adjLOutgoing.size()) {
+            std::cout << "ERROR: Node " << x << " not found" << std::endl;
+            return -1;
+        }
+        return this->adjLOutgoing[x].size();
+    }
+
+    int AdjacencyListGraph::getDegree(int x) const {
+        int in = getInDegree(x);
+        int out = getOutDegree(x);
+        if (in == -1 || out == -1) return -1;
+        return in + out;
+    }

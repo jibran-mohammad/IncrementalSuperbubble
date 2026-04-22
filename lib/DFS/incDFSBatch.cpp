@@ -30,6 +30,8 @@
             this->vertexCount.currentcountAffectedVertices = 0;
             this->vertexCount.currentcountExploredVertices = 0;
             this->vertexCount.currentTotalEdges = 0;
+            this->vertexCount.currentTotalAffectedEdges = 0;
+            this->vertexCount.currentTotalExploredEdges = 0;
 
             auto start = std::chrono::high_resolution_clock::now();
             auto end = std::chrono::high_resolution_clock::now();   
@@ -310,6 +312,7 @@
                     elapsed = end - start;
                     this->latestTimes.currentdfsTime += elapsed.count();
                     this->latestTimes.dfsTime += elapsed.count();
+                    this->vertexCount.totalExploredEdges += this->vertexCount.currentTotalExploredEdges;
                     #endif
                     
 
@@ -376,6 +379,10 @@
             this->marked[z] = 1;
             this->reachable[z] = 1;
             this->globalReachable[z] = 1;
+            #ifndef BENCHMARK
+            this->vertexCount.currentcountExploredVertices ++;
+            this->vertexCount.currentTotalExploredEdges += g->getOutDegree(z);
+            #endif
             for (int u : g->displayOutgoingNeighbours(z)) {
                 this->partialDFS(g,z,u);
             }
@@ -398,6 +405,7 @@
         #endif
         for(int i = this->postorder[this->u]; i <= this->postorder[this->v]; i++) {
             #ifndef BENCHMARK
+            this->vertexCount.currentTotalAffectedEdges += g->getOutDegree(this->reversePostorder[i]);
             this->vertexCount.currentcountAffectedVertices ++;
             #endif
             index = this->reversePostorder[i];
@@ -410,6 +418,11 @@
                 shift = shift + 1;
             }
         }
+
+        #ifndef BENCHMARK
+        this->vertexCount.totalAffectedEdges += this->vertexCount.currentTotalAffectedEdges;
+        #endif
+
         #ifndef BENCHMARK
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
@@ -453,9 +466,6 @@
         #endif
         for(int i=0; i<this->n; i++) {
             if(this->globalReachable[i]!=0) {
-                #ifndef BENCHMARK
-                this->vertexCount.currentcountExploredVertices ++;
-                #endif
                 if(i == 0 || i == 1) {
                     continue;
                 }

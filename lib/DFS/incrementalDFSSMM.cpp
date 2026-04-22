@@ -26,6 +26,8 @@
         this->vertexCount.currentcountAffectedVertices = 0;
         this->vertexCount.currentcountExploredVertices = 0;
         this->vertexCount.currentTotalEdges = 0;
+        this->vertexCount.currentTotalAffectedEdges = 0;
+        this->vertexCount.currentTotalExploredEdges = 0;
 
         auto start = std::chrono::high_resolution_clock::now();
         auto end = std::chrono::high_resolution_clock::now();   
@@ -183,8 +185,10 @@
             //std::cout << "if no new node added" << std::endl;
             if(this->postorder[u] < this->postorder[v]) {
                 this->cases = 4;
+                #ifndef BENCHMARK
                 this->edgeTypes.case4 +=1;
                 this->edgeTypes.currentcase4 = 1;
+                #endif
                 #ifndef BENCHMARK
                 start = std::chrono::high_resolution_clock::now();
                 #endif
@@ -194,6 +198,7 @@
                 elapsed = end - start;
                 this->latestTimes.currentdfsTime += elapsed.count();
                 this->latestTimes.dfsTime += elapsed.count();
+                this->vertexCount.totalExploredEdges += this->vertexCount.currentTotalExploredEdges;
                 #endif
     		    this->update(g);
                 #ifndef BENCHMARK
@@ -233,6 +238,9 @@
     void IncrementalDFSSMM::partialDFS(GraphContext *g,int w, int z) {
     	if(this->marked[z] == 0 && (this->postorder[z] > this->postorder[this->u])) {
             this->marked[z] =1;
+            #ifndef BENCHMARK
+            this->vertexCount.currentTotalExploredEdges += g->getOutDegree(z);
+            #endif
             for (int u : g->displayOutgoingNeighbours(z)) {
                 this->partialDFS(g,z,u);
             }
@@ -256,7 +264,10 @@
         #endif
     	
         for(int i = this->postorder[this->u]; i <= this->postorder[this->v]; i++) {
+            #ifndef BENCHMARK
+            this->vertexCount.currentTotalAffectedEdges += g->getOutDegree(this->reversePostorder[i]);
             this->vertexCount.currentcountAffectedVertices ++;
+            #endif
             index = this->reversePostorder[i];
             if(this->marked[index]==1) {
             	this->intermediatepostorder[index] = this->postorder[this->u] + this->postorderChanged[index] - 1;
@@ -267,6 +278,10 @@
             	shift = shift + 1;
             }
     	}
+        #ifndef BENCHMARK
+        this->vertexCount.totalAffectedEdges += this->vertexCount.currentTotalAffectedEdges;
+        #endif
+
         #ifndef BENCHMARK
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;

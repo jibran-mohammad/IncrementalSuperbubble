@@ -43,6 +43,10 @@ public:
     	int currentcountExploredVertices = 0;
     	int totalEdges = 0;
     	int currentTotalEdges =0;
+    	int totalExploredEdges = 0;
+    	int totalAffectedEdges = 0;
+    	int currentTotalExploredEdges =0;
+    	int currentTotalAffectedEdges =0;
     };
     IncrementalUpdateTimes latestTimes;
     TypeOfEdgeInsertion edgeTypes;

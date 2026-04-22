@@ -51,6 +51,9 @@ public:
     virtual const std::list<int>& getNeighboursOutgoing(int x) const =0;
     virtual int getNumberOfVertices() const = 0;
     virtual int getNumberOfEdges() const = 0;
+    virtual int getInDegree(int x) const = 0;
+	virtual int getOutDegree(int x) const = 0;
+	virtual int getDegree(int x) const = 0;
     virtual ~Graph() = default;
 };
 
