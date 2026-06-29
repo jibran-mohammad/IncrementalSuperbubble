@@ -58,8 +58,7 @@ public:
     std::vector<int> globalReachable;
     std::vector<DifferentBalancedBinaryTree> minIbst;
 	std::vector<DifferentBalancedBinaryTree> maxObst;
-	std::list<std::pair<int,int>> NewNodeEdgeList;
-	std::list<std::pair<int,int>> EdgeOnlyEdgeList;
+	std::list<std::pair<int,int>> EdgeList;
     int m,u,v,TMax;    
 
 public:
@@ -110,7 +109,7 @@ public:
 
 
     }
-	void insert(GraphContext *g,int u, int v) override;
+	void insertBatch(GraphContext *g) override;
 	void reset() override;
 	void partialDFS(GraphContext *g,int u , int v );
 	void update(GraphContext *g);

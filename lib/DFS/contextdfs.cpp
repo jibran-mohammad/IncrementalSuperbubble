@@ -8,6 +8,10 @@
 	    this->dfsStrategy->insert(g,u,v);
     }
 
+    void DFSCONTEXT::updateEdgeBatch(GraphContext *g) {
+        this->dfsStrategy->insertBatch(g);
+    }
+
     void DFSCONTEXT::reset() {
 	    this->dfsStrategy->reset();
     }

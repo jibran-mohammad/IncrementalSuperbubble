@@ -31,3 +31,13 @@ input/*/*
 !Pangenome_Construction/.gitkeep
 !output/*/.gitkeep
 !input/*/.gitkeep
+
+# Ignore Python bytecode cache anywhere in the repo
+__pycache__/
+*.pyc
+
+# Ignore everything in output/ (including files directly inside it)
+output/
+
+# Ignore everything in test/
+test/

@@ -172,8 +172,8 @@ public:
              // BATCH INSERT all edges for this haplotype
             for (int i = 0; i < hap_edge_count; ++i) {
                 std::cin >> x >> y;
-                superbubble.insertE(&d,&g,x,y);
-                
+                //superbubble.insertE(&d,&g,x,y);
+                incdfs.EdgeList.push_back({x,y});
                 
                 if (mode == "perEdge") {
                     std::cerr << "Error: This implementation only supports batch updates." << std::endl;
@@ -183,7 +183,8 @@ public:
                 
             }
             
-            if (mode == "perBatch") {    
+            if (mode == "perBatch") { 
+                superbubble.insertE(&d,&g);  
                 incdfs.deleteReachableFromBST(&g);
                 incdfs.switchBSTTopo(incdfs.reverseTopologicalOrder);
                 incdfs.insertReachableIntoBST(&g);

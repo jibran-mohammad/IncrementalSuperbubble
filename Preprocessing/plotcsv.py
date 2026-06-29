@@ -11,20 +11,16 @@ import argparse
 
 # Define the components and their corresponding column names
 
-ALGORITHMS = ["Simple", "INC", "BST"]
+ALGORITHMS = ["Simple", "INC", "BST", "DIFFMAXO"]
 
 TIME_COMPONENTS = {
-    'Insert': ['SimpleInsertTime', 'INCInsertTime', 'BSTInsertTime'],
-    'DFS': ['SimpleDFSTime', 'INCDFSTime', 'BSTDFSTime'],
-    'TopologicalOrder': [
-        'SimpleTopologicalOrderTime',
-        'INCTopologicalOrderTime',
-        'BSTTopologicalOrderTime'
-    ],
-    'MinI': ['SimpleMinITime', 'INCMinITime', 'BSTMinITime'],
-    'MaxO': ['SimpleMaxOTime', 'INCMaxOTime', 'BSTMaxOTime'],
-    'SBCompute': ['SimpleSBComputeTime', 'INCSBComputeTime', 'BSTSBComputeTime'],
-    'Total': ['SimpleTotalTime', 'INCTotalTime', 'BSTTotalTime']
+    'Insert':          ['SimpleInsertTime',          'INCInsertTime',          'BSTInsertTime',          'DIFFMAXOInsertTime'],
+    'DFS':             ['SimpleDFSTime',             'INCDFSTime',             'BSTDFSTime',             'DIFFMAXODFSTime'],
+    'TopologicalOrder':['SimpleTopologicalOrderTime','INCTopologicalOrderTime','BSTTopologicalOrderTime','DIFFMAXOTopologicalOrderTime'],
+    'MinI':            ['SimpleMinITime',            'INCMinITime',            'BSTMinITime',            'DIFFMAXOMinITime'],
+    'MaxO':            ['SimpleMaxOTime',            'INCMaxOTime',            'BSTMaxOTime',            'DIFFMAXOMaxOTime'],
+    'SBCompute':       ['SimpleSBComputeTime',       'INCSBComputeTime',       'BSTSBComputeTime',       'DIFFMAXOSBComputeTime'],
+    'Total':           ['SimpleTotalTime',           'INCTotalTime',           'BSTTotalTime',           'DIFFMAXOTotalTime'],
 }
 
 # Define color palette for the stacked bar chart components
@@ -40,9 +36,10 @@ STACK_COLORS = {
 
 # Define line styles for the three versions in line plots
 VERSION_STYLES = {
-    'Simple': {'color': 'red', 'marker': 'o', 'linestyle': '-',  "linewidth": 0.7, "markersize": 2},
-    'INC': {'color': 'blue', 'marker': 's', 'linestyle': '--',  "linewidth": 0.7, "markersize": 2},
-    'BST': {'color': 'green', 'marker': '^', 'linestyle': '-.',  "linewidth": 0.7, "markersize": 2},
+    'Simple':  {'color': 'red',    'marker': 'o', 'linestyle': '-',   'linewidth': 0.7, 'markersize': 2},
+    'INC':     {'color': 'blue',   'marker': 's', 'linestyle': '--',  'linewidth': 0.7, 'markersize': 2},
+    'BST':     {'color': 'green',  'marker': '^', 'linestyle': '-.',  'linewidth': 0.7, 'markersize': 2},
+    'DIFFMAXO':{'color': 'orange', 'marker': 'D', 'linestyle': ':',   'linewidth': 0.7, 'markersize': 2},
 }
 
 def build_plot_filename(dataset, mode, scale, plot_type):
@@ -57,35 +54,47 @@ def build_plot_filename(dataset, mode, scale, plot_type):
 
 def plot_vertex_activity(df, output_dir, dataset_name, mode, scale):
 
-    if "AffectedVertices" not in df.columns or "ExploredVertices" not in df.columns:
-        print("Affected/Explored columns not found. Skipping vertex activity plot.")
-        return
-
     df_plot = df[df["Step"] != 0].copy()
 
-    fig, ax = plt.subplots(figsize=(12,6))
+    # --- Vertex plot ---
+    v_affected_col = "INCAffectedVertices"
+    v_explored_col = "BSTExploredVertices"
 
-    ax.plot(df_plot["Step"], df_plot["AffectedVertices"], label="Affected Vertices")
-    ax.plot(df_plot["Step"], df_plot["ExploredVertices"], label="Explored Vertices")
+    if v_affected_col in df.columns or v_explored_col in df.columns:
+        fig, ax = plt.subplots(figsize=(12, 6))
+        if v_affected_col in df_plot.columns:
+            ax.plot(df_plot["Step"], df_plot[v_affected_col], label="Affected Vertices (INC)")
+        if v_explored_col in df_plot.columns:
+            ax.plot(df_plot["Step"], df_plot[v_explored_col], label="Explored Vertices (BST)")
+        ax.set_xlabel("Step")
+        ax.set_ylabel("Vertices")
+        ax.set_title(f"Affected vs Explored Vertices — {dataset_name}")
+        ax.legend()
+        ax.grid(True, linestyle="--", alpha=0.6)
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir,
+            build_plot_filename(dataset_name, mode, scale, "vertex_activity")), dpi=200)
+        plt.close(fig)
 
-    ax.set_xlabel("Step")
-    ax.set_ylabel("Vertices")
-    ax.set_title(f"Affected vs Explored Vertices — {dataset_name}")
+    # --- Edge plot (new) ---
+    e_affected_col = "INCTotalAffectedEdges"
+    e_explored_col = "BSTTotalExploredEdges"
 
-    ax.legend()
-    ax.grid(True, linestyle="--", alpha=0.6)
-
-
-    
-
-    plot_filename = os.path.join(
-        output_dir,
-        build_plot_filename(dataset_name, mode, scale, "vertex_activity")
-    )
-
-    plt.tight_layout()
-    plt.savefig(plot_filename, dpi=200)
-    plt.close(fig)
+    if e_affected_col in df.columns or e_explored_col in df.columns:
+        fig, ax = plt.subplots(figsize=(12, 6))
+        if e_affected_col in df_plot.columns:
+            ax.plot(df_plot["Step"], df_plot[e_affected_col], label="Affected Edges (INC)")
+        if e_explored_col in df_plot.columns:
+            ax.plot(df_plot["Step"], df_plot[e_explored_col], label="Explored Edges (BST)")
+        ax.set_xlabel("Step")
+        ax.set_ylabel("Edges")
+        ax.set_title(f"Affected vs Explored Edges — {dataset_name}")
+        ax.legend()
+        ax.grid(True, linestyle="--", alpha=0.6)
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir,
+            build_plot_filename(dataset_name, mode, scale, "edge_activity")), dpi=200)
+        plt.close(fig)
 
 def plot_total_time_bar(df, output_dir, dataset_name, mode, scale):
     """
@@ -108,8 +117,7 @@ def plot_total_time_bar(df, output_dir, dataset_name, mode, scale):
 
     fig, ax = plt.subplots(figsize=(6, 5))
 
-    bars = ax.bar(versions, totals, color=["red", "blue", "green"],
-                  edgecolor="black", linewidth=0.6)
+    bars = ax.bar(versions, totals, color=["red", "blue", "green", "orange"], edgecolor="black", linewidth=0.6)
 
     ax.set_ylabel("Total Time (ms)")
     ax.set_title(f"Total Time Comparison — {dataset_name}")
@@ -258,9 +266,8 @@ def plot_separate_time_components(df, output_dir, dataset_name, mode, scale):
         # Plot each version
         eps = 1e-9  # prevents log-scale problems on zeros
 
-        ax.plot(df_plot['Step'], df_plot[cols[0]] + eps, **VERSION_STYLES['Simple'], label='Simple (Red)')
-        ax.plot(df_plot['Step'], df_plot[cols[1]] + eps, **VERSION_STYLES['INC'],   label='INC (Blue)')
-        ax.plot(df_plot['Step'], df_plot[cols[2]] + eps, **VERSION_STYLES['BST'],   label='BST (Green)')
+        for v in ALGORITHMS:
+            ax.plot(df_plot['Step'], df_plot[cols[ALGORITHMS.index(v)]] + eps, **VERSION_STYLES[v], label=v)
 
         ax.set_title(f'{component} Time vs. Haplotype Step — {dataset_name}', fontsize=12)
         if scale == "log":
@@ -286,19 +293,9 @@ def plot_separate_time_components(df, output_dir, dataset_name, mode, scale):
         axes[j].axis("off")
         
     
-    legend_handles = [
-    Line2D([0], [0], color=VERSION_STYLES['Simple']['color'],
-           marker=VERSION_STYLES['Simple']['marker'],
-           linestyle=VERSION_STYLES['Simple']['linestyle']),
-    Line2D([0], [0], color=VERSION_STYLES['INC']['color'],
-           marker=VERSION_STYLES['INC']['marker'],
-           linestyle=VERSION_STYLES['INC']['linestyle']),
-    Line2D([0], [0], color=VERSION_STYLES['BST']['color'],
-           marker=VERSION_STYLES['BST']['marker'],
-           linestyle=VERSION_STYLES['BST']['linestyle']),
-    ]
+    legend_handles = [Line2D([0], [0], **VERSION_STYLES[v]) for v in ALGORITHMS]
+    legend_labels = ['Simple (SimpleDFS)', 'INC (IncrementalDFS)', 'BST (BSTIncrementalDFS)', 'DIFFMAXO (DifferentMaxO)']
 
-    legend_labels = ['Simple (SimpleDFS)', 'INC (IncrementalDFS)', 'BST (BSTIncrementalDFS)']
 
     # Reserve space at the top and add a single global legend
     fig.subplots_adjust(top=0.92)   # make room for legend
@@ -358,6 +355,8 @@ def plot_total_time_line(df, output_dir, dataset_name, mode, scale):
         label="BST"
     )
 
+    ax.plot(df_plot["Step"], df_plot["DIFFMAXOTotalTime"] + eps, **VERSION_STYLES["DIFFMAXO"], label="DIFFMAXO")
+
     if scale == "log":
         ax.set_yscale("log", nonpositive="clip")
 
@@ -402,18 +401,15 @@ def plot_stacked_bar_breakdown(df, output_dir, dataset_name, mode, scale, num_st
     fig, ax = plt.subplots(figsize=(15, 8))
     
     # Define bar width and positions
-    bar_width = 0.25
+    bar_width = 0.2
     step_indices = np.arange(len(df_plot)) # X-coordinates for each step group
     
     # Dictionary to store the cumulative height (bottom) for each version's bar
     version_bottoms = {v: np.zeros(num_steps) for v in versions}
                        
     # X positions for bars: 
-    x_positions = {
-        'Simple': step_indices - bar_width,
-        'INC': step_indices,
-        'BST': step_indices + bar_width,
-    }
+    x_positions = {v: step_indices + (i - len(ALGORITHMS)/2 + 0.5) * bar_width 
+                    for i, v in enumerate(ALGORITHMS)}
 
     # Loop through each time component to stack the bars
     for comp in components:
@@ -542,7 +538,7 @@ def plot_aggregated_version_bars(df, output_dir, dataset_name, mode, scale):
         bottom += values
 
     ax.set_xticks(x)
-    ax.set_xticklabels(['Simple', 'INC', 'BST'])
+    ax.set_xticklabels(ALGORITHMS)
     ax.set_ylabel('Time (ms) — summed across steps')
     ax.set_title(f'Aggregated Total Time Breakdown by Version --{dataset_name}')
     ax.legend(title='Component', loc='upper right')
@@ -595,9 +591,8 @@ def plot_separate_time_components_peredge(df, output_dir, dataset_name, mode, sc
         ax = axes[i]
         eps = 1e-9
 
-        ax.plot(df_plot["Step"], df_plot[cols[0]] + eps, **VERSION_STYLES["Simple"])
-        ax.plot(df_plot["Step"], df_plot[cols[1]] + eps, **VERSION_STYLES["INC"])
-        ax.plot(df_plot["Step"], df_plot[cols[2]] + eps, **VERSION_STYLES["BST"])
+        for v in ALGORITHMS:
+            ax.plot(df_plot['Step'], df_plot[cols[ALGORITHMS.index(v)]] + eps, **VERSION_STYLES[v], label=v)
 
         ax.set_title(f"{component} Time vs Edge Updates — {dataset_name}", fontsize=12)
         if scale == "log":
@@ -618,12 +613,8 @@ def plot_separate_time_components_peredge(df, output_dir, dataset_name, mode, sc
     for j in range(i, len(axes)):
         axes[j].axis("off")
 
-    handles = [
-        Line2D([0], [0], **VERSION_STYLES["Simple"]),
-        Line2D([0], [0], **VERSION_STYLES["INC"]),
-        Line2D([0], [0], **VERSION_STYLES["BST"]),
-    ]
-    labels = ["Simple", "INC", "BST"]
+    handles = [Line2D([0], [0], **VERSION_STYLES[v]) for v in ALGORITHMS]
+    labels = ['Simple (SimpleDFS)', 'INC (IncrementalDFS)', 'BST (BSTIncrementalDFS)', 'DIFFMAXO (DifferentMaxO)']
 
     fig.subplots_adjust(top=0.92)
     fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.98), ncol=3)
@@ -660,11 +651,8 @@ def plot_stacked_bar_breakdown_peredge(df, output_dir, dataset_name, mode, scale
 
     version_bottoms = {v: np.zeros(len(df_plot)) for v in versions}
 
-    x_positions = {
-        "Simple": step_indices - bar_width,
-        "INC": step_indices,
-        "BST": step_indices + bar_width,
-    }
+    x_positions = {v: step_indices + (i - len(ALGORITHMS)/2 + 0.5) * bar_width 
+               for i, v in enumerate(ALGORITHMS)}
 
     # stack bars
     for comp in components:
@@ -689,7 +677,7 @@ def plot_stacked_bar_breakdown_peredge(df, output_dir, dataset_name, mode, scale
             version_bottoms[version] += data_vals
 
     # vertical separators between edge groups (like perbatch plot)
-    for x in step_indices[:-1] + (bar_width * 1.5):
+    for x in step_indices[:-1] + (bar_width * 2):
         ax.axvline(x=x, color="gray", linestyle=":", linewidth=1.0, alpha=0.5)
 
     # ✅ add Simple/INC/BST labels on top of each bar

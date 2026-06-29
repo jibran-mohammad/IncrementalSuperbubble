@@ -94,6 +94,11 @@
         this->SB.clear();
     }
 
+    void SuperbubbleCalculation::insertBatch(DFSCONTEXT *sdfs, GraphContext *g) {
+	    sdfs->updateEdge(g);
+	    this->SB.clear();
+	}
+
 
 
 

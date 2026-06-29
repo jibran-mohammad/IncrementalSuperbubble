@@ -60,10 +60,10 @@ def robust_float_convert(val_str: str) -> float:
 
 def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     data = []
-    
+    peak_memory = 0
     if not filename.exists():
         print(f"    Warning: File not found: {os.path.basename(filename)}. Skipping.")
-        return pd.DataFrame()
+        return pd.DataFrame(), 0
 
     print(f"    Parsing {filename.name}...")
     with open(filename, 'r') as f:
@@ -72,21 +72,25 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     line_iter = iter(lines)
     
     # Define metric columns
-    BASE_METRIC_COLUMNS = ['Insert_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time', 'SB_Count', 'AffectedVertices', 'ExploredVertices']
+    BASE_METRIC_COLUMNS = ['Insert_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time', 'SB_Count', 'AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
     
-    is_incremental_file = "Incremental" in filename.name
+    is_incremental_file = (
+            "Incremental" in filename.name or
+            "DifferentMaxO" in filename.name
+        )
     has_explored = (
             "AVL" in filename.name or
-            "Batch" in filename.name
+            "Batch" in filename.name or
+            "DifferentMaxO" in filename.name
         )
     if is_incremental_file:
         CASE_COLUMNS = ['Case1', 'Case2', 'Case3', 'Case4', 'Case5']
         if has_explored:
-            EXTRA_COLUMNS = ['AffectedVertices', 'ExploredVertices']
+            EXTRA_COLUMNS = ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
         else:
-            EXTRA_COLUMNS = ['AffectedVertices']
+            EXTRA_COLUMNS = ['AffectedVertices', 'TotalAffectedEdges']
 
-        FULL_METRIC_COLUMNS = BASE_METRIC_COLUMNS[:-2] + CASE_COLUMNS + EXTRA_COLUMNS
+        FULL_METRIC_COLUMNS = BASE_METRIC_COLUMNS[:-4] + CASE_COLUMNS + EXTRA_COLUMNS + ['TotalVertices', 'TotalEdges']
         EXPECTED_DATA_PARTS_LEN = 2 + len(FULL_METRIC_COLUMNS)
     else:
         CASE_COLUMNS = []
@@ -114,7 +118,10 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
         prefix = 'BST_'
     elif filename.name == "SuperbubbleIncrementalBatchDFSOutput.txt":
         source_time_metric = 'DFS_Time'
-        prefix = 'INCBATCH_'    
+        prefix = 'INCBATCH_' 
+    elif filename.name == "SuperbubbleDifferentMaxO.txt":
+        source_time_metric = 'DFS_Time'   
+        prefix = 'DIFFMAXO_'       
 
     current_haplotype_edges = 0
     current_haplotype_nodes = 0
@@ -122,9 +129,9 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     try:
         # --- Lines 1-3: Initialization and Header Skip ---
         stats_line = next(line_iter).strip()
-        if "PeakMemory" in stats_line: return pd.DataFrame() 
+        if "PeakMemory" in stats_line: return pd.DataFrame(), 0 
         stats_parts = stats_line.split()
-        if len(stats_parts) < 2: return pd.DataFrame()
+        if len(stats_parts) < 2: return pd.DataFrame(), 0
         initial_edges = int(stats_parts[0])
         initial_nodes = int(stats_parts[1])
         current_haplotype_edges = initial_edges
@@ -173,6 +180,8 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
             stats_line = next(line_iter).strip()
             
             if "PeakMemory" in stats_line:
+                # Extract the peak memory value
+                peak_memory = int(stats_line.split(':')[1].strip())
                 if mode != "perbatch" and pending_block_rows:
                     for row in pending_block_rows:
                         row['Edges'] = prev_edges
@@ -201,7 +210,9 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
 
                     
                 
-                if "PeakMemory" in build_line: break
+                if "PeakMemory" in build_line: 
+                    peak_memory = int(build_line.split(':')[1].strip())
+                    break
                 if not build_line: continue
 
                 build_parts = build_line.split()
@@ -359,7 +370,7 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
         df['Step'] = df['Step'].astype(object)
         df.loc[df['Step'] == 0, 'Step'] = 'Base'
     
-    return df
+    return df, peak_memory
 
 # ==============================================================================
 #  New Processing Function
@@ -373,7 +384,8 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
     required = ["SuperbubbleSimpleTimeOutput.txt", 
                 "SuperbubbleIncrementalDFSOutputSSM.txt", 
                 "SuperbubbleIncrementalAVLDFSOutput.txt",
-                "SuperbubbleIncrementalBatchDFSOutput.txt"]
+                "SuperbubbleIncrementalBatchDFSOutput.txt",
+                "SuperbubbleDifferentMaxO.txt"]
     
     dir_name = time_dir_path.name.lower()
 
@@ -401,7 +413,8 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         "Simple": "SuperbubbleSimpleTimeOutput.txt",
         "INC": "SuperbubbleIncrementalDFSOutputSSM.txt",
         "BST": "SuperbubbleIncrementalAVLDFSOutput.txt",
-        "INCBATCH": "SuperbubbleIncrementalBatchDFSOutput.txt"
+        "INCBATCH": "SuperbubbleIncrementalBatchDFSOutput.txt",
+        "DIFFMAXO": "SuperbubbleDifferentMaxO.txt"
     }
 
     files_to_parse = {
@@ -412,7 +425,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
     all_data = []
     
     for filepath, time_col in files_to_parse.items():
-        df = parse_file(filepath, time_col, mode)
+        df, _peak_mem = parse_file(filepath, time_col, mode)
         if not df.empty:
             all_data.append(df)
 
@@ -427,8 +440,8 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         
         # 1. Define time metric structures for use in merging and filtering (FIX: SCOPE)
         BASE_TIME_METRICS = ['Insert_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time']
-        BASE_VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices']
-        PREFIXES = ['Simple_', 'INC_', 'BST_','INCBATCH_']
+        BASE_VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
+        PREFIXES = ['Simple_', 'INC_', 'BST_','INCBATCH_','DIFFMAXO_']
         
         # 2. Perform the full merge
         merge_keys = ['Step']
@@ -512,7 +525,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
                 prefix = name.split('_')[0]
                 return prefix + 'TimeS'
 
-            if name.startswith(('Simple_', 'INC_', 'BST_', 'INCBATCH_')):
+            if name.startswith(('Simple_', 'INC_', 'BST_', 'INCBATCH_', 'DIFFMAXO_')):
                 parts = name.split('_')
                 # Keep inner parts exactly (no .capitalize()), just glue them:
                 # 'Simple_DFS_Time' -> ['Simple','DFS','Time'] -> 'Simple' + 'DFS' + 'Time' -> 'SimpleDFSTime'
@@ -527,8 +540,9 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         
         BASE_COLS = ['Step', 'HaplotypeName', 'Nodes', 'Edges']
         TIME_METRICS = ['InsertTime', 'DFSTime', 'TopologicalOrderTime', 'MinITime', 'MaxOTime', 'SBComputeTime', 'TotalTime']
-        VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices']
-        PREFIXES = ['Simple', 'INC', 'BST', 'INCBATCH']
+        VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
+        GRAPH_METRICS = ['TotalVertices', 'TotalEdges']
+        PREFIXES = ['Simple', 'INC', 'BST', 'INCBATCH','DIFFMAXO']
 
         final_order = BASE_COLS + ['SuperbubbleCount']
 
@@ -544,6 +558,12 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
                 col_name = f'{prefix}{metric}'
                 if col_name in merged_df.columns:
                     final_order.append(col_name)
+
+        for metric in GRAPH_METRICS:
+            for prefix in PREFIXES:
+                col_name = f'{prefix}{metric}'
+                if col_name in merged_df.columns:
+                    final_order.append(col_name)            
         
         
         # 3. Add Case metrics (now just the 5 CaseX columns)
@@ -562,7 +582,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         for col in merged_df.columns:
             if 'Time' in col or 'Compute' in col:
                 merged_df[col] = pd.to_numeric(merged_df[col], errors='coerce').astype(float).fillna(0.0)
-            elif col in ['SuperbubbleCount', 'Nodes', 'Edges'] or col in CASE_METRICS:
+            elif col in ['SuperbubbleCount', 'Nodes', 'Edges'] or col in CASE_METRICS or any(col.endswith(s) for s in ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']):
                 merged_df[col] = pd.to_numeric(merged_df[col], errors='coerce').astype('Int64').fillna(0)
             
         merged_df['HaplotypeName'] = merged_df['HaplotypeName'].fillna('N/A')

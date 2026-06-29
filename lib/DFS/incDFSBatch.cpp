@@ -12,6 +12,73 @@
       search tree whos reachability changed.  
     */
 
+    void IncrementalDFSTREEBatch::insert(GraphContext *g) {
+            int x;
+            #ifndef BENCHMARK
+            this->latestTimes.currentinsertTime = 0.0;
+            this->latestTimes.currentdfsTime = 0.0;
+            this->latestTimes.currenttopologicalOrderTime = 0.0;
+            this->latestTimes.currentminITime = 0.0;
+            this->latestTimes.currentmaxOTime = 0.0;
+            this->edgeTypes.currentcase1 = 0;
+            this->edgeTypes.currentcase2 = 0;
+            this->edgeTypes.currentcase3 = 0;
+            this->edgeTypes.currentcase4 = 0;
+            this->edgeTypes.currentcase5 = 0;
+            this->vertexCount.currentcountAffectedVertices = 0;
+            this->vertexCount.currentcountExploredVertices = 0;
+            this->vertexCount.currentTotalEdges = 0;
+            this->vertexCount.currentTotalAffectedEdges = 0;
+            this->vertexCount.currentTotalExploredEdges = 0;
+
+            auto start = std::chrono::high_resolution_clock::now();
+            auto end = std::chrono::high_resolution_clock::now();   
+            std::chrono::duration<double> elapsed = end - start;
+
+            start = std::chrono::high_resolution_clock::now();
+            #endif  
+            
+            for(auto &e : this->EdgeList) {
+            int u = e.first;
+            int v = e.second;
+
+            bool newu = (g->strategy->reverseMapping.find(u) 
+                         == g->strategy->reverseMapping.end());
+
+            bool newv = (g->strategy->reverseMapping.find(v) 
+                         == g->strategy->reverseMapping.end());
+
+            if(newu && newv) {
+                g->insertEdge(u,v);
+                this->EdgeList.remove({u,v});
+                u=g->strategy->reverseMapping[u];
+                v=g->strategy->reverseMapping[v];
+                this->EdgeList.push_back({u,v});
+            }
+            else if(newu) {
+                // case 1
+                g->insertEdge(u,v);
+                this->EdgeList.remove({u,v});
+                u=g->strategy->reverseMapping[u];
+                v=g->strategy->reverseMapping[v];
+                this->EdgeList.push_back({u,v});
+            }
+            else if(newv) {
+                // case 2
+                g->insertEdge(u,v);
+                this->EdgeList.remove({u,v});
+                u=g->strategy->reverseMapping[u];
+                v=g->strategy->reverseMapping[v];
+                this->EdgeList.push_back({u,v});
+            }
+            else {
+                // case 4 or 5 (existing nodes)
+
+            }
+        }     
+    }
+
+
     void IncrementalDFSTREEBatch::insert(GraphContext *g, int u, int v) {
         
 
