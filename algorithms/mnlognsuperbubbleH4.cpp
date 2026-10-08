@@ -68,7 +68,7 @@ public:
         #ifndef BENCHMARK
         auto start = std::chrono::high_resolution_clock::now();
         #endif
-        d.performDFS(&g);
+        //d.performDFS(&g);
         d.createMinI(&g);
         d.createMaxO(&g);
         superbubble.computeSB(&d, &g);
@@ -76,17 +76,17 @@ public:
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         #endif
-        /*
-        outFile << graph_name << "\n";
-        if (outFile.is_open()) {
-            for (const pii& elem : superbubble.SB) {
-                outFile << elem.first << " " << elem.second << "\n";
-            }
-            std::cout << "List written to file successfully at: "<< std::endl;
-        } else {
-            std::cerr << "Error opening file at: " << std::endl; 
-        }
-        */
+
+        //std::cout << "DFS performed successfully" << std::endl;
+        //std::cout << "minI done successfully" << std::endl;
+        //std::cout << "maxO done successfully" << std:: endl;
+        //d.displayTopologicalOrder();
+        //d.displayReverseTopologicalOrder();
+        //d.displayMinI();
+        //d.displayMaxO();
+        superbubble.printSuperbubbles();
+        
+
         // Record timing for the entire base graph construction
         #ifndef BENCHMARK
         timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";
@@ -172,7 +172,11 @@ public:
             for (int i = 0; i < hap_edge_count; ++i) {
                 std::cin >> x >> y;
                 superbubble.insertE(&d,&g,x, y);
-                
+                //d.displayTopologicalOrder();
+               // d.displayReverseTopologicalOrder();
+                //d.displayMinI();
+                //d.displayMaxO();
+
                 if (mode == "perEdge") {
                     #ifndef BENCHMARK
                     start = std::chrono::high_resolution_clock::now();
@@ -187,6 +191,8 @@ public:
                     timeFile << i + 1 << " " << clean_hap_name << " " << incdfs.latestTimes.currentinsertTime << " " << incdfs.latestTimes.currentdfsTime << " " << incdfs.latestTimes.currenttopologicalOrderTime << " " << incdfs.latestTimes.currentminITime << " " << incdfs.latestTimes.currentmaxOTime << " " << currentsuperbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.currentcase1 << " " << incdfs.edgeTypes.currentcase2 << " " << incdfs.edgeTypes.currentcase3 << " " << incdfs.edgeTypes.currentcase4 << " " << incdfs.edgeTypes.currentcase5 << " " << incdfs.vertexCount.currentcountAffectedVertices << " " << incdfs.vertexCount.currentcountExploredVertices << " " << incdfs.n << " " << incdfs.vertexCount.currentTotalEdges << " " << incdfs.vertexCount.currentTotalAffectedEdges << " " << incdfs.vertexCount.currentTotalExploredEdges <<"\n";
                     currentsuperbubbleTime = 0.0;
                     #endif
+
+                    superbubble.printSuperbubbles();
                 } 
                 
             }

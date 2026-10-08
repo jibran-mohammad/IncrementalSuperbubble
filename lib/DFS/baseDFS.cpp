@@ -44,9 +44,7 @@
         #ifndef BENCHMARK
         start = std::chrono::high_resolution_clock::now();
         #endif
-        this->postorder[v]=this->postorderNumber;
-        this->reversePostorder[this->postorderNumber] = v;
-        this->reverseTopologicalOrder[v]=(this->n-1) - this->postorder[v];
+        this->reverseTopologicalOrder[v]=(this->n-1) - this->postorderNumber;
         this->topOrd[this->reverseTopologicalOrder[v]]=v;
         this->postorderNumber++; 
         #ifndef BENCHMARK
@@ -68,23 +66,6 @@
 
     }
 
-    void BaseDFS::printreversePostOrder() const {
-        std::cout << "The ReversePostorder order of the given graph is " <<std::endl;
-        for(int i=0; i<this->n; i++) {
-            std::cout << i << "->" << this->reversePostorder[i];
-            std::cout << std::endl;
-        }
-
-    }
-
-    void BaseDFS::printPostOrder() const {
-        std::cout << "The Postorder order of the given graph is " <<std::endl;
-        
-        for(int i=0; i<this->n; i++) {
-            std::cout << i << "->" << this->postorder[i];
-            std::cout << std::endl;
-        }
-    }
 
     void BaseDFS::printReverseTopologicalOrder() const {
         std::cout << "The reverse topological order of the given graph is " <<std::endl;
@@ -106,9 +87,7 @@
         x=this->n-x;
         if(x>0) {
             this->postorderNumber = 0;
-            this->reversePostorder.resize(this->n);
             this->oldReverseTopologicalOrder.resize(this->n);
-            this->postorder.resize(this->n);
             this->visit.resize(this->n);
             this->topOrd.resize(this->n);
             this->reverseTopologicalOrder.resize(this->n);
@@ -123,8 +102,6 @@
     }
 
     void BaseDFS::reset() {
-        std::fill(this->reversePostorder.begin(), this->reversePostorder.end(), 0);
-        std::fill(this->postorder.begin(), this->postorder.end(), 0);
         std::fill(this->visit.begin(), this->visit.end(), 0);
         std::fill(this->topOrd.begin(), this->topOrd.end(), 0);
         std::fill(this->reverseTopologicalOrder.begin(), this->reverseTopologicalOrder.end(), 0);

@@ -7,12 +7,12 @@
     */
     void SimpleDFS::calculateMinI(GraphContext *g) {
         int min = INT_MAX;
-        int element = INT_MAX;
+        int node = INT_MAX;
         this->minI[0] = INT_MAX;
         this->minI[1] = 0;
         for(int i=2; i < this->n; i++) {
             if(g->strategy->incoming[i] == 2) {
-                element = 0;
+                node = 0;
             }
             else {
                for(int u: g->displayIncomingNeighbours(i)) {
@@ -21,11 +21,11 @@
                    }
                    if(this->reverseTopologicalOrder[u] < min ) {
                       min = this->reverseTopologicalOrder[u];
-                      element = this->topOrd[min];
+                      node = this->topOrd[min];
                    }
                }
             }   
-            this->minI[i] = element;
+            this->minI[i] = node;
             min = INT_MAX;
         }
     }
@@ -40,10 +40,10 @@
         int max = 0;
         this->maxO[1]= INT_MAX;
         this->maxO[0]= 1;
-        int element = INT_MAX;
+        int node = INT_MAX;
         for(int i =2; i < this->n; i++) {
             if(g->strategy->outgoing[i]==2) {
-                element = 1;
+                node = 1;
             }
             else {
                 for(int u: g->displayOutgoingNeighbours(i)) {
@@ -52,11 +52,11 @@
                     }
                     if(this->reverseTopologicalOrder[u] > max) {
                         max = this->reverseTopologicalOrder[u];
-                        element = this->topOrd[max];
+                        node = this->topOrd[max];
                     }
                 }
             }  
-            this->maxO[i] = element;
+            this->maxO[i] = node;
             max = 0;
         }
     }

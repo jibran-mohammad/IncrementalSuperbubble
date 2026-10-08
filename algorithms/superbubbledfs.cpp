@@ -68,31 +68,33 @@ public:
             LOG(std::cout << x << " "<< y << std::endl;)
             d.updateEdge(&g, x, y); 
         }
-
+        std::cout << "All edges updated succesfully" << std::endl;
+        //g.displayOutgoingGraph();
         // Now, perform the first full calculation on the complete base graph
         #ifndef BENCHMARK
         auto start = std::chrono::high_resolution_clock::now();
         #endif
         d.performDFS(&g);
+        //std::cout << "DFS performed successfully" << std::endl;
         d.createMinI(&g);
+        //std::cout << "minI done successfully" << std::endl;
         d.createMaxO(&g);
+        //std::cout << "maxO done successfully" << std:: endl;
+        //d.displayTopologicalOrder();
+        //d.displayReverseTopologicalOrder();
+        //d.displayMinI();
+        //d.displayMaxO();
         superbubble.computeSB(&d, &g);
+        //std::cout << "superbubble function done successfully" << std::endl;
+        //superbubble.printSuperbubbles();
         #ifndef BENCHMARK
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         #endif
-        /*
-        outFile << graph_name << "\n";
-        if (outFile.is_open()) {
-            for (const pii& elem : superbubble.SB) {
-                outFile << elem.first << " " << elem.second << "\n";
-            }
-            std::cout << "List written to file successfully at: "<< std::endl;
-        } else {
-            std::cerr << "Error opening file at: " << std::endl; 
-        }
-        */
-        // Record timing for the entire base graph construction
+        
+        
+        
+
 
         #ifndef BENCHMARK
         timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";
@@ -158,6 +160,7 @@ public:
             //start = std::chrono::high_resolution_clock::now();
             for (int i = 0; i < hap_edge_count; ++i) {
                  std::cin >> x >> y;
+                 std::cout << x << " " << y << std::endl;
                  #ifndef BENCHMARK
                  start = std::chrono::high_resolution_clock::now();
                  #endif
@@ -172,6 +175,11 @@ public:
                  if (mode == "perEdge") {
                      
                      d.performDFS(&g);
+                     d.displayTopologicalOrder();
+                     d.displayReverseTopologicalOrder();
+                     
+                     
+
                 
                      #ifndef BENCHMARK
                      start = std::chrono::high_resolution_clock::now();
@@ -181,6 +189,7 @@ public:
                      end = std::chrono::high_resolution_clock::now();
                      elapsed = end - start;
                      minITime = elapsed.count();
+                     //d.displayMinI();
 
                      start = std::chrono::high_resolution_clock::now();
                      #endif
@@ -190,6 +199,7 @@ public:
                      end = std::chrono::high_resolution_clock::now();
                      elapsed = end - start;
                      maxOTime = elapsed.count();
+                     //d.displayMaxO();
 
                      start = std::chrono::high_resolution_clock::now();
                      #endif
@@ -200,7 +210,7 @@ public:
                      superbubbleTime = elapsed.count();
                      #endif
                      
-                     
+                     superbubble.printSuperbubbles();
                      #ifndef BENCHMARK
                      totalTime = currentinsertTime + simdfs.latestTimes.dfsTime + simdfs.latestTimes.topologicalOrderTime + minITime + maxOTime + superbubbleTime;
                      timeFile << i + 1 << " " << clean_hap_name << " " << currentinsertTime << " " << simdfs.latestTimes.dfsTime << " " << simdfs.latestTimes.topologicalOrderTime << " " << minITime << " " << maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << "\n";

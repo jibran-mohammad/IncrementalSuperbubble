@@ -12,8 +12,9 @@
       search tree whos reachability changed.  
     */
 
-    void IncrementalDFSTREEBatch::insert(GraphContext *g) {
+    void IncrementalDFSTREEBatch::insertBatch(GraphContext *g) {
             int x;
+            std::list<std::pair<int,int>> newNodeEdges;
             #ifndef BENCHMARK
             this->latestTimes.currentinsertTime = 0.0;
             this->latestTimes.currentdfsTime = 0.0;
@@ -21,7 +22,7 @@
             this->latestTimes.currentminITime = 0.0;
             this->latestTimes.currentmaxOTime = 0.0;
             this->edgeTypes.currentcase1 = 0;
-            this->edgeTypes.currentcase2 = 0;
+             this->edgeTypes.currentcase2 = 0;
             this->edgeTypes.currentcase3 = 0;
             this->edgeTypes.currentcase4 = 0;
             this->edgeTypes.currentcase5 = 0;
@@ -39,43 +40,65 @@
             #endif  
             
             for(auto &e : this->EdgeList) {
-            int u = e.first;
-            int v = e.second;
+                int u = e.first;
+                int v = e.second;
 
-            bool newu = (g->strategy->reverseMapping.find(u) 
-                         == g->strategy->reverseMapping.end());
+                bool newu = (g->strategy->reverseMapping.find(u) == g->strategy->reverseMapping.end());
+                bool newv = (g->strategy->reverseMapping.find(v) == g->strategy->reverseMapping.end());
 
-            bool newv = (g->strategy->reverseMapping.find(v) 
-                         == g->strategy->reverseMapping.end());
+                if(newu || newv){
 
-            if(newu && newv) {
-                g->insertEdge(u,v);
-                this->EdgeList.remove({u,v});
-                u=g->strategy->reverseMapping[u];
-                v=g->strategy->reverseMapping[v];
-                this->EdgeList.push_back({u,v});
-            }
-            else if(newu) {
-                // case 1
-                g->insertEdge(u,v);
-                this->EdgeList.remove({u,v});
-                u=g->strategy->reverseMapping[u];
-                v=g->strategy->reverseMapping[v];
-                this->EdgeList.push_back({u,v});
-            }
-            else if(newv) {
-                // case 2
-                g->insertEdge(u,v);
-                this->EdgeList.remove({u,v});
-                u=g->strategy->reverseMapping[u];
-                v=g->strategy->reverseMapping[v];
-                this->EdgeList.push_back({u,v});
-            }
-            else {
-                // case 4 or 5 (existing nodes)
+                    x=this->n;
+                    g->insertEdge(u,v);
+                    e.first  = g->strategy->reverseMapping[u];
+                    e.second = g->strategy->reverseMapping[v];
+                    u = e.first;
+                    v = e.second;
+                    this->n=g->displayNumberVertices();
+                    this->vertexCount.currentTotalEdges = g->displayNumberEdges();
+                    this->vertexCount.totalEdges += this->vertexCount.currentTotalEdges;
+                    x=this->n-x;
+                    #ifndef BENCHMARK
+                    end = std::chrono::high_resolution_clock::now();
+                    elapsed = end - start;
+                    this->latestTimes.currentinsertTime = elapsed.count();
+                    this->latestTimes.insertTime += elapsed.count();
+                    #endif
 
+                    newNodeEdges.push_back({e.first, e.second});
+                    #ifndef BENCHMARK
+                    start = std::chrono::high_resolution_clock::now();
+                    #endif
+                    this->reversePostorder.resize(this->n);
+                    this->postorder.resize(this->n);
+                    this->visit.resize(this->n);
+                    this->topOrd.resize(this->n);
+                    this->reverseTopologicalOrder.resize(this->n);
+                    this->reachable.resize(this->n);
+                    this->globalReachable.resize(this->n);
+                    this->minI.resize(this->n);
+                    this->maxO.resize(this->n);
+                    this->minIbst.resize(this->n);
+                    this->maxObst.resize(this->n);
+                    this->marked.resize(this->n);
+                    this->intermediatepostorder.resize(this->n);
+                    this->postorderChanged.resize(this->n);
+                    #ifndef BENCHMARK
+                    end = std::chrono::high_resolution_clock::now();
+                    elapsed = end - start;
+                    this->latestTimes.currentinsertTime += elapsed.count();
+                    this->latestTimes.insertTime += elapsed.count();
+                    #endif
+                }
+            }    
+            this->dfs(&g);
+            for(auto& ne : newNodeEdges) {
+                this->EdgeList.remove(ne);
             }
-        }     
+            
+
+            
+     
     }
 
 

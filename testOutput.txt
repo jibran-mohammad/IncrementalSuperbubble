@@ -1,0 +1,14 @@
+37 17
+BaseGraph_Build 1.6257e-05 5
+Edge_Number Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5 AffectedVertices ExploredVertices TotalVertices TotalEdges TotalAffectedEdges TotalExploredEdges
+1 u is new 8.297e-06 0 2.0687e-05 1.3932e-05 1.027e-06 1.0431e-05 5.4374e-05 4 1 0 0 0 0 14 0 18 38 33 20
+38 18
+1 u,v is new 1.0037e-05 0 4.6e-08 1.092e-06 4.4e-08 1.0707e-05 2.1926e-05 5 0 0 1 0 0 0 0 20 40 0 0
+40 20
+1 v is new 8.162e-06 0 1.1e-07 1.339e-06 1.12e-07 1.1375e-05 2.1098e-05 4 0 1 0 0 0 0 0 21 41 0 0
+41 21
+1 No new node, left to right edge 4.987e-06 1.216e-06 9.99e-07 1.0871e-05 7.01e-07 1.0715e-05 2.9489e-05 3 0 0 0 1 0 14 0 21 41 35 18
+41 21
+1 No new node, right to left edge 4.783e-06 0 0 1.098e-06 7.2e-08 1.0733e-05 1.6686e-05 3 0 0 0 0 1 0 0 21 41 0 0
+41 21
+PeakMemory(KB): 3840

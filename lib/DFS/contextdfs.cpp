@@ -24,14 +24,6 @@
 	    this->dfsStrategy->printReverseTopologicalOrder();
     }
 
-    void DFSCONTEXT::displayPostorder() {
-	    this->dfsStrategy->printPostOrder();
-    }
-
-    void DFSCONTEXT::displayReversePostorder() {
-	    this->dfsStrategy->printreversePostOrder();
-    }
-
     void DFSCONTEXT::createMinI(GraphContext *g) {
 	    this->datastructureStrategy->calculateMinI(g);
     }

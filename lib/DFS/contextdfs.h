@@ -25,8 +25,6 @@ public:
 	void reset();
 	void displayTopologicalOrder();
 	void displayReverseTopologicalOrder();
-	void displayPostorder();
-	void displayReversePostorder();
 	void createMinI(GraphContext *g);
 	void createMaxO(GraphContext *g);
 	void displayMinI();

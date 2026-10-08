@@ -73,7 +73,7 @@ public:
         #ifndef BENCHMARK
         auto start = std::chrono::high_resolution_clock::now();
         #endif
-        d.performDFS(&g);
+        //d.performDFS(&g);
         d.createMinI(&g);
         d.createMaxO(&g);
         superbubble.computeSB(&d, &g);
@@ -81,25 +81,22 @@ public:
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         #endif
-        /*
-        outFile << graph_name << "\n";
-        if (outFile.is_open()) {
-            for (const pii& elem : superbubble.SB) {
-                outFile << elem.first << " " << elem.second << "\n";
-            }
-            std::cout << "List written to file successfully at: "<< std::endl;
-        } else {
-            std::cerr << "Error opening file at: " << std::endl; 
-        }
-        */
-        // Record timing for the entire base graph construction
+
+        //std::cout << "DFS performed successfully" << std::endl;
+        //std::cout << "minI done successfully" << std::endl;
+        //std::cout << "maxO done successfully" << std:: endl;
+        //d.displayTopologicalOrder();
+        //d.displayReverseTopologicalOrder();
+        //d.displayMinI();
+        //d.displayMaxO();
+        superbubble.printSuperbubbles();
         
         #ifndef BENCHMARK
         timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";
         timeFile << "BaseGraph_Build " << elapsed.count() << " " << superbubble.numberOfSuperbubbles() << "\n";
         #endif
 
-        LOG(std::cout << "base graph processed" << std::endl;)
+        //LOG(std::cout << "base graph processed" << std::endl;)
         if(mode == "perEdge") {
             
             #ifndef BENCHMARK
@@ -180,6 +177,8 @@ public:
                 //std::cout << x << " " << y << std::endl;
                 superbubble.insertE(&d,&g,x, y);
 
+                //d.displayTopologicalOrder();
+                //d.displayReverseTopologicalOrder();
                 if(mode == "perEdge") {
                      
                     #ifndef BENCHMARK 
@@ -192,7 +191,7 @@ public:
                     elapsed = end - start;
                     incdfs.latestTimes.currentminITime = elapsed.count();
                     #endif
-
+                    //d.displayMinI();
                     
                     #ifndef BENCHMARK
                     start = std::chrono::high_resolution_clock::now();
@@ -203,11 +202,13 @@ public:
                     elapsed = end - start;
                     incdfs.latestTimes.currentmaxOTime = elapsed.count();
                     #endif
+                    //d.displayMaxO();
 
                     #ifndef BENCHMARK
                     start = std::chrono::high_resolution_clock::now();
                     #endif
                     superbubble.computeSB(&d, &g);
+                    superbubble.printSuperbubbles();
 
                     #ifndef BENCHMARK
                     end = std::chrono::high_resolution_clock::now();

@@ -59,8 +59,6 @@
             #ifndef BENCHMARK
             start = std::chrono::high_resolution_clock::now();
             #endif
-            this->reversePostorder.resize(this->n);
-            this->postorder.resize(this->n);
             this->visit.resize(this->n);
             this->topOrd.resize(this->n);
             this->reverseTopologicalOrder.resize(this->n);
@@ -77,9 +75,10 @@
             #endif
             //std::cout << "after resize" << std::endl;
             if(x == 1) { 
-               //std::cout << "x is equal to 1" << std::endl;
+               
                //case where u is new node
                if(g->strategy->newu == true){
+                   std::cout << "u is new node" << std::endl;
                    this->cases = 1;
                    #ifndef BENCHMARK
                    this->edgeTypes.case1 +=1;
@@ -90,20 +89,15 @@
                    #ifndef BENCHMARK
                    start = std::chrono::high_resolution_clock::now();
                    #endif
-                   this->postorder[u] = this->postorder[0];
-                   this->reversePostorder[postorder[u]] = u;
-                   this->reverseTopologicalOrder[u] = (this->n - 1) -  this->postorder[u];
-                   this->topOrd[reverseTopologicalOrder[u]] = u;           
-                   
-                   this->postorder[0] = this->postorder[u] + 1;
-                   this->reversePostorder[postorder[0]] = 0;
-                   this->reverseTopologicalOrder[0] = (this->n - 1) -  this->postorder[0];
-                   this->topOrd[reverseTopologicalOrder[0]] = 0;                     
 
-                    for(int i=0; i<this->n; i++) {
-                        this->reverseTopologicalOrder[i] = (this->n - 1) - postorder[i];
-                        this->topOrd[reverseTopologicalOrder[i]] = i;
-                    }
+                   this->reverseTopologicalOrder[u] = this->n-1;
+                   this->topOrd[u] = this->n - 1;
+
+                   this->partialDFS(g,u,v);
+                   //std::cout << "partial DFS done in case where u is new node" << std::endl;
+                   this->update(g);
+                   this->reset();
+
                     #ifndef BENCHMARK
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
@@ -122,16 +116,18 @@
 
                     start = std::chrono::high_resolution_clock::now();
                     #endif
-                    this->postorder[v] = this->postorder[u];
-                    for(int i=postorder[u]; i < this->n - 1; i++) {
-                      this->postorder[reversePostorder[i]]++;
+                    int i =0;
+                    for( i=this->n-2; i>this->reverseTopologicalOrder[this->u];i--) {
+                        this->reverseTopologicalOrder[this->topOrd[i]]++;
                     }
-                    
-                    for(int i=0;i < this->n;i++) {
-                      this->reversePostorder[this->postorder[i]]=i;
-                      this->reverseTopologicalOrder[i]=(this->n) - 1 - this->postorder[i];
-                      this->topOrd[this->reverseTopologicalOrder[i]] =i; 
+                    this->reverseTopologicalOrder[v] = this->reverseTopologicalOrder[this->u] + 1;
+                    i=0;
+                    for(i=this->n-1; i>this->reverseTopologicalOrder[this->u] + 1;i--) {
+                        this->topOrd[i] = this->topOrd[i-1];
+
                     }
+                    this->topOrd[i] = this->v;
+                    i=0;
                     #ifndef BENCHMARK
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
@@ -149,25 +145,16 @@
                this->edgeTypes.currentcase3 = 1;
                start = std::chrono::high_resolution_clock::now();
                #endif
-               //std::cout << "if x is 2" << std::endl; 
-               this->postorder[v] = this->postorder[0];
-               this->reversePostorder[postorder[v]] = v;
-               this->reverseTopologicalOrder[v] = (this->n - 1) -  this->postorder[v];
-               this->topOrd[reverseTopologicalOrder[v]] = v;
+               //std::cout << "if x is 2" << std::endl;
+               this->reverseTopologicalOrder[1] = this->n - 1;
+               this->topOrd[this->reverseTopologicalOrder[1]] = 1;
+
+               this->reverseTopologicalOrder[v] = this->reverseTopologicalOrder[1] - 1;
+               this->topOrd[this->reverseTopologicalOrder[v]] = v;
             
-               this->postorder[u] = this->postorder[v] + 1;
-               this->reversePostorder[postorder[u]] = u;
-               this->reverseTopologicalOrder[u] = (this->n - 1) -  this->postorder[u];
+               this->reverseTopologicalOrder[u] = this->reverseTopologicalOrder[1] - 2;
                this->topOrd[reverseTopologicalOrder[u]] = u;            
 
-               this->postorder[0] = this->postorder[u] + 1;
-               this->reversePostorder[postorder[0]] = 0;
-               this->reverseTopologicalOrder[0] = (this->n - 1) -  this->postorder[0];
-               this->topOrd[reverseTopologicalOrder[0]] = 0;
-               for(int i=0; i<this->n;i++) {
-                   this->reverseTopologicalOrder[i] = (this->n - 1) - postorder[i];
-                   this->topOrd[reverseTopologicalOrder[i]] = i;
-                }
                 #ifndef BENCHMARK
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
@@ -183,7 +170,7 @@
         else {
             
             //std::cout << "if no new node added" << std::endl;
-            if(this->postorder[u] < this->postorder[v]) {
+            if(this->reverseTopologicalOrder[u] > this->reverseTopologicalOrder[v]) {
                 this->cases = 4;
                 #ifndef BENCHMARK
                 this->edgeTypes.case4 +=1;
@@ -200,7 +187,7 @@
                 this->latestTimes.dfsTime += elapsed.count();
                 this->vertexCount.totalExploredEdges += this->vertexCount.currentTotalExploredEdges;
                 #endif
-    		    this->update(g);
+                this->update(g);
                 #ifndef BENCHMARK
                 start = std::chrono::high_resolution_clock::now();
                 #endif
@@ -212,7 +199,7 @@
                 this->latestTimes.topologicalOrderTime += elapsed.count();
                 #endif
 
-    	    }
+            }
             else {
                 this->cases = 5;
                 #ifndef BENCHMARK
@@ -235,8 +222,13 @@
         */
    }
 
+
+    
     void IncrementalDFSSMM::partialDFS(GraphContext *g,int w, int z) {
-    	if(this->marked[z] == 0 && (this->postorder[z] > this->postorder[this->u])) {
+        //std::cout << "inside partial DFS" << std::endl;
+        //std::cout << marked[z] << std::endl;
+        if(this->marked[z] == 0 && (this->reverseTopologicalOrder[z] < this->reverseTopologicalOrder[this->u])) {
+            //std::cout << z << std::endl;
             this->marked[z] =1;
             #ifndef BENCHMARK
             this->vertexCount.currentTotalExploredEdges += g->getOutDegree(z);
@@ -246,13 +238,15 @@
             }
             this->m = this->m+1;
             this->postorderChanged[z] = m;
-     
-    	}
+        }
     }
+
+
 
     void IncrementalDFSSMM::update(GraphContext *g) {
         int shift = this->m;
-    	int index;
+        //std::cout << "shift = " << shift << std::endl;
+        int index;
         
         #ifndef BENCHMARK
         auto start = std::chrono::high_resolution_clock::now();
@@ -262,22 +256,24 @@
 
         start = std::chrono::high_resolution_clock::now();
         #endif
-    	
-        for(int i = this->postorder[this->u]; i <= this->postorder[this->v]; i++) {
+        
+        for(int i = this->reverseTopologicalOrder[this->u]; i >= this->reverseTopologicalOrder[this->v]; i--) {
             #ifndef BENCHMARK
-            this->vertexCount.currentTotalAffectedEdges += g->getOutDegree(this->reversePostorder[i]);
+            this->vertexCount.currentTotalAffectedEdges += g->getOutDegree(this->reverseTopologicalOrder[i]);
             this->vertexCount.currentcountAffectedVertices ++;
             #endif
-            index = this->reversePostorder[i];
+            index = this->topOrd[i];
+            
             if(this->marked[index]==1) {
-            	this->intermediatepostorder[index] = this->postorder[this->u] + this->postorderChanged[index] - 1;
-            	this->marked[index] = 0;
+                this->intermediatepostorder[index] = this->reverseTopologicalOrder[this->u] - this->postorderChanged[index] + 1;
+                this->marked[index] = 0;
             }
             else {
-            	this->intermediatepostorder[index] = this->postorder[this->u] + shift;
-            	shift = shift + 1;
+                this->intermediatepostorder[index] = this->reverseTopologicalOrder[this->u] - shift;
+                shift = shift + 1;
             }
-    	}
+            //std::cout << index << " " << intermediatepostorder[index] << std::endl ;
+        }
         #ifndef BENCHMARK
         this->vertexCount.totalAffectedEdges += this->vertexCount.currentTotalAffectedEdges;
         #endif
@@ -294,12 +290,10 @@
         for(int i=0; i<this->n; i++) {
             if(this->intermediatepostorder[i]!=0) {
                 //std::cout << "i = " << i << std::endl;
-                if(i == 0 || i == 1) {
+                if(i == 0) {
                     continue;
                 }       
-            	this->postorder[i] = this->intermediatepostorder[i];
-            	this->reversePostorder[this->intermediatepostorder[i]]=i;
-                this->reverseTopologicalOrder[i]=(this->n-1) - this->postorder[i];
+                this->reverseTopologicalOrder[i]= this->intermediatepostorder[i];
                 this->topOrd[this->reverseTopologicalOrder[i]] = i;
             }    
         }
@@ -311,6 +305,8 @@
         this->vertexCount.countAffectedVertices += this->vertexCount.currentcountAffectedVertices;
         #endif
     }
+
+
     
     void IncrementalDFSSMM::reset() {
         std::fill(this->marked.begin(), this->marked.end(), 0);

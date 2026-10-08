@@ -145,7 +145,7 @@ def plot_component_comparison(paths, output_dir, mode):
             y = version_bottoms[alg][i]
 
             ax.text(
-                x,
+                x,   
                 y + 0.02 * max(max(v) for v in version_bottoms.values()),
                 DISPLAY_NAMES.get(alg, alg),
                 ha="center",

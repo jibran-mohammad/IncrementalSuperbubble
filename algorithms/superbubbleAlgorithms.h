@@ -6,8 +6,8 @@
 #include "../lib/DFS/incrementalDFSAVLTree.h"
 #include "../lib/DFS/incrementalDFSAVLTreeH4.h"
 #include "../lib/DFS/incrementalDFSSMM.h"
-#include "../lib/DFS/incrementalDFS.h"
-#include "../lib/DFS/incDFSBatch.h"
+//#include "../lib/DFS/incrementalDFS.h"
+//#include "../lib/DFS/incDFSBatch.h"
 #include "../lib/findSuperbubble/superbubbleh1.h"
 
 

@@ -2,7 +2,7 @@
 #define INCREMENTALSMM_DFS
 #include "baseDFS.h"
 #include "minImaxOdatastructure.h"
-#include"../tree/differentAVLTree.h"
+//#include"../tree/differentAVLTree.h"
 #include <climits>
 #include <chrono>
 
@@ -62,18 +62,12 @@ public:
         g->insertEdge(0,1);
         n=g->displayNumberVertices();
         this->m=0;
-		    this->postorder.resize(n);
     	  this->reverseTopologicalOrder.resize(n);
     	  this->topOrd.resize(n);
-    	  this->reversePostorder.resize(n);
     	  this->minI.resize(n);
 		    this->maxO.resize(n);
-		    this->postorder[0] = 1;
-		    this->reversePostorder[0] = 1;
 		    this->reverseTopologicalOrder[0] = 0;
 		    this->topOrd[0] = 0;
-		    this->postorder[1] = 0;
-		    this->reversePostorder[1] = 0;
 		    this->reverseTopologicalOrder[1] = 1;
 		    this->topOrd[1] = 1;
 		    this->minI[0] = INT_MAX;
