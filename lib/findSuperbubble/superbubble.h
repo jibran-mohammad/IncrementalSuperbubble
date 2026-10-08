@@ -25,5 +25,6 @@ public:
     void printSuperbubbles() ;
     int numberOfSuperbubbles();
     void insertE(DFSCONTEXT *sdfs,GraphContext *g,int u, int v);
+    void insertBatch(DFSCONTEXT *sdfs, GraphContext *g);
 };
 #endif	

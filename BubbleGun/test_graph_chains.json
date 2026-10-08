@@ -1,0 +1,1 @@
+{"1": {"chain_id": 1, "ends": ["15", "2"], "bubbles": [{"type": "super", "id": 1, "ends": ["15", "9"], "inside": ["16", "14"]}, {"type": "super", "id": 2, "ends": ["9", "4"], "inside": ["5", "8", "11", "7", "10", "13", "6", "12"]}, {"type": "insertion", "id": 3, "ends": ["4", "2"], "inside": ["3"]}]}}

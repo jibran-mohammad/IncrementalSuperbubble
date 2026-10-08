@@ -16,5 +16,8 @@ public:
     const std::list<int>& getNeighboursOutgoing(int x) const override;
     int getNumberOfVertices() const override;
     int getNumberOfEdges() const override;
+    int getInDegree(int x) const override;
+    int getOutDegree(int x) const override;
+    int getDegree(int x) const override;
 };
 #endif

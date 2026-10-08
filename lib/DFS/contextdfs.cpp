@@ -8,6 +8,10 @@
 	    this->dfsStrategy->insert(g,u,v);
     }
 
+    void DFSCONTEXT::updateEdgeBatch(GraphContext *g) {
+        this->dfsStrategy->insertBatch(g);
+    }
+
     void DFSCONTEXT::reset() {
 	    this->dfsStrategy->reset();
     }
@@ -18,14 +22,6 @@
 
     void DFSCONTEXT::displayReverseTopologicalOrder() {
 	    this->dfsStrategy->printReverseTopologicalOrder();
-    }
-
-    void DFSCONTEXT::displayPostorder() {
-	    this->dfsStrategy->printPostOrder();
-    }
-
-    void DFSCONTEXT::displayReversePostorder() {
-	    this->dfsStrategy->printreversePostOrder();
     }
 
     void DFSCONTEXT::createMinI(GraphContext *g) {

@@ -1,9 +1,10 @@
-#ifndef INCREMENTAL_DFS_AVK_TREE
+#ifndef INCREMENTAL_DFS_AVL_TREE
 #define INCREMENTAL_DFS_AVL_TREE
 #include "baseDFS.h"
 #include "minImaxOdatastructure.h"
 #include"../tree/differentAVLTree.h"
 #include <climits>
+#include <chrono>
 /*
  class IncremetalDFSTREE, it uses incremental DFS in DAG algorithm, and a special type of balanced binary 
  search tree which stores the indices of the graph as key, and has access to reverse topological order.This
@@ -11,6 +12,45 @@
 */
 class IncrementalDFSTREE:public BaseDFS , public IDatastructure  {
 public:
+	struct IncrementalUpdateTimes {
+    double insertTime = 0.0;
+    double dfsTime = 0.0;
+    double topologicalOrderTime = 0.0;
+    double minITime = 0.0;
+    double maxOTime = 0.0;
+    double currentinsertTime = 0.0;
+    double currentdfsTime = 0.0;
+    double currenttopologicalOrderTime = 0.0;
+    double currentminITime = 0.0;
+    double currentmaxOTime = 0.0;
+    };
+    struct TypeOfEdgeInsertion {
+    	int case1 = 0;
+    	int case2 = 0;
+    	int case3 = 0;
+    	int case4 = 0;
+    	int case5 = 0;
+    	int currentcase1 = 0;
+    	int currentcase2 = 0;
+    	int currentcase3 = 0;
+    	int currentcase4 = 0;
+    	int currentcase5 = 0;
+    };
+    struct CountOfVertices {
+    	int countAffectedVertices = 0;
+    	int countExploredVertices = 0;
+    	int currentcountAffectedVertices = 0;
+    	int currentcountExploredVertices = 0;
+    	int totalEdges = 0;
+    	int currentTotalEdges =0;
+    	int totalExploredEdges = 0;
+    	int totalAffectedEdges = 0;
+    	int currentTotalExploredEdges =0;
+    	int currentTotalAffectedEdges =0;
+    };
+    IncrementalUpdateTimes latestTimes;
+    TypeOfEdgeInsertion edgeTypes;
+    CountOfVertices vertexCount;
     std::vector<int> marked;
     std::vector<int> postorderChanged;
     std::vector<int> intermediatepostorder;
@@ -25,21 +65,15 @@ public:
         g->insertEdge(0,1);
         n=g->displayNumberVertices();
         this->m=0;
-		this->postorder.resize(n);
     	this->reverseTopologicalOrder.resize(n);
     	this->topOrd.resize(n);
-    	this->reversePostorder.resize(n);
     	this->minI.resize(n);
 		this->maxO.resize(n);
 		this->reachable.resize(n);
 		this->minIbst.resize(n);
 		this->maxObst.resize(n);
-		this->postorder[0] = 1;
-		this->reversePostorder[0] = 1;
 		this->reverseTopologicalOrder[0] = 0;
 		this->topOrd[0] = 0;
-		this->postorder[1] = 0;
-		this->reversePostorder[1] = 0;
 		this->reverseTopologicalOrder[1] = 1;
 		this->topOrd[1] = 1;
 		this->minI[0] = INT_MAX;
@@ -75,6 +109,8 @@ public:
 	void printMaxO() const override;
 	void printtreeminIncoming();
 	void printtreemaxOutgoing();
+	void deleteReachableFromBST(GraphContext *g);
+	void insertReachableIntoBST(GraphContext *g);
 
 };
 #endif

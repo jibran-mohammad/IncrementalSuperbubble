@@ -13,21 +13,53 @@
     */
     void IncrementalDFSTREE::insert(GraphContext *g, int u, int v) {
         int x;
+        #ifndef BENCHMARK
+        this->latestTimes.currentinsertTime = 0.0;
+        this->latestTimes.currentdfsTime = 0.0;
+        this->latestTimes.currenttopologicalOrderTime = 0.0;
+        this->latestTimes.currentminITime = 0.0;
+        this->latestTimes.currentmaxOTime = 0.0;
+        this->edgeTypes.currentcase1 = 0;
+        this->edgeTypes.currentcase2 = 0;
+        this->edgeTypes.currentcase3 = 0;
+        this->edgeTypes.currentcase4 = 0;
+        this->edgeTypes.currentcase5 = 0;
+        this->vertexCount.currentcountAffectedVertices = 0;
+        this->vertexCount.currentcountExploredVertices = 0;
+        this->vertexCount.currentTotalEdges = 0;
+        this->vertexCount.currentTotalAffectedEdges = 0;
+        this->vertexCount.currentTotalExploredEdges = 0;
+
+        auto start = std::chrono::high_resolution_clock::now();
+        auto end = std::chrono::high_resolution_clock::now();   
+        std::chrono::duration<double> elapsed = end - start;
+
+        start = std::chrono::high_resolution_clock::now();
+        #endif
         x=this->n;
         g->insertEdge(u,v);
         this->n=g->displayNumberVertices();
+        this->vertexCount.currentTotalEdges = g->displayNumberEdges();
+        this->vertexCount.totalEdges += this->vertexCount.currentTotalEdges;
         x=this->n-x;
         //std::cout << "original U= "<< u << " " << "original v= " << v << std::endl;
         this->u=g->strategy->reverseMapping[u];
         this->v=g->strategy->reverseMapping[v];
         u=g->strategy->reverseMapping[u];
         v=g->strategy->reverseMapping[v];
+        #ifndef BENCHMARK
+        end = std::chrono::high_resolution_clock::now();
+        elapsed = end - start;
+        this->latestTimes.currentinsertTime = elapsed.count();
+        this->latestTimes.insertTime += elapsed.count();
+        #endif
         //std::cout << "new U= "<< u << " " << "new v= " << v << std::endl;
         if(x>0) {
             //std::cout << " x= " << x << std::endl;
             //std::cout << " n= " << n << std::endl;
-            this->reversePostorder.resize(this->n);
-            this->postorder.resize(this->n);
+            #ifndef BENCHMARK
+            start = std::chrono::high_resolution_clock::now();
+            #endif
             this->visit.resize(this->n);
             this->topOrd.resize(this->n);
             this->reverseTopologicalOrder.resize(this->n);
@@ -39,206 +71,457 @@
             this->marked.resize(this->n);
             this->intermediatepostorder.resize(this->n);
             this->postorderChanged.resize(this->n);
+            #ifndef BENCHMARK
+            end = std::chrono::high_resolution_clock::now();
+            elapsed = end - start;
+            this->latestTimes.currentinsertTime += elapsed.count();
+            this->latestTimes.insertTime += elapsed.count();
+            #endif
+
             if(x == 1) {
                //std::cout << "x is equal to 1" << std::endl;
                //case where u is new node
                 this->cases = 1;
                if(g->strategy->newu == true){
                    //std::cout << "case 1" << std::endl;
-                   DifferentBalancedBinaryTree binaryTreeIncoming(this->reverseTopologicalOrder);
-                   DifferentBalancedBinaryTree binaryTreeOutgoing(this->reverseTopologicalOrder);
-                   this->postorder[u] = this->postorder[0];
-                   this->reversePostorder[postorder[u]] = u;
-                   this->reverseTopologicalOrder[u] = (this->n - 1) -  this->postorder[u];
-                   this->topOrd[reverseTopologicalOrder[u]] = u;           
-                   
-                   this->postorder[0] = this->postorder[u] + 1;
-                   this->reversePostorder[postorder[0]] = 0;
-                   this->reverseTopologicalOrder[0] = (this->n - 1) -  this->postorder[0];
-                   this->topOrd[reverseTopologicalOrder[0]] = 0;
+                   #ifndef BENCHMARK 
+                   this->edgeTypes.case1 +=1;
+                   this->edgeTypes.currentcase1 =1;
 
-                   this->minIbst[u]= binaryTreeIncoming;
+                   //std::cout << "case 1" << std::endl;
+                   start = std::chrono::high_resolution_clock::now();
+                   #endif
+                   DifferentBalancedBinaryTree binaryTreeIncoming(this->reverseTopologicalOrder);
+                   end = std::chrono::high_resolution_clock::now();
+                   #ifndef BENCHMARK
+                   elapsed = end - start;
+                   this->latestTimes.currentminITime += elapsed.count();
+                   this->latestTimes.minITime += elapsed.count();
+
+                   start = std::chrono::high_resolution_clock::now();
+                   #endif
+                   DifferentBalancedBinaryTree binaryTreeOutgoing(this->reverseTopologicalOrder);
+                   #ifndef BENCHMARK
+                   end = std::chrono::high_resolution_clock::now();
+                   elapsed = end - start;
+                   this->latestTimes.currentmaxOTime += elapsed.count();
+                   this->latestTimes.maxOTime += elapsed.count();
+
+                   start = std::chrono::high_resolution_clock::now();
+                   #endif
+                   
+                   this->reverseTopologicalOrder[u] = this->n-1;
+                   this->topOrd[u] = this->n - 1;
+
+
+                   start = std::chrono::high_resolution_clock::now();
+                   
                    this->maxObst[u]= binaryTreeOutgoing;
-                
-                   for(int i=0; i<this->n;i++) {
-                      this->reverseTopologicalOrder[i] = (this->n - 1) - postorder[i];
-                      this->topOrd[reverseTopologicalOrder[i]] = i;
-                   }
                    this->maxObst[u].addNode(v,0);
                    this->maxO[u] =  this->maxObst[u].findMax();
+                   #ifndef BENCHMARK
+                   end = std::chrono::high_resolution_clock::now();
+                   elapsed = end - start;
+                   this->latestTimes.currentmaxOTime += elapsed.count();
+                   this->latestTimes.maxOTime += elapsed.count();
+
+                   start = std::chrono::high_resolution_clock::now();
+                   #endif
+                   this->minIbst[u]= binaryTreeIncoming;
                    this->minIbst[v].addNode(u,0);
                    this->minI[v] = this->minIbst[v].findMin();
+                   #ifndef BENCHMARK
+                   end = std::chrono::high_resolution_clock::now();
+                   elapsed = end - start;
+                   this->latestTimes.currentminITime += elapsed.count();
+                   this->latestTimes.minITime+= elapsed.count();
+                   #endif
+
+                   this->partialDFS(g,u,v);
+                   //std::cout << "partial DFS done in case where u is new node" << std::endl;
+                   this->deleteReachableFromBST(g);
+
+                    this->update(g);
+
+                    this->insertReachableIntoBST(g);
+
+                   this->reset();
+
+
+                   #ifndef BENCHMARK
+                   end = std::chrono::high_resolution_clock::now();
+                   elapsed = end - start;
+                   this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+                   this->latestTimes.topologicalOrderTime += elapsed.count();
+                   #endif
+                   
                    g->strategy->newu = false;
                }    
                else {
                     //v is the new node
                     //std::cout << "case 2" << std::endl;
                     this->cases=2;
+                    #ifndef BENCHMARK
+                    this->edgeTypes.case2 +=1;
+                    this->edgeTypes.currentcase2 =1;
+                    start = std::chrono::high_resolution_clock::now();
+                    #endif
                     DifferentBalancedBinaryTree binaryTreeIncoming(this->reverseTopologicalOrder);
+                    #ifndef BENCHMARK
+                    end = std::chrono::high_resolution_clock::now();
+                    elapsed = end - start;
+                    this->latestTimes.currentminITime += elapsed.count();
+                    this->latestTimes.minITime += elapsed.count();
+
+                    start = std::chrono::high_resolution_clock::now();
+                    #endif
                     DifferentBalancedBinaryTree binaryTreeOutgoing(this->reverseTopologicalOrder);
-                    this->postorder[v] = this->postorder[u];
-                    for(int i=postorder[u]; i < this->n - 1; i++) {
-                      this->postorder[reversePostorder[i]]++;
+                    #ifndef BENCHMARK
+                    end = std::chrono::high_resolution_clock::now();
+                    elapsed = end - start;
+                    this->latestTimes.currentmaxOTime += elapsed.count();
+                    this->latestTimes.maxOTime += elapsed.count();
+
+                    start = std::chrono::high_resolution_clock::now();
+                    #endif
+                    int i =0;
+                    for( i=this->n-2; i>this->reverseTopologicalOrder[this->u];i--) {
+                        this->reverseTopologicalOrder[this->topOrd[i]]++;
                     }
-                    for(int i=0;i < this->n;i++) {
-                      this->reversePostorder[this->postorder[i]]=i;
-                      this->reverseTopologicalOrder[i]=(this->n) - 1 - this->postorder[i];
-                      this->topOrd[this->reverseTopologicalOrder[i]] =i; 
+                    this->reverseTopologicalOrder[v] = this->reverseTopologicalOrder[this->u] + 1;
+                    i=0;
+                    for(i=this->n-1; i>this->reverseTopologicalOrder[this->u] + 1;i--) {
+                        this->topOrd[i] = this->topOrd[i-1];
+
                     }
+                    this->topOrd[i] = this->v;
+                    i=0;
+                    #ifndef BENCHMARK
+                    end = std::chrono::high_resolution_clock::now();
+                    elapsed = end - start;
+                    this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+                    this->latestTimes.topologicalOrderTime += elapsed.count();
+
+                    start = std::chrono::high_resolution_clock::now();
+                    #endif
                     binaryTreeIncoming.addNode(u,0);
-                    this->maxObst[u].addNode(v,0);
                     this->minIbst[v] = binaryTreeIncoming;
+                    this->minI[v] = this->minIbst[v].findMin();
+                    #ifndef BENCHMARK
+                    end = std::chrono::high_resolution_clock::now();
+                    elapsed = end - start;
+                    this->latestTimes.currentminITime += elapsed.count();
+                    this->latestTimes.minITime += elapsed.count();
+                    
+                    start = std::chrono::high_resolution_clock::now();
+                    #endif
+                    this->maxObst[u].addNode(v,0);
                     this->maxObst[v] = binaryTreeOutgoing;
                     this->maxO[u] = this->maxObst[u].findMax();
-                    this->minI[v] = this->minIbst[v].findMin();
                     this->maxO[v] = 1;
+                    #ifndef BENCHMARK
+                    end = std::chrono::high_resolution_clock::now();
+                    elapsed = end - start;
+                    this->latestTimes.currentmaxOTime += elapsed.count();
+                    this->latestTimes.maxOTime += elapsed.count();
+                    #endif
                     g->strategy->newv= false;
                 }
             }
             else {
                //std::cout << "if x is 2" << std::endl; 
                this->cases = 3;
-               this->postorder[v] = this->postorder[0];
-               this->reversePostorder[postorder[v]] = v;
-               this->reverseTopologicalOrder[v] = (this->n - 1) -  this->postorder[v];
-               this->topOrd[reverseTopologicalOrder[v]] = v;
-            
-               this->postorder[u] = this->postorder[v] + 1;
-               this->reversePostorder[postorder[u]] = u;
-               this->reverseTopologicalOrder[u] = (this->n - 1) -  this->postorder[u];
-               this->topOrd[reverseTopologicalOrder[u]] = u;            
+               #ifndef BENCHMARK
+               this->edgeTypes.case3 +=1;
+               this->edgeTypes.currentcase3 =1;
+               start = std::chrono::high_resolution_clock::now();
+               #endif
+               this->reverseTopologicalOrder[1] = this->n - 1;
+               this->topOrd[this->reverseTopologicalOrder[1]] = 1;
 
-               this->postorder[0] = this->postorder[u] + 1;
-               this->reversePostorder[postorder[0]] = 0;
-               this->reverseTopologicalOrder[0] = (this->n - 1) -  this->postorder[0];
-               this->topOrd[reverseTopologicalOrder[0]] = 0;
-               for(int i=0; i<this->n;i++) {
-                   this->reverseTopologicalOrder[i] = (this->n - 1) - postorder[i];
-                   this->topOrd[reverseTopologicalOrder[i]] = i;
-                }
+               this->reverseTopologicalOrder[v] = this->reverseTopologicalOrder[1] - 1;
+               this->topOrd[this->reverseTopologicalOrder[v]] = v;
+            
+               this->reverseTopologicalOrder[u] = this->reverseTopologicalOrder[1] - 2;
+               this->topOrd[reverseTopologicalOrder[u]] = u;  
+                #ifndef BENCHMARK
+                end = std::chrono::high_resolution_clock::now();
+                elapsed = end - start;
+                this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+                this->latestTimes.topologicalOrderTime += elapsed.count();
+
+               start = std::chrono::high_resolution_clock::now();
+               #endif
                DifferentBalancedBinaryTree binaryTreeIncomingu(this->reverseTopologicalOrder);
-               DifferentBalancedBinaryTree binaryTreeOutgoingu(this->reverseTopologicalOrder);
                DifferentBalancedBinaryTree binaryTreeIncomingv(this->reverseTopologicalOrder);
-               DifferentBalancedBinaryTree binaryTreeOutgoingv(this->reverseTopologicalOrder);
-               binaryTreeOutgoingu.addNode(v,0);
                binaryTreeIncomingv.addNode(u,0);
                this->minIbst[u]= binaryTreeIncomingu;
                this->minIbst[v]= binaryTreeIncomingv;
+               this->minI[u] = 0;
+               this->minI[v] = u;
+               #ifndef BENCHMARK
+               end = std::chrono::high_resolution_clock::now();
+               elapsed = end - start;
+               this->latestTimes.currentminITime += elapsed.count();
+               this->latestTimes.minITime += elapsed.count();
+
+               start = std::chrono::high_resolution_clock::now();
+               #endif
+               DifferentBalancedBinaryTree binaryTreeOutgoingu(this->reverseTopologicalOrder);
+               DifferentBalancedBinaryTree binaryTreeOutgoingv(this->reverseTopologicalOrder);
+               binaryTreeOutgoingu.addNode(v,0);
                this->maxObst[u]= binaryTreeOutgoingu;
                this->maxObst[v]= binaryTreeOutgoingv;
-               this->minI[u] = 0;
                this->maxO[u] = v;
-               this->minI[v] = u;
-               this->maxO[v] = 1; 
+               this->maxO[v] = 1;
+               #ifndef BENCHMARK
+               end = std::chrono::high_resolution_clock::now();
+               elapsed = end - start;
+               this->latestTimes.currentmaxOTime += elapsed.count();
+               this->latestTimes.maxOTime += elapsed.count(); 
+               #endif
                g->strategy->newu = false;
                g->strategy->newv = false;
                }           
             }
         else {
-            this->cases = 4;
+            
             //std::cout << "if no new node added" << std::endl;
-            if(this->postorder[u] < this->postorder[v]) {
+            if(this->reverseTopologicalOrder[u] > this->reverseTopologicalOrder[v]) {
                 //std::cout << "left to right edge" << std::endl;
+                this->cases = 4;
+                #ifndef BENCHMARK
+                this->edgeTypes.case4 +=1;
+                this->edgeTypes.currentcase4 =1;
+                start = std::chrono::high_resolution_clock::now();
+                #endif
                 this->partialDFS(g,u,v);
+                #ifndef BENCHMARK
+                end = std::chrono::high_resolution_clock::now();
+                elapsed = end - start;
+                this->latestTimes.currentdfsTime += elapsed.count();
+                this->latestTimes.dfsTime += elapsed.count();
+                this->vertexCount.totalExploredEdges += this->vertexCount.currentTotalExploredEdges;
+                #endif
+                this->deleteReachableFromBST(g);
+
                 this->update(g);
+
+                this->insertReachableIntoBST(g);
+                #ifndef BENCHMARK
+                start = std::chrono::high_resolution_clock::now();
+                #endif
                 this->reset();
+                #ifndef BENCHMARK
+                end = std::chrono::high_resolution_clock::now();
+                elapsed = end - start;
+                this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+                this->latestTimes.topologicalOrderTime += elapsed.count();
+                #endif
             }
             else {
                 //std::cout << "right to left  edge" << std::endl;
+                this->cases = 5;
+                #ifndef BENCHMARK
+                this->edgeTypes.case5 +=1;
+                this->edgeTypes.currentcase5 =1;
+                start = std::chrono::high_resolution_clock::now();
+                #endif
                 this->maxObst[u].addNode(v,0);
-                this->minIbst[v].addNode(u,0);
                 this->maxO[u] = (this->maxObst[u].findMax());
+                #ifndef BENCHMARK
+                end = std::chrono::high_resolution_clock::now();
+                elapsed = end - start;
+                this->latestTimes.currentmaxOTime += elapsed.count();
+                this->latestTimes.maxOTime += elapsed.count();
+ 
+                start = std::chrono::high_resolution_clock::now();
+                #endif
+                this->minIbst[v].addNode(u,0);
                 this->minI[v] = (this->minIbst[v].findMin());
+                #ifndef BENCHMARK
+                end = std::chrono::high_resolution_clock::now();
+                elapsed = end - start;
+                this->latestTimes.currentminITime += elapsed.count();
+                this->latestTimes.minITime += elapsed.count();
+                #endif
             }    
         }
-        /*
-        g->displayOutgoingGraph();
-        g->displayIncomingGraph();
-        this->printPostOrder();
-        this->printreversePostOrder();
-        this->printReverseTopologicalOrder();
-        this->printTopologicalOrder();
-        std::cout << "incoming tree is " << std::endl;
-        this->printtreeminIncoming();
-        std::cout << "outgoing tree is " << std::endl;
-        this->printtreemaxOutgoing();
-        this->printMinI();
-        this->printMaxO();
-        */
         
     }
 
     void IncrementalDFSTREE::partialDFS(GraphContext *g,int w, int z) {
-        if(this->marked[z] == 0 && (this->postorder[z] > this->postorder[this->u])) {
-            this->marked[z] = 1;
+        //std::cout << "inside partial DFS" << std::endl;
+        //std::cout << marked[z] << std::endl;
+        if(this->marked[z] == 0 && (this->reverseTopologicalOrder[z] < this->reverseTopologicalOrder[this->u])) {
+            //std::cout << z << std::endl;
+            this->marked[z] =1;
             this->reachable[z] = 1;
+            #ifndef BENCHMARK
+            this->vertexCount.currentTotalExploredEdges += g->getOutDegree(z);
+            #endif
             for (int u : g->displayOutgoingNeighbours(z)) {
                 this->partialDFS(g,z,u);
             }
             this->m = this->m+1;
             this->postorderChanged[z] = m;
-     
         }
     }
 
     void IncrementalDFSTREE::update(GraphContext *g) {
         int shift = this->m;
+        //std::cout << "shift = " << shift << std::endl;
         int index;
-        for(int i = this->postorder[this->u]; i <= this->postorder[this->v]; i++) {
-            index = this->reversePostorder[i];
+        
+        #ifndef BENCHMARK
+        auto start = std::chrono::high_resolution_clock::now();
+        auto end = std::chrono::high_resolution_clock::now();   
+        std::chrono::duration<double> elapsed = end - start;
+
+
+        start = std::chrono::high_resolution_clock::now();
+        #endif
+        
+        for(int i = this->reverseTopologicalOrder[this->u]; i >= this->reverseTopologicalOrder[this->v]; i--) {
+            #ifndef BENCHMARK
+            this->vertexCount.currentTotalAffectedEdges += g->getOutDegree(this->reverseTopologicalOrder[i]);
+            this->vertexCount.currentcountAffectedVertices ++;
+            #endif
+            index = this->topOrd[i];
+            
             if(this->marked[index]==1) {
-                this->intermediatepostorder[index] = this->postorder[this->u] + this->postorderChanged[index] - 1;
+                this->intermediatepostorder[index] = this->reverseTopologicalOrder[this->u] - this->postorderChanged[index] + 1;
                 this->marked[index] = 0;
             }
             else {
-                this->intermediatepostorder[index] = this->postorder[this->u] + shift;
+                this->intermediatepostorder[index] = this->reverseTopologicalOrder[this->u] - shift;
                 shift = shift + 1;
             }
+            //std::cout << index << " " << intermediatepostorder[index] << std::endl ;
         }
+        #ifndef BENCHMARK
+        this->vertexCount.totalAffectedEdges += this->vertexCount.currentTotalAffectedEdges;
+        #endif
+
+        #ifndef BENCHMARK
+        end = std::chrono::high_resolution_clock::now();
+        elapsed = end - start;
+        this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+        this->latestTimes.topologicalOrderTime += elapsed.count();
+        
+
+        start = std::chrono::high_resolution_clock::now(); 
+        #endif
+        for(int i=0; i<this->n; i++) {
+            if(this->intermediatepostorder[i]!=0) {
+                //std::cout << "i = " << i << std::endl;
+                if(i == 0) {
+                    continue;
+                }       
+                this->reverseTopologicalOrder[i]= this->intermediatepostorder[i];
+                this->topOrd[this->reverseTopologicalOrder[i]] = i;
+            }    
+        }
+        #ifndef BENCHMARK
+        end = std::chrono::high_resolution_clock::now();
+        elapsed = end - start;
+        this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+        this->latestTimes.topologicalOrderTime += elapsed.count();
+        this->vertexCount.countAffectedVertices += this->vertexCount.currentcountAffectedVertices;
+        #endif
+    }
+
+    
+    
+    void IncrementalDFSTREE::deleteReachableFromBST(GraphContext *g)
+    {
+        #ifndef BENCHMARK
+        auto start = std::chrono::high_resolution_clock::now();
+        auto end = std::chrono::high_resolution_clock::now();   
+        std::chrono::duration<double> elapsed = end - start;
+        #endif
         for(int i=0; i<this->n; i++) {
             if(this->reachable[i]!=0) {
                 if(i == 0 || i == 1) {
                     continue;
                 }
+                #ifndef BENCHMARK
+                start = std::chrono::high_resolution_clock::now();
+                #endif
                 for (int u : g->displayOutgoingNeighbours(i)) {                    
                        this->minIbst[u].deleteNode(i);
                 }
+                #ifndef BENCHMARK
+                end = std::chrono::high_resolution_clock::now();
+                elapsed = end - start;
+                this->latestTimes.currentminITime += elapsed.count();
+                this->latestTimes.minITime += elapsed.count();
 
+                start = std::chrono::high_resolution_clock::now();
+                #endif
                 for (int u : g->displayIncomingNeighbours(i)) {                   
                        this->maxObst[u].deleteNode(i);
                 }
+                #ifndef BENCHMARK
+                end = std::chrono::high_resolution_clock::now();
+                elapsed = end - start;
+                this->latestTimes.currentmaxOTime += elapsed.count();
+                this->latestTimes.maxOTime += elapsed.count();
+                #endif
             }    
-        }        
-        for(int i=0; i<this->n; i++) {
-            if(i == 0 || i == 1) {
-                    continue;
-            }
-            if(this->intermediatepostorder[i]!=0) {
-                this->postorder[i] = this->intermediatepostorder[i];
-                this->reversePostorder[this->intermediatepostorder[i]]=i;
-                this->reverseTopologicalOrder[i]=(this->n-1) - this->postorder[i];
-                this->topOrd[this->reverseTopologicalOrder[i]] = i;
-            } 
-        }
+        } 
+    }
+
+    void IncrementalDFSTREE::insertReachableIntoBST(GraphContext *g)
+    {   
+        #ifndef BENCHMARK
+        auto start = std::chrono::high_resolution_clock::now();
+        auto end = std::chrono::high_resolution_clock::now();   
+        std::chrono::duration<double> elapsed = end - start; 
+        start = std::chrono::high_resolution_clock::now();
+        #endif
         this->minIbst[v].addNode(u,0);
-        this->maxObst[u].addNode(v,0);
         this->minI[v] = this->minIbst[v].findMin();
-        this->maxO[u] = this->maxObst[u].findMax();        
+        #ifndef BENCHMARK
+        end = std::chrono::high_resolution_clock::now();
+        elapsed = end - start;
+        this->latestTimes.currentminITime += elapsed.count();
+        this->latestTimes.minITime += elapsed.count();
+        
+        start = std::chrono::high_resolution_clock::now();
+        #endif
+        this->maxObst[u].addNode(v,0);
+        this->maxO[u] = this->maxObst[u].findMax(); 
+        #ifndef BENCHMARK
+        end = std::chrono::high_resolution_clock::now();
+        elapsed = end - start;
+        this->latestTimes.currentmaxOTime += elapsed.count();
+        this->latestTimes.maxOTime += elapsed.count();       
+        #endif
         for(int i=0; i<this->n; i++) {
             if(this->reachable[i]!=0) {  
                 if(i == 0 || i == 1) {
                     continue;
-                }      
+                } 
+                #ifndef BENCHMARK
+                start = std::chrono::high_resolution_clock::now();     
+                #endif
                 for (int u : g->displayOutgoingNeighbours(i)) {
                     if(u==1) {
                         continue;
                     }
                     this->minIbst[u].addNode(i,0);
                     this->minI[u] = (this->minIbst[u].findMin());
-                    
-                    
                 }
+                #ifndef BENCHMARK
+                end = std::chrono::high_resolution_clock::now();
+                elapsed = end - start;
+                this->latestTimes.currentminITime += elapsed.count();
+                this->latestTimes.minITime += elapsed.count();
 
+                
+                start = std::chrono::high_resolution_clock::now();
+                #endif
                 for (int u : g->displayIncomingNeighbours(i)) {
                     if (u==0) {
                         continue;
@@ -246,12 +529,16 @@
                     this->maxObst[u].addNode(i,0);
                     this->maxO[u]=  (this->maxObst[u].findMax());     
                 }
-
+                #ifndef BENCHMARK
+                end = std::chrono::high_resolution_clock::now();
+                elapsed = end - start;
+                this->latestTimes.currentmaxOTime += elapsed.count();
+                this->latestTimes.maxOTime += elapsed.count();
+                #endif
             }
         }
-
     }
-    
+
     void IncrementalDFSTREE::reset() {
         std::fill(this->marked.begin(), this->marked.end(), 0);
         std::fill(this->postorderChanged.begin(), this->postorderChanged.end(), 0);

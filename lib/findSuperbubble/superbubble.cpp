@@ -5,6 +5,7 @@
 	    std::stack<ppii> S;
 	    for(t1=0;t1<=g->displayNumberVertices()-1;t1++){
 	    	t=sdfs->dfsStrategy->topOrd[t1];
+	    	//std::cout << t << std::endl;
 	    	/*
 	    	if(sdfs->dfsStrategy->minI[t] == INT_MAX) {
 	    		while(!S.empty()){
@@ -93,6 +94,14 @@
     	sdfs->updateEdge(g,u,v);
         this->SB.clear();
     }
+ 
+    /*
+    void SuperbubbleCalculation::insertBatch(DFSCONTEXT *sdfs, GraphContext *g) {
+	    sdfs->updateEdge(g);
+	    this->SB.clear();
+	}
+	*/
+
 
 
 

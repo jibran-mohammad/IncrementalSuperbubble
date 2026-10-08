@@ -92,11 +92,11 @@ void compareFiles(const std::string& file1, const std::string& file2, const std:
 }
 
 int main() {
-    std::string file1 = "/home/dell/Research/IncSuperbubble/output/Yeast/superbubbles/SuperbubblesimpleDFSOutput.txt"; 
-    std::string file2 = "/home/dell/Research/IncSuperbubble/output/Yeast/superbubbles/SuperbubbleincrementalDFSOutput.txt"; 
-    std::string file3 = "/home/dell/Research/IncSuperbubble/output/Yeast/superbubbles/SuperbubbleincrementalDFSAVLTreeOutput.txt";
-    std::string file4 = "/home/dell/Research/IncSuperbubble/output/Yeast/superbubbles/SuperbubbleincrementalH1output.txt"; 
-    std::string diffFile = "/home/dell/Research/IncSuperbubble/output/Yeast/difference.txt"; 
+    std::string file1 = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/output/Human/HaplotypeTestingData/outFile/SuperbubblesimpleDFSOutput.txt"; 
+    std::string file2 = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/output/Human/HaplotypeTestingData/outFile/SuperbubbleIncrementalDFSOutput.txt"; 
+    std::string file3 = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/output/Human/HaplotypeTestingData/outFile/SuperbubbleIncrementalAVLDFSOutput.txt";
+    std::string file4 = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/output/Human/HaplotypeTestingData/outFile/SuperbubbleincrementalH1output.txt"; 
+    std::string diffFile = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/output/Human/HaplotypeTestingData/outFile/difference.txt"; 
 
     compareFiles(file1, file2, file3, file4, diffFile);
 

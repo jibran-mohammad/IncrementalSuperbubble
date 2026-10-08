@@ -20,5 +20,8 @@ public:
 	const std::list<int>& displayOutgoingNeighbours(int);
 	int displayNumberEdges();
 	int displayNumberVertices();
+	int getInDegree(int x);
+	int getOutDegree(int x);
+	int getDegree(int x);
 };	
 #endif

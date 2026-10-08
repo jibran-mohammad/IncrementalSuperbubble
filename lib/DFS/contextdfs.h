@@ -21,11 +21,10 @@ public:
 
 	void performDFS(GraphContext *g);
 	void updateEdge(GraphContext *g, int u ,int v);
+	void updateEdgeBatch(GraphContext *g);
 	void reset();
 	void displayTopologicalOrder();
 	void displayReverseTopologicalOrder();
-	void displayPostorder();
-	void displayReversePostorder();
 	void createMinI(GraphContext *g);
 	void createMaxO(GraphContext *g);
 	void displayMinI();
