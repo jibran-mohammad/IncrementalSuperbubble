@@ -37,7 +37,7 @@ The project uses the following directory structure, rooted at `IncSuperbubble/`:
 * **Git:** For cloning the repository.
 * **Python 3:** Version 3.6 or newer.
 * **make:** The build automation tool.
-* **g++ / Clang:** A C++ compiler that supports **C++17** or newer.
+* **g++ / Clang:** A C++ compiler that supports **C++11** or newer (the Makefile compiles with `-std=c++11`).
 
 ### 2. Python Dependencies
 The following libraries are required for the pipeline, especially for the analysis and plotting phases.
@@ -90,6 +90,8 @@ This script runs the entire preprocessing pipeline to create the graph file (num
 
 **Script location: scripts/graphRunner.py**
 
+> **Note:** dataset names are case-sensitive and differ between scripts: `graphRunner.py` takes `ecoli` / `Human` / `Virus`, `superbubbleRunner.py` takes `Ecoli` / `Human`, and `parse_to_csv.py` takes `ecoli` / `human` / `all`.
+
 Examples:
 ```Bash
 
@@ -107,7 +109,9 @@ This step handles C++ compilation via the Makefile and executes the algorithms o
 
 **Script location: scripts/superbubbleRunner.py**
 
-**Available Algorithms: SimpleSuperbubble, AnotherAlgorithm, incsuperbubblessm,IncrementalSuperbubbleBatch .**
+**Available Algorithms: SimpleSuperbubble, incsuperbubbleDifferentMaxO, AnotherAlgorithm, incsuperbubblessm, IncrementalSuperbubbleBatch.**
+
+`IncrementalSuperbubbleBatch` only runs in `perBatch` mode; it is skipped automatically in `perEdge` mode. Each algorithm is run 100 times (`NUM_RUNS` in `superbubbleRunner.py`) and the timings are averaged, so large datasets take a long time.
 
 Examples:
 ```Bash
@@ -150,19 +154,27 @@ This script reads the CSV generated in 3a and produces performance charts (PNG f
 ```Bash
 
 # Example: Generate plots for the E. coli data and save them in a new 'plots/ecoli_charts/' directory in edge mode with Ecoli data set in log scale
-python plotcsv.py --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv --out plots/ecoli_charts/ --mode peredge --dataset Ecoli --scale log
+python3 Preprocessing/plotcsv.py --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv --out plots/ecoli_charts/ --mode peredge --dataset Ecoli --scale log
 
 # Example: Generate plots for the E. coli data and save them in a new 'plots/ecoli_charts/' directory in edge mode with Ecoli data set in linear scale
-python plotcsv.py --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv --out plots/ecoli_charts/ --mode peredge --dataset Ecoli --scale linear
+python3 Preprocessing/plotcsv.py --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv --out plots/ecoli_charts/ --mode peredge --dataset Ecoli --scale linear
 
 
 # Example: Generate plots for chromosome_11 data in log scale in batch mode.
-python3 plotcsv.py --csv output/Human/chromosome_11/timeFile/perEdge/haplotype_build_comparison.csv  --out plots/ecoli_charts/ --mode perbatch --dataset GRCh38_chr5 --scale log
+python3 Preprocessing/plotcsv.py --csv output/Human/chromosome_11/timeFile/perbatch/haplotype_build_comparison.csv --out plots/chr11_charts/ --mode perbatch --dataset GRCh38_chr11 --scale log
 ```
 
 ## 🧪 Test Run Instructions (Quick Start Example)
 
-To verify the installation and test the pipeline end-to-end, we provide five sample E. coli genomes inside the **input/Ecoli/** directory. Follow the steps below to run a complete test execution.
+To verify the installation and test the pipeline end-to-end, use five sample E. coli genomes. Genome files are not tracked in git, so download them from NCBI RefSeq and place the `.fna` files in **input/Ecoli/coli3682_dataset/**:
+
+* `GCF_000005845.2_ASM584v2` (reference)
+* `GCF_000007445.1_ASM744v1`
+* `GCF_000008865.2_ASM886v2`
+* `GCF_000009565.1_ASM956v1`
+* `GCF_000010245.2_ASM1024v1`
+
+Follow the steps below to run a complete test execution.
 
 **Step 1** — Ensure Virtual Environment & Dependencies
 ```Bash
@@ -172,7 +184,7 @@ source venv/bin/activate
 
 This step processes the five genomes and generates the numeric_edgelist.txt file.
  ```Bash
-python3 scripts/graphRunner.py --dataset Ecoli 
+python3 scripts/graphRunner.py --dataset ecoli
 ```
 **Step 3** — Run Superbubble Algorithms
 
@@ -182,18 +194,18 @@ python3 scripts/superbubbleRunner.py --dataset Ecoli -m perEdge
 ```
 **Step 4** — Generate CSV Output
 ```Bash
-python3 Preprocessing/parse_to_csv.py --dataset Ecoli -m peredge
+python3 Preprocessing/parse_to_csv.py --dataset ecoli -m peredge
 ```
 **Step 5** — Produce Performance Plots
 ```Bash
-python3 --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv --out output/Ecoli/timeFile --mode peredge --dataset Ecoli --scale log
+python3 Preprocessing/plotcsv.py --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv --out output/Ecoli/timeFile --mode peredge --dataset Ecoli --scale log
 ```
 ## 📦 Expected Output
 
 After completion, you should find the following:
 
 Location	Contents  
--**input/Ecoli/coli3682_dataset/Graphs/	numeric_edgelist.txt**.  
+-**input/Ecoli/Graphs/	numeric_edgelist.txt**.  
 -**output/Ecoli/timeFile	Algorithm results and timing logs**.  
 -**output/Ecoli/timeFile/	Raw timing files + .csv**.  
 -**output/Ecoli/timeFile/	Performance comparison graphs (PNG)**.  
