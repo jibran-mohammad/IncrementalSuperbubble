@@ -4,6 +4,7 @@ import time
 import argparse
 import subprocess
 import pathlib
+import tempfile
 # =============================
 # Dynamic repo discovery
 # =============================
@@ -121,27 +122,48 @@ def run_preprocessing(gfa_file, dataset):
 # =============================
 
 def run_superbubble(dataset,algorithm,mode,chromosomes):
+    """
+    Runs one algorithm through superbubbleRunner.py in pipeline mode
+    (BENCHMARK build, single run) and returns the wall-clock time of
+    the executable itself, i.e. without make clean / compilation.
+    """
 
     cmd = [
 
         "python3",
         SUPERBUBBLE_RUNNER,
         "-d",dataset,
-        "-m",mode
+        "-m",mode,
+        "-a",algorithm
 
     ]
-
-    if algorithm:
-        cmd += ["-a",algorithm]
 
     if chromosomes:
         cmd += ["-c"]+chromosomes
 
 
+    fd, timing_file = tempfile.mkstemp(prefix="pipeline_timing_", suffix=".txt")
+    os.close(fd)
+
     env = os.environ.copy()
     env["SUPERBUBBLE_PIPELINE_MODE"] = "1"
+    env["SUPERBUBBLE_TIMING_FILE"] = timing_file
 
-    subprocess.run(cmd, check=True, env=env)
+    try:
+
+        subprocess.run(cmd, check=True, env=env)
+
+        with open(timing_file) as f:
+            times = [float(line.split("\t")[1]) for line in f if line.strip()]
+
+    finally:
+
+        os.remove(timing_file)
+
+    if not times:
+        raise RuntimeError(f"No execution time reported for {algorithm}")
+
+    return sum(times)
 
 
 
@@ -150,6 +172,10 @@ def run_superbubble(dataset,algorithm,mode,chromosomes):
 # =============================
 
 def discover_gfa_files(dataset, chromosomes):
+    """
+    Returns a list of (gfa_file, chromosome_name or None).
+    Only original graphs are used, never intermediate GFAs.
+    """
 
     gfas = []
 
@@ -165,11 +191,11 @@ def discover_gfa_files(dataset, chromosomes):
 
         gfa_dir = INPUT_DIR / "Ecoli" / "Graphs"
 
-        for f in os.listdir(gfa_dir):
+        for f in sorted(os.listdir(gfa_dir)):
 
             if f.endswith(".gfa") and not any(f.endswith(x) for x in forbidden_suffixes):
 
-                gfas.append(gfa_dir / f)
+                gfas.append((gfa_dir / f, None))
 
     elif dataset == "Human":
 
@@ -179,10 +205,10 @@ def discover_gfa_files(dataset, chromosomes):
             chrs = chromosomes
         else:
             # AUTO: pick all chromosomes
-            chrs = [
+            chrs = sorted(
                 d for d in os.listdir(base_dir)
                 if d.startswith("chromosome_")
-            ]
+            )
 
         for c in chrs:
 
@@ -193,46 +219,7 @@ def discover_gfa_files(dataset, chromosomes):
             if not gfa_file.exists():
                 raise RuntimeError(f"Missing GFA: {gfa_file}")
 
-            gfas.append(gfa_file)
-
-    print("\nSelected input GFA:")
-    for g in gfas:
-        print("  ", g)
-    print()
-
-    return gfas
-
-
-
-    if dataset == "Ecoli":
-
-        gfa_dir = INPUT_DIR / "Ecoli" / "Graphs"
-
-        for f in os.listdir(gfa_dir):
-
-            if is_original_gfa(f):
-
-                gfas.append(gfa_dir / f)
-
-
-    elif dataset == "Human":
-
-        if chromosomes:
-            chrs = chromosomes
-        else:
-            chrs = [d for d in os.listdir(INPUT_DIR / "Human") if d.startswith("chromosome_")]
-
-
-        for c in chrs:
-
-            gfa_dir = INPUT_DIR / "Human" / c / "Graphs"
-
-            for f in os.listdir(gfa_dir):
-
-                if is_original_gfa(f):
-
-                    gfas.append(gfa_dir / f)
-
+            gfas.append((gfa_file, c))
 
     if len(gfas) == 0:
 
@@ -241,20 +228,19 @@ def discover_gfa_files(dataset, chromosomes):
             "Expected original .gfa (not _mg.gfa, _pos.gfa, reduced_graph.gfa)"
         )
 
+    if dataset == "Ecoli" and len(gfas) > 1:
 
-    if len(gfas) > 1:
+        print("\nWARNING: Multiple candidate GFAs found, using the first one:")
 
-        print("\nWARNING: Multiple candidate GFAs found:")
-
-        for g in gfas:
+        for g, _ in gfas:
             print("  ", g)
 
-        print("\nUsing first one.\n")
+        gfas = gfas[:1]
 
     print("\nSelected input GFA:")
-    for g in gfas:
+    for g, _ in gfas:
         print("  ", g)
-    print()    
+    print()
 
     return gfas
 
@@ -315,7 +301,7 @@ def main():
 
     parser=argparse.ArgumentParser()
 
-    parser.add_argument("-d",default="Ecoli")
+    parser.add_argument("-d",default="Ecoli",choices=["Ecoli","Human"])
 
     parser.add_argument("-a", nargs="+")
 
@@ -348,58 +334,70 @@ def main():
     total_start=time.time()
 
 
-    for algo in algorithms:
+    for gfa, chrom_name in gfa_files:
 
-        if args.m == "perEdge" and algo == "IncrementalSuperbubbleBatch":
-            print(f"[SKIP] {algo} not valid for perEdge")
-            continue
+        # ---------- GFA -> edge list (shared by all algorithms) ----------
+        print("\nProcessing:",gfa)
 
         start = time.time()
 
-        run_superbubble(
-            args.d,
-            algo,
-            args.m,
-            [chrom_name] if chrom_name else None
-        )
+        run_preprocessing(str(gfa), args.d)
 
-        elapsed = time.time() - start
-
-        filename = build_output_filename(
-            args.d,
-            chrom_name,
-            algo,
-            args.m
-        )
-
-        out_file = OUTPUT_DIR / filename
-
-        with open(out_file, "w") as f:
-            f.write(f"Dataset: {args.d}\n")
-            if chrom_name:
-                f.write(f"Chromosome: {chrom_name}\n")
-            f.write(f"Algorithm: {algo}\n")
-            f.write(f"Mode: {args.m}\n")
-            f.write(f"Time: {elapsed:.6f} seconds\n")
-
-        total_time=time.time()-total_start
+        preprocessing_time = time.time() - start
 
 
-        print("\n===================")
-        print("TOTAL PIPELINE TIME")
-        print("===================")
+        # ---------- Each algorithm on the edge list ----------
+        for algo in algorithms:
 
-        print(total_time,"seconds")
+            if args.m == "perEdge" and algo == "IncrementalSuperbubbleBatch":
+                print(f"[SKIP] {algo} not valid for perEdge")
+                continue
+
+            execution_time = run_superbubble(
+                args.d,
+                algo,
+                args.m,
+                [chrom_name] if chrom_name else None
+            )
+
+            filename = build_output_filename(
+                args.d,
+                chrom_name,
+                algo,
+                args.m
+            )
+
+            out_file = OUTPUT_DIR / filename
+
+            with open(out_file, "w") as f:
+                f.write(f"Dataset: {args.d}\n")
+                if chrom_name:
+                    f.write(f"Chromosome: {chrom_name}\n")
+                f.write(f"Algorithm: {algo}\n")
+                f.write(f"Mode: {args.m}\n")
+                f.write(f"GFA: {gfa}\n")
+                f.write(f"PreprocessingTime: {preprocessing_time:.6f} seconds\n")
+                f.write(f"AlgorithmTime: {execution_time:.6f} seconds\n")
+                f.write(f"Time: {preprocessing_time + execution_time:.6f} seconds\n")
+
+            print(f"\n{algo}: preprocessing {preprocessing_time:.3f}s + algorithm {execution_time:.3f}s"
+                  f" = {preprocessing_time + execution_time:.3f}s  -> {out_file}")
 
 
-        total_file = OUTPUT_DIR / "TOTAL_PIPELINE_TIME.txt"
+    total_time=time.time()-total_start
 
-        with open(total_file, "w") as f:
-            f.write(f"Total Pipeline Time: {total_time:.6f} seconds\n")
 
-        with open(out_file,"w") as f:
+    print("\n===================")
+    print("TOTAL PIPELINE TIME")
+    print("===================")
 
-        f.write(str(total_time))
+    print(total_time,"seconds")
+
+
+    total_file = OUTPUT_DIR / "TOTAL_PIPELINE_TIME.txt"
+
+    with open(total_file, "w") as f:
+        f.write(f"Total Pipeline Time: {total_time:.6f} seconds\n")
 
 
 if __name__=="__main__":
@@ -407,10 +405,15 @@ if __name__=="__main__":
 
 
 """
+Times written per (dataset, chromosome, algorithm, mode) to output/pipelineRunner/:
+  PreprocessingTime  GFA -> edge list (normalize, haplotype removal/sort, conversion)
+  AlgorithmTime      one run of the compiled algorithm (BENCHMARK build, compilation excluded)
+  Time               PreprocessingTime + AlgorithmTime
+
 python3 pipelineRunner.py -d Human -a SimpleSuperbubble -m perEdge
 Runs all chromosomes for SimpleSuperbubble
 python3 pipelineRunner.py -d Ecoli -a SimpleSuperbubble -m perEdge
 python3 pipelineRunner.py -d Human -c c1 -a SimpleSuperbubble -m perEdge
 
 
-"""    
+"""

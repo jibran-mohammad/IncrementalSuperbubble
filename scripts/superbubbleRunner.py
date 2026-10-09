@@ -3,6 +3,7 @@ import subprocess
 import sys
 import shutil
 import argparse
+import time
 
 # --- HOW TO RUN ---
 #
@@ -57,8 +58,12 @@ MAKE_DIR = PROJECT_ROOT
 
 PIPELINE_MODE = os.environ.get("SUPERBUBBLE_PIPELINE_MODE") == "1"
 
-# Number of repetitions for averaging
-NUM_RUNS = 100
+# In pipeline mode, pipelineRunner.py passes a file here; the wall-clock
+# time of each executable run (compilation excluded) is appended to it.
+PIPELINE_TIMING_FILE = os.environ.get("SUPERBUBBLE_TIMING_FILE")
+
+# Number of repetitions for averaging (a single run in pipeline mode)
+NUM_RUNS = 1 if PIPELINE_MODE else 100
 
 print("PIPELINE MODE:", PIPELINE_MODE)
 
@@ -429,9 +434,15 @@ def main():
                 sys.exit(1)
 
             # Step 3: Run the job, writing to the temp path
+            run_start = time.time()
             if not run_cpp_program(executable_path, job['input_path'], tmp_output_path, args.mode):
                 print(f"\nAborting pipeline due to execution error on job {job_name}.", file=sys.stderr)
                 sys.exit(1)
+            run_time = time.time() - run_start
+
+            if PIPELINE_MODE and PIPELINE_TIMING_FILE:
+                with open(PIPELINE_TIMING_FILE, 'a') as tf:
+                    tf.write(f"{job_name}\t{run_time}\n")
 
     # --- PHASE 3: Average the NUM_RUNS outputs and write final files ---
     print(f"\n[PHASE 3: Averaging {NUM_RUNS} runs and writing final output files]")
