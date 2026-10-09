@@ -92,7 +92,9 @@
                    start = std::chrono::high_resolution_clock::now();
                    #endif
                    DifferentBalancedBinaryTree binaryTreeIncoming(this->reverseTopologicalOrder);
+                   #ifndef BENCHMARK
                    end = std::chrono::high_resolution_clock::now();
+                   #endif
                    #ifndef BENCHMARK
                    elapsed = end - start;
                    this->latestTimes.currentminITime += elapsed.count();
@@ -109,12 +111,16 @@
 
                    start = std::chrono::high_resolution_clock::now();
                    #endif
+                   #ifndef BENCHMARK
                    g->displayOutgoingGraph();
+                   #endif
                    this->reverseTopologicalOrder[u] = this->n-1;
                    this->topOrd[u] = this->n - 1;
 
 
+                   #ifndef BENCHMARK
                    start = std::chrono::high_resolution_clock::now();
+                   #endif
                    
                    this->maxObst[u]= binaryTreeOutgoing;
                    this->maxObst[u].addNode(v,0);

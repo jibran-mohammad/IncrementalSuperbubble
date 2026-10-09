@@ -68,26 +68,34 @@ public:
             LOG(std::cout << x << " "<< y << std::endl;)
             d.updateEdge(&g, x, y); 
         }
+        #ifndef BENCHMARK
         std::cout << "All edges updated succesfully" << std::endl;
+        #endif
         //g.displayOutgoingGraph();
         // Now, perform the first full calculation on the complete base graph
         #ifndef BENCHMARK
         auto start = std::chrono::high_resolution_clock::now();
         #endif
+        #ifndef BENCHMARK
         g.displayOutgoingGraph();
+        #endif
         d.performDFS(&g);
         //std::cout << "DFS performed successfully" << std::endl;
         d.createMinI(&g);
         //std::cout << "minI done successfully" << std::endl;
         d.createMaxO(&g);
         //std::cout << "maxO done successfully" << std:: endl;
+        #ifndef BENCHMARK
         d.displayTopologicalOrder();
         d.displayReverseTopologicalOrder();
         d.displayMinI();
         d.displayMaxO();
+        #endif
         superbubble.computeSB(&d, &g);
         //std::cout << "superbubble function done successfully" << std::endl;
+        #ifndef BENCHMARK
         superbubble.printSuperbubbles(&g);
+        #endif
         #ifndef BENCHMARK
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
@@ -161,12 +169,16 @@ public:
             //start = std::chrono::high_resolution_clock::now();
             for (int i = 0; i < hap_edge_count; ++i) {
                  std::cin >> x >> y;
+                 #ifndef BENCHMARK
                  std::cout << x << " " << y << std::endl;
+                 #endif
                  #ifndef BENCHMARK
                  start = std::chrono::high_resolution_clock::now();
                  #endif
                  superbubble.insertE(&d,&g,x,y);
+                 #ifndef BENCHMARK
                  g.displayOutgoingGraph();
+                 #endif
                  // use pointer to superbubble tree to flag affected superbubbles and all ancestors upto LCA
                  #ifndef BENCHMARK
                  end = std::chrono::high_resolution_clock::now();
@@ -177,8 +189,10 @@ public:
                  if (mode == "perEdge") {
                      
                      d.performDFS(&g);
+                     #ifndef BENCHMARK
                      d.displayTopologicalOrder();
                      d.displayReverseTopologicalOrder();
+                     #endif
                      
                      
 
@@ -212,7 +226,9 @@ public:
                      superbubbleTime = elapsed.count();
                      #endif
                      
+                     #ifndef BENCHMARK
                      superbubble.printSuperbubbles(&g);
+                     #endif
                      #ifndef BENCHMARK
                      totalTime = currentinsertTime + simdfs.latestTimes.dfsTime + simdfs.latestTimes.topologicalOrderTime + minITime + maxOTime + superbubbleTime;
                      timeFile << i + 1 << " " << clean_hap_name << " " << currentinsertTime << " " << simdfs.latestTimes.dfsTime << " " << simdfs.latestTimes.topologicalOrderTime << " " << minITime << " " << maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << "\n";

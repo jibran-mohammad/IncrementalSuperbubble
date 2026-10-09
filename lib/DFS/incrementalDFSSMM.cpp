@@ -78,7 +78,9 @@
                
                //case where u is new node
                if(g->strategy->newu == true){
+                   #ifndef BENCHMARK
                    std::cout << "u is new node" << std::endl;
+                   #endif
                    this->cases = 1;
                    #ifndef BENCHMARK
                    this->edgeTypes.case1 +=1;

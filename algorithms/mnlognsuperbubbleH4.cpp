@@ -32,7 +32,9 @@ public:
         // --- Skip initial comment lines ---
         while (std::getline(std::cin, line) && (line.empty() || line[0] == '#')) {
             // This loop reads and discards all comment lines at the top of the file.
+            #ifndef BENCHMARK
             std::cout << line << std::endl;
+            #endif
         }
         //std::cout << line << std::endl;
         // --- 1. Process the Base Graph ---
@@ -84,7 +86,9 @@ public:
         //d.displayReverseTopologicalOrder();
         //d.displayMinI();
         //d.displayMaxO();
+        #ifndef BENCHMARK
         superbubble.printSuperbubbles(&g);
+        #endif
         
 
         // Record timing for the entire base graph construction
@@ -192,7 +196,9 @@ public:
                     currentsuperbubbleTime = 0.0;
                     #endif
 
+                    #ifndef BENCHMARK
                     superbubble.printSuperbubbles(&g);
+                    #endif
                 } 
                 
             }
