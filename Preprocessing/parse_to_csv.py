@@ -74,15 +74,13 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     # Define metric columns
     BASE_METRIC_COLUMNS = ['Insert_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time', 'SB_Count', 'AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
     
-    is_incremental_file = (
-            "Incremental" in filename.name or
-            "DifferentMaxO" in filename.name
-        )
-    has_explored = (
-            "AVL" in filename.name or
-            "Batch" in filename.name or
-            "DifferentMaxO" in filename.name
-        )
+    # Timing files are named <ID>_time.txt (see ALGORITHMS.md); the
+    # incremental algorithms write case columns, and some also explored counts.
+    algorithm_id = filename.name[:-len("_time.txt")]
+
+    is_incremental_file = algorithm_id in {"incRecompute", "incBST", "incMinIBST", "incBSTBatch"}
+
+    has_explored = algorithm_id in {"incBST", "incMinIBST", "incBSTBatch"}
     if is_incremental_file:
         CASE_COLUMNS = ['Case1', 'Case2', 'Case3', 'Case4', 'Case5']
         if has_explored:
@@ -107,21 +105,21 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
         EXPECTED_DATA_PARTS_LEN = 2 + len(FULL_METRIC_COLUMNS)
         
     # Determine PREFIX and SOURCE METRIC
-    if filename.name == "SuperbubbleSimpleTimeOutput.txt":
+    if filename.name == "static_time.txt":
         source_time_metric = 'Total_Time'
-        prefix = 'Simple_'
-    elif filename.name == "SuperbubbleIncrementalDFSOutputSSM.txt":
+        prefix = 'static_'
+    elif filename.name == "incRecompute_time.txt":
         source_time_metric = 'DFS_Time'
-        prefix = 'INC_'
-    elif filename.name == "SuperbubbleIncrementalAVLDFSOutput.txt":
+        prefix = 'incRecompute_'
+    elif filename.name == "incBST_time.txt":
         source_time_metric = 'DFS_Time'
-        prefix = 'BST_'
-    elif filename.name == "SuperbubbleIncrementalBatchDFSOutput.txt":
+        prefix = 'incBST_'
+    elif filename.name == "incBSTBatch_time.txt":
         source_time_metric = 'DFS_Time'
-        prefix = 'INCBATCH_' 
-    elif filename.name == "SuperbubbleDifferentMaxO.txt":
+        prefix = 'incBSTBatch_' 
+    elif filename.name == "incMinIBST_time.txt":
         source_time_metric = 'DFS_Time'   
-        prefix = 'DIFFMAXO_'       
+        prefix = 'incMinIBST_'       
 
     current_haplotype_edges = 0
     current_haplotype_nodes = 0
@@ -381,11 +379,11 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
     Parses all three time files, prefixes the common metrics, and merges them.
     """
     # ADD THIS CHECK:
-    required = ["SuperbubbleSimpleTimeOutput.txt", 
-                "SuperbubbleIncrementalDFSOutputSSM.txt", 
-                "SuperbubbleIncrementalAVLDFSOutput.txt",
-                "SuperbubbleIncrementalBatchDFSOutput.txt",
-                "SuperbubbleDifferentMaxO.txt"]
+    required = ["static_time.txt", 
+                "incRecompute_time.txt", 
+                "incBST_time.txt",
+                "incBSTBatch_time.txt",
+                "incMinIBST_time.txt"]
     
     dir_name = time_dir_path.name.lower()
 
@@ -410,11 +408,11 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
 
     # Define files, corresponding time columns, and their prefixes
     ALGORITHMS = {
-        "Simple": "SuperbubbleSimpleTimeOutput.txt",
-        "INC": "SuperbubbleIncrementalDFSOutputSSM.txt",
-        "BST": "SuperbubbleIncrementalAVLDFSOutput.txt",
-        "INCBATCH": "SuperbubbleIncrementalBatchDFSOutput.txt",
-        "DIFFMAXO": "SuperbubbleDifferentMaxO.txt"
+        "static": "static_time.txt",
+        "incRecompute": "incRecompute_time.txt",
+        "incBST": "incBST_time.txt",
+        "incBSTBatch": "incBSTBatch_time.txt",
+        "incMinIBST": "incMinIBST_time.txt"
     }
 
     files_to_parse = {
@@ -441,7 +439,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         # 1. Define time metric structures for use in merging and filtering (FIX: SCOPE)
         BASE_TIME_METRICS = ['Insert_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time']
         BASE_VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
-        PREFIXES = ['Simple_', 'INC_', 'BST_','INCBATCH_','DIFFMAXO_']
+        PREFIXES = ['static_', 'incRecompute_', 'incBST_','incBSTBatch_','incMinIBST_']
         
         # 2. Perform the full merge
         merge_keys = ['Step']
@@ -496,12 +494,12 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         
         rename_dict = {}
         for case in CASE_METRICS:
-            # Drop the INC_ columns
-            if f'INC_{case}' in merged_df.columns:
-                merged_df = merged_df.drop(columns=[f'INC_{case}'], errors='ignore')
-            # Rename the BST_ columns to the final CaseX name
-            if f'BST_{case}' in merged_df.columns:
-                rename_dict[f'BST_{case}'] = case
+            # Drop the incRecompute_ columns
+            if f'incRecompute_{case}' in merged_df.columns:
+                merged_df = merged_df.drop(columns=[f'incRecompute_{case}'], errors='ignore')
+            # Rename the incBST_ columns to the final CaseX name
+            if f'incBST_{case}' in merged_df.columns:
+                rename_dict[f'incBST_{case}'] = case
         
         merged_df = merged_df.rename(columns=rename_dict)
         
@@ -509,26 +507,26 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         
         RENAME_MAP = {
             'Haplotype_Name': 'HaplotypeName',
-            'Simple_SB_Count': 'SuperbubbleCount',
+            'static_SB_Count': 'SuperbubbleCount',
         }
 
-        # Function to convert snake_case column names (e.g., Simple_DFS_Time) to PascalCase (SimpleDFSTime)
+        # Function to convert snake_case column names (e.g., static_DFS_Time) to PascalCase (staticDFSTime)
         def to_pascal_case(name):
             if name in RENAME_MAP:
                 return RENAME_MAP[name]
 
             # Preserve the prefixed parts exactly (so acronyms like DFS, MinI, MaxO stay uppercase)
             # and convert by simply removing the underscores between parts.
-            # Special-case the Time_s sentinel which we want as e.g. SimpleTimeS
+            # Special-case the Time_s sentinel which we want as e.g. staticTimeS
             if name.endswith('Time_s'):
-                # e.g. 'Simple_Time_s' -> 'SimpleTimeS'
+                # e.g. 'static_Time_s' -> 'staticTimeS'
                 prefix = name.split('_')[0]
                 return prefix + 'TimeS'
 
-            if name.startswith(('Simple_', 'INC_', 'BST_', 'INCBATCH_', 'DIFFMAXO_')):
+            if name.startswith(('static_', 'incRecompute_', 'incBST_', 'incBSTBatch_', 'incMinIBST_')):
                 parts = name.split('_')
                 # Keep inner parts exactly (no .capitalize()), just glue them:
-                # 'Simple_DFS_Time' -> ['Simple','DFS','Time'] -> 'Simple' + 'DFS' + 'Time' -> 'SimpleDFSTime'
+                # 'static_DFS_Time' -> ['static','DFS','Time'] -> 'static' + 'DFS' + 'Time' -> 'staticDFSTime'
                 return parts[0] + ''.join(parts[1:])
 
             return name  # Case1-5 and common columns
@@ -542,7 +540,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         TIME_METRICS = ['InsertTime', 'DFSTime', 'TopologicalOrderTime', 'MinITime', 'MaxOTime', 'SBComputeTime', 'TotalTime']
         VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
         GRAPH_METRICS = ['TotalVertices', 'TotalEdges']
-        PREFIXES = ['Simple', 'INC', 'BST', 'INCBATCH','DIFFMAXO']
+        PREFIXES = ['static', 'incRecompute', 'incBST', 'incBSTBatch','incMinIBST']
 
         final_order = BASE_COLS + ['SuperbubbleCount']
 

@@ -5,10 +5,13 @@
 test/h1Superbubble_
 test/mnlognsuperbubble_
 
-# Ignore test executables
-test/mnlognsuperbubble
+# Ignore test executables (names: see ALGORITHMS.md)
+test/static
+test/incRecompute
+test/incBST
+test/incMinIBST
+test/incBSTBatch
 test/superbubbleIncdfs
-test/superbubbledfs
 
 # Ignore Python virtual environments
 venv/

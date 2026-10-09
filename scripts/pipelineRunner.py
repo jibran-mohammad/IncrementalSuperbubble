@@ -34,12 +34,12 @@ BASE_OUTPUT_DIR = REPO_ROOT / "output"
 # next to the folders of external tools such as output/Ecoli/bubblegun/.
 TOOL_NAME = "incsuperbubble"
 
-# Algorithm run by default (name from ALGORITHMS in superbubbleRunner.py).
-# incsuperbubbleDifferentMaxO = algorithms/mnlognsuperbubbleH4.cpp
-BEST_ALGORITHM = "incsuperbubbleDifferentMaxO"
+# Algorithm run by default (an ID from ALGORITHMS in superbubbleRunner.py;
+# see ALGORITHMS.md). incMinIBST = algorithms/incMinIBST.cpp
+BEST_ALGORITHM = "incMinIBST"
 
 # Algorithms that are never run by the pipeline (not ready yet).
-NOT_READY_ALGORITHMS = {"IncrementalSuperbubbleBatch"}
+NOT_READY_ALGORITHMS = {"incBSTBatch"}
 
 # Same mode directory names as superbubbleRunner.py
 MODE_DIRS = {"perEdge": "perEdge", "perBatch": "perbatch"}
@@ -415,10 +415,10 @@ output/<dataset>[/<chromosome>]/incsuperbubble/<perEdge|perbatch>/<algorithm>_ti
 
 python3 pipelineRunner.py -d Ecoli -m perEdge
 Runs the best algorithm on E. coli
-python3 pipelineRunner.py -d Human -a SimpleSuperbubble -m perEdge
-Runs all chromosomes for SimpleSuperbubble
-python3 pipelineRunner.py -d Ecoli -a SimpleSuperbubble -m perEdge
-python3 pipelineRunner.py -d Human -c c1 -a SimpleSuperbubble -m perEdge
+python3 pipelineRunner.py -d Human -a static -m perEdge
+Runs all chromosomes for the static algorithm
+python3 pipelineRunner.py -d Ecoli -a static -m perEdge
+python3 pipelineRunner.py -d Human -c c1 -a static -m perEdge
 
 
 """

@@ -109,9 +109,9 @@ This step handles C++ compilation via the Makefile and executes the algorithms o
 
 **Script location: scripts/superbubbleRunner.py**
 
-**Available Algorithms: SimpleSuperbubble, incsuperbubbleDifferentMaxO, AnotherAlgorithm, incsuperbubblessm, IncrementalSuperbubbleBatch.**
+**Available Algorithms: `static`, `incRecompute`, `incBST`, `incMinIBST`, `incBSTBatch`.** Each ID is also the source file (`algorithms/<ID>.cpp`), make target, binary (`test/<ID>`) and timing file (`<ID>_time.txt`); see [ALGORITHMS.md](ALGORITHMS.md) for what each one does.
 
-`IncrementalSuperbubbleBatch` only runs in `perBatch` mode; it is skipped automatically in `perEdge` mode. Each algorithm is run 100 times (`NUM_RUNS` in `superbubbleRunner.py`) and the timings are averaged, so large datasets take a long time.
+`incBSTBatch` only runs in `perBatch` mode; it is skipped automatically in `perEdge` mode. Each algorithm is run 100 times (`NUM_RUNS` in `superbubbleRunner.py`) and the timings are averaged, so large datasets take a long time.
 
 Examples:
 ```Bash
@@ -123,10 +123,10 @@ python3 scripts/superbubbleRunner.py --dataset Ecoli -m perBatch
 python3 scripts/superbubbleRunner.py --dataset Ecoli -m perEdge
 
 # Run specific algorithms on chromosome_1 in batch mode
-python3 scripts/superbubbleRunner.py --dataset Human --algorithms AnotherAlgorithm --chromosomes chromosome_1 -m perBatch
+python3 scripts/superbubbleRunner.py --dataset Human --algorithms incBST --chromosomes chromosome_1 -m perBatch
 
 # Run specific algorithms on chromosome_1 in edge mode
-python3 scripts/superbubbleRunner.py --dataset Human --algorithms AnotherAlgorithm --chromosomes chromosome_1 -m perEdge
+python3 scripts/superbubbleRunner.py --dataset Human --algorithms incBST --chromosomes chromosome_1 -m perEdge
 ```
 ### Phase 3: Data Analysis and Plotting
 This final phase processes the raw time outputs into readable CSVs and generates performance charts.

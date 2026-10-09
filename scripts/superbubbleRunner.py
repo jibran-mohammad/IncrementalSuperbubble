@@ -18,23 +18,23 @@ import time
 #    python3 superbubbleRunner.py -d Human
 #
 # 3. Run on Ecoli dataset with a SINGLE specific algorithm:
-#    python3 superbubbleRunner.py -a SimpleSuperbubble
+#    python3 superbubbleRunner.py -a static
 #
 # 4. Run on Ecoli dataset with MULTIPLE specific algorithms:
-#    python3 superbubbleRunner.py -a SimpleSuperbubble AnotherAlgorithm
+#    python3 superbubbleRunner.py -a static incBST
 #
 # 5. Run on Human dataset with a SINGLE specific algorithm:
-#    python3 superbubbleRunner.py -d Human -a IncrementalAlgorithm
+#    python3 superbubbleRunner.py -d Human -a incRecompute
 #
 # 6. Run on Human dataset with MULTIPLE specific algorithms:
-#    python3 superbubbleRunner.py -d Human -a IncrementalAlgorithm AnotherAlgorithm
+#    python3 superbubbleRunner.py -d Human -a incRecompute incBST
 #
 # 
 # 7. Run on Human dataset for ONLY chromosome_1:
 #    python3 superbubbleRunner.py -d Human -c chromosome_1
 #
 # 8. Run on Human dataset for chromosome_1 and chromosome_X with a specific algorithm:
-#    python3 superbubbleRunner.py -d Human -a SimpleSuperbubble -c chromosome_1 chromosome_X
+#    python3 superbubbleRunner.py -d Human -a static -c chromosome_1 chromosome_X
 # 
 # 9. For Batch processing: python3 superbubbleRunner.py -d Human -m perBatch
 
@@ -76,17 +76,21 @@ print("PIPELINE MODE:", PIPELINE_MODE)
 #
 #    NOTE: The 'output_dir' has been removed from this list because the
 #    main() function now generates it dynamically based on the dataset.
+#    Every algorithm has one ID, used for the source file
+#    (algorithms/<ID>.cpp), the make target and binary (test/<ID>), the
+#    name below, the timing file (<ID>_time.txt) and the CSV/table column
+#    prefix. See ALGORITHMS.md for what each algorithm does.
 ALGORITHMS = [
     {
-        "name": "SimpleSuperbubble",
-        "target": "simpleSuperbubble",
-        "output_filename": "SuperbubbleSimpleTimeOutput.txt"
+        "name": "static",
+        "target": "static",
+        "output_filename": "static_time.txt"
     },
 
     {
-        "name": "incsuperbubbleDifferentMaxO",
-        "target": "incsuperbubbleDifferentMaxO",
-        "output_filename": "SuperbubbleDifferentMaxO.txt"
+        "name": "incRecompute",
+        "target": "incRecompute",
+        "output_filename": "incRecompute_time.txt"
     },
 
    
@@ -96,9 +100,15 @@ ALGORITHMS = [
     #   "output_filename": "SuperbubbleIncrementalDFSOutput.txt"
     #},
     {
-        "name": "AnotherAlgorithm",
-        "target": "newincrementalSuperbubble",
-        "output_filename": "SuperbubbleIncrementalAVLDFSOutput.txt"
+        "name": "incBST",
+        "target": "incBST",
+        "output_filename": "incBST_time.txt"
+    },
+
+    {
+        "name": "incMinIBST",
+        "target": "incMinIBST",
+        "output_filename": "incMinIBST_time.txt"
     },
      
     #{
@@ -108,15 +118,9 @@ ALGORITHMS = [
     #},
 
     {
-        "name": "incsuperbubblessm",
-        "target": "incsuperbubblessm",
-        "output_filename": "SuperbubbleIncrementalDFSOutputSSM.txt"
-    },
-
-    {
-        "name": "IncrementalSuperbubbleBatch",
-        "target": "incsuperbubblebatch",
-        "output_filename": "SuperbubbleIncrementalBatchDFSOutput.txt"
+        "name": "incBSTBatch",
+        "target": "incBSTBatch",
+        "output_filename": "incBSTBatch_time.txt"
     }
 ]
 # ---------------------
@@ -293,13 +297,13 @@ def main():
         print("--- Starting Superbubble Algorithm Pipeline (all algorithms) ---")
 
     if args.mode == "perEdge":
-        removed = [algo['name'] for algo in algorithms_to_run if algo['name'] == "IncrementalSuperbubbleBatch"]
+        removed = [algo['name'] for algo in algorithms_to_run if algo['name'] == "incBSTBatch"]
         algorithms_to_run = [
             algo for algo in algorithms_to_run
-            if algo['name'] != "IncrementalSuperbubbleBatch"
+            if algo['name'] != "incBSTBatch"
         ]
         if removed:
-            print("[INFO] Skipping IncrementalSuperbubbleBatch (only valid for perBatch mode)")
+            print("[INFO] Skipping incBSTBatch (only valid for perBatch mode)")
 
     print(f"--- Target Dataset: {args.dataset} ---")
 

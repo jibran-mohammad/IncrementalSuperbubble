@@ -13,7 +13,7 @@
 #define LOG(x)
 #endif
 
-class IncrementalSuperbubbleSMM: public AlgorithmForSuperbubbles {
+class IncRecomputeSuperbubble: public AlgorithmForSuperbubbles {
 public:  
     long getMemoryUsageInKB() {
         struct rusage usage;
@@ -304,6 +304,6 @@ int main(int argc, char* argv[]){
         std::cerr << "Usage: " << argv[0] << " <output_file_path> <perBatch|perEdge>" << std::endl;
         return 1; // Exit with an error code
     }
-	IncrementalSuperbubbleSMM incremental;
+	IncRecomputeSuperbubble incremental;
     incremental.inputAndCompute(argv[1], argv[2]);
 }

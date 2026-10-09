@@ -7,11 +7,28 @@ import re
 
 # Add algorithms here in future (extensible)
 ALGORITHMS = {
-    "Simple": "Simple",
-    "INC": "INC",
-    "BST": "BST",
-    "DIFFMAXO": "DIFFMAXO"
+    "static": "static",
+    "incRecompute": "incRecompute",
+    "incBST": "incBST",
+    "incMinIBST": "incMinIBST"
 }
+
+# Names shown in table headers (IDs and meanings: see ALGORITHMS.md)
+DISPLAY_NAMES = {
+    "static": "Static",
+    "incRecompute": "Inc-Recompute",
+    "incBST": "Inc-BST",
+    "incMinIBST": "Inc-MinI-BST",
+    "incBSTBatch": "Inc-BST-Batch",
+}
+
+
+def display_header(column: str) -> str:
+    """'incBST_Speedup' -> 'Inc-BST Speedup'; other columns unchanged."""
+    algo, _, rest = column.partition("_")
+    if algo in DISPLAY_NAMES:
+        return DISPLAY_NAMES[algo] + (" " + rest if rest else "")
+    return column
 
 # Metrics -> column suffix used in CSV
 METRICS = {
@@ -75,7 +92,7 @@ def sum_metric(df: pd.DataFrame, algo_key: str, metric_suffix: str) -> float:
 
 def compute_speedup(simple_val: float, other_val: float) -> float:
     """
-    Speedup = Simple / Other
+    Speedup = static / Other
     """
     if (
         simple_val == 0
@@ -88,8 +105,8 @@ def compute_speedup(simple_val: float, other_val: float) -> float:
 
 
 def pct_improvement(simple_val: float, other_val: float) -> float:
-    # Improvement: how much faster compared to Simple
-    # (Simple - Other)/Simple * 100
+    # Improvement: how much faster compared to static
+    # (static - Other)/static * 100
     if simple_val == 0 or pd.isna(simple_val) or pd.isna(other_val):
         return float("nan")
     return 100.0 * (simple_val - other_val) / simple_val
@@ -114,7 +131,7 @@ def generate_latex_table(df: pd.DataFrame, columns: list, caption: str, label: s
     lines.append(r"\begin{tabular}{" + colfmt + r"}")
     lines.append(r"\hline")
 
-    header = [latex_escape(c) for c in columns]
+    header = [latex_escape(display_header(c)) for c in columns]
     lines.append(" & ".join([rf"\textbf{{{h}}}" for h in header]) + r" \\")
     lines.append(r"\hline")
 
@@ -144,10 +161,10 @@ def build_summary_rows_for_metric(csv_paths: list, metric_name: str, mode: str):
         df = normalize_dataframe(df, path)
         name = infer_dataset_name_from_path(path)
 
-        simple_total   = sum_metric(df, ALGORITHMS["Simple"],   metric_suffix)
-        inc_total      = sum_metric(df, ALGORITHMS["INC"],      metric_suffix)
-        bst_total      = sum_metric(df, ALGORITHMS["BST"],      metric_suffix)
-        diffmaxo_total = sum_metric(df, ALGORITHMS["DIFFMAXO"], metric_suffix)
+        simple_total   = sum_metric(df, ALGORITHMS["static"],   metric_suffix)
+        inc_total      = sum_metric(df, ALGORITHMS["incRecompute"],      metric_suffix)
+        bst_total      = sum_metric(df, ALGORITHMS["incBST"],      metric_suffix)
+        diffmaxo_total = sum_metric(df, ALGORITHMS["incMinIBST"], metric_suffix)
 
         inc_speedup      = compute_speedup(simple_total, inc_total)
         bst_speedup      = compute_speedup(simple_total, bst_total)
@@ -160,20 +177,20 @@ def build_summary_rows_for_metric(csv_paths: list, metric_name: str, mode: str):
         if mode == "time":
             rows.append({
                 "Dataset":          name,
-                "Simple":           format_float(simple_total),
-                "INC":              format_float(inc_total),
-                "BST":              format_float(bst_total),
-                "DIFFMAXO":         format_float(diffmaxo_total),
-                "INC_Speedup":      format_float(inc_speedup,      precision=2),
-                "BST_Speedup":      format_float(bst_speedup,      precision=2),
-                "DIFFMAXO_Speedup": format_float(diffmaxo_speedup, precision=2),
+                "static":           format_float(simple_total),
+                "incRecompute":              format_float(inc_total),
+                "incBST":              format_float(bst_total),
+                "incMinIBST":         format_float(diffmaxo_total),
+                "incRecompute_Speedup":      format_float(inc_speedup,      precision=2),
+                "incBST_Speedup":      format_float(bst_speedup,      precision=2),
+                "incMinIBST_Speedup": format_float(diffmaxo_speedup, precision=2),
             })
         else:
             rows.append({
                 "Dataset":          name,
-                "INC_Imp(%)":       format_float(inc_percent,      precision=2),
-                "BST_Imp(%)":       format_float(bst_percent,      precision=2),
-                "DIFFMAXO_Imp(%)":  format_float(diffmaxo_percent, precision=2),
+                "incRecompute_Imp(%)":       format_float(inc_percent,      precision=2),
+                "incBST_Imp(%)":       format_float(bst_percent,      precision=2),
+                "incMinIBST_Imp(%)":  format_float(diffmaxo_percent, precision=2),
             })
 
     return pd.DataFrame(rows)
@@ -225,8 +242,8 @@ def build_vertex_activity_table(csv_paths):
 
         name = infer_dataset_name_from_path(path)
 
-        affected = df.get("INCAffectedVertices", 0).sum()
-        explored = df.get("BSTExploredVertices", 0).sum()
+        affected = df.get("incRecomputeAffectedVertices", 0).sum()
+        explored = df.get("incBSTExploredVertices", 0).sum()
 
         if explored == 0:
             ratio = float("nan")
@@ -244,7 +261,7 @@ def build_vertex_activity_table(csv_paths):
 
 def build_total_time_table(csv_paths: list, mode: str):
     """
-    Dataset | Simple_TotalTime | INC_TotalTime | BST_TotalTime | INC_Imp(%) | BST_Imp(%) | PeakMemory
+    Dataset | static_TotalTime | incRecompute_TotalTime | incBST_TotalTime | incRecompute_Imp(%) | incBST_Imp(%) | PeakMemory
     """
     rows = []
 
@@ -256,10 +273,10 @@ def build_total_time_table(csv_paths: list, mode: str):
         peak_col = find_peak_memory_column(df)
         peak_mem = float(df[peak_col].max()) if peak_col else float("nan")
 
-        simple_total = sum_metric(df, ALGORITHMS["Simple"], "TotalTime")
-        inc_total = sum_metric(df, ALGORITHMS["INC"], "TotalTime")
-        bst_total = sum_metric(df, ALGORITHMS["BST"], "TotalTime")
-        diffmaxo_total   = sum_metric(df, ALGORITHMS["DIFFMAXO"], "TotalTime")
+        simple_total = sum_metric(df, ALGORITHMS["static"], "TotalTime")
+        inc_total = sum_metric(df, ALGORITHMS["incRecompute"], "TotalTime")
+        bst_total = sum_metric(df, ALGORITHMS["incBST"], "TotalTime")
+        diffmaxo_total   = sum_metric(df, ALGORITHMS["incMinIBST"], "TotalTime")
         
         diffmaxo_speedup = compute_speedup(simple_total, diffmaxo_total)
         diffmaxo_percent = pct_improvement(simple_total, diffmaxo_total)
@@ -273,21 +290,21 @@ def build_total_time_table(csv_paths: list, mode: str):
         if mode == "time":
             rows.append({
                 "Dataset": name,
-                "Simple": format_float(simple_total),
-                "INC": format_float(inc_total),
-                "BST": format_float(bst_total),
-                "DIFFMAXO":format_float(diffmaxo_total),
-                "INC_Speedup": format_float(inc_speedup, precision=2),
-                "BST_Speedup": format_float(bst_speedup, precision=2),
-                "DIFFMAXO_Speedup": format_float(diffmaxo_speedup, precision=2),
+                "static": format_float(simple_total),
+                "incRecompute": format_float(inc_total),
+                "incBST": format_float(bst_total),
+                "incMinIBST":format_float(diffmaxo_total),
+                "incRecompute_Speedup": format_float(inc_speedup, precision=2),
+                "incBST_Speedup": format_float(bst_speedup, precision=2),
+                "incMinIBST_Speedup": format_float(diffmaxo_speedup, precision=2),
                 "PeakMemory": format_float(peak_mem, precision=2),
             })
         else:
             rows.append({
                 "Dataset": name,
-                "INC_Imp(%)": format_float(inc_percent, precision=2),
-                "BST_Imp(%)": format_float(bst_percent, precision=2),
-                "DIFFMAXO_Imp(%)":  format_float(diffmaxo_percent, precision=2),
+                "incRecompute_Imp(%)": format_float(inc_percent, precision=2),
+                "incBST_Imp(%)": format_float(bst_percent, precision=2),
+                "incMinIBST_Imp(%)":  format_float(diffmaxo_percent, precision=2),
                 "PeakMemory": format_float(peak_mem, precision=2),
             })
 
@@ -344,10 +361,10 @@ def build_case_metric_table(csv_paths: list, case_name: str, metric_name: str, m
         if case_df.empty:
             continue
 
-        simple_total = float(case_df[f"Simple{metric_suffix}"].fillna(0).sum())
-        inc_total = float(case_df[f"INC{metric_suffix}"].fillna(0).sum())
-        bst_total = float(case_df[f"BST{metric_suffix}"].fillna(0).sum())
-        diffmaxo_total   = float(case_df[f"DIFFMAXO{metric_suffix}"].fillna(0).sum()) if f"DIFFMAXO{metric_suffix}" in case_df.columns else float("nan")
+        simple_total = float(case_df[f"static{metric_suffix}"].fillna(0).sum())
+        inc_total = float(case_df[f"incRecompute{metric_suffix}"].fillna(0).sum())
+        bst_total = float(case_df[f"incBST{metric_suffix}"].fillna(0).sum())
+        diffmaxo_total   = float(case_df[f"incMinIBST{metric_suffix}"].fillna(0).sum()) if f"incMinIBST{metric_suffix}" in case_df.columns else float("nan")
 
         inc_speedup = compute_speedup(simple_total, inc_total)
         bst_speedup = compute_speedup(simple_total, bst_total)
@@ -360,20 +377,20 @@ def build_case_metric_table(csv_paths: list, case_name: str, metric_name: str, m
         if mode == "time":
             row = {
                 "Dataset": name,
-                "Simple": format_float(simple_total),
-                "INC": format_float(inc_total),
-                "BST": format_float(bst_total),
-                "DIFFMAXO":format_float(diffmaxo_total),
-                "INC_Speedup": format_float(inc_speedup, precision=2),
-                "BST_Speedup": format_float(bst_speedup, precision=2),
-                "DIFFMAXO_Speedup": format_float(diffmaxo_speedup, precision=2),
+                "static": format_float(simple_total),
+                "incRecompute": format_float(inc_total),
+                "incBST": format_float(bst_total),
+                "incMinIBST":format_float(diffmaxo_total),
+                "incRecompute_Speedup": format_float(inc_speedup, precision=2),
+                "incBST_Speedup": format_float(bst_speedup, precision=2),
+                "incMinIBST_Speedup": format_float(diffmaxo_speedup, precision=2),
             }
         else:
             row = {
                 "Dataset": name,
-                "INC_Imp(%)": format_float(inc_percent, precision=2),
-                "BST_Imp(%)": format_float(bst_percent, precision=2),
-                "DIFFMAXO_Imp(%)": format_float(diffmaxo_percent, precision=2),
+                "incRecompute_Imp(%)": format_float(inc_percent, precision=2),
+                "incBST_Imp(%)": format_float(bst_percent, precision=2),
+                "incMinIBST_Imp(%)": format_float(diffmaxo_percent, precision=2),
             }
 
         rows.append(row)
@@ -426,9 +443,9 @@ def build_vertex_ratio_table(csv_paths: list):
         # No longer need this line since we already filtered above
         # data = df[df["Step"] != "Base"]
 
-        total_verts = int(df["INCTotalVertices"].fillna(0).sum()) if "INCTotalVertices" in df.columns else 0
-        affected    = int(df["INCAffectedVertices"].fillna(0).sum()) if "INCAffectedVertices" in df.columns else 0
-        explored    = int(df["BSTExploredVertices"].fillna(0).sum()) if "BSTExploredVertices" in df.columns else 0
+        total_verts = int(df["incRecomputeTotalVertices"].fillna(0).sum()) if "incRecomputeTotalVertices" in df.columns else 0
+        affected    = int(df["incRecomputeAffectedVertices"].fillna(0).sum()) if "incRecomputeAffectedVertices" in df.columns else 0
+        explored    = int(df["incBSTExploredVertices"].fillna(0).sum()) if "incBSTExploredVertices" in df.columns else 0
 
         affected_ratio = (affected / total_verts * 100) if total_verts > 0 else float("nan")
         explored_ratio = (explored / total_verts * 100) if total_verts > 0 else float("nan")
@@ -457,9 +474,9 @@ def build_edge_ratio_table(csv_paths: list):
         name = infer_dataset_name_from_path(path)
         mode_label = detect_mode_from_path(path)
 
-        total_edges    = int(df["INCTotalEdges"].fillna(0).sum())         if "INCTotalEdges"             in df.columns else 0
-        affected_edges = int(df["INCTotalAffectedEdges"].fillna(0).sum()) if "INCTotalAffectedEdges"     in df.columns else 0
-        explored_edges = int(df["BSTTotalExploredEdges"].fillna(0).sum()) if "BSTTotalExploredEdges"     in df.columns else 0
+        total_edges    = int(df["incRecomputeTotalEdges"].fillna(0).sum())         if "incRecomputeTotalEdges"             in df.columns else 0
+        affected_edges = int(df["incRecomputeTotalAffectedEdges"].fillna(0).sum()) if "incRecomputeTotalAffectedEdges"     in df.columns else 0
+        explored_edges = int(df["incBSTTotalExploredEdges"].fillna(0).sum()) if "incBSTTotalExploredEdges"     in df.columns else 0
 
         affected_ratio = (affected_edges / total_edges * 100) if total_edges > 0 else float("nan")
         explored_ratio = (explored_edges / total_edges * 100) if total_edges > 0 else float("nan")
@@ -510,11 +527,11 @@ def main():
 
         out_tex = os.path.join(args.outdir, f"table_{metric_name}.tex")
         if mode == "time":
-            columns = ["Dataset", "Simple", "INC", "BST", "DIFFMAXO", "INC_Speedup", "BST_Speedup", "DIFFMAXO_Speedup"] 
+            columns = ["Dataset", "static", "incRecompute", "incBST", "incMinIBST", "incRecompute_Speedup", "incBST_Speedup", "incMinIBST_Speedup"] 
             caption = f"{metric_name} total time comparison across datasets"
             label = f"tab:{metric_name.lower()}_summary_time"
         else:
-            columns = ["Dataset", "INC_Imp(%)", "BST_Imp(%)", "DIFFMAXO_Imp(%)"] 
+            columns = ["Dataset", "incRecompute_Imp(%)", "incBST_Imp(%)", "incMinIBST_Imp(%)"] 
             caption = f"{metric_name} percentage improvement across datasets"
             label = f"tab:{metric_name.lower()}_summary_percent"
         generate_latex_table(
@@ -539,11 +556,11 @@ def main():
     total_df = build_total_time_table(csv_paths, mode)
     out_tex = os.path.join(args.outdir, "table_TotalTime.tex")
     if mode == "time":
-        columns = ["Dataset", "Simple", "INC", "BST", "DIFFMAXO", "INC_Speedup", "BST_Speedup", "DIFFMAXO_Speedup", "PeakMemory"] 
+        columns = ["Dataset", "static", "incRecompute", "incBST", "incMinIBST", "incRecompute_Speedup", "incBST_Speedup", "incMinIBST_Speedup", "PeakMemory"] 
         caption = "Total time comparison across datasets (with peak memory)"
         label = "tab:totaltime_summary_time"
     else:
-        columns = ["Dataset", "INC_Imp(%)", "BST_Imp(%)", "DIFFMAXO_Imp(%)", "PeakMemory"]
+        columns = ["Dataset", "incRecompute_Imp(%)", "incBST_Imp(%)", "incMinIBST_Imp(%)", "PeakMemory"]
         caption = "Total time percentage improvement across datasets (with peak memory)"
         label = "tab:totaltime_summary_percent"
     generate_latex_table(
@@ -574,11 +591,11 @@ def main():
                 continue
 
             if mode == "time":
-                columns = ["Dataset", "Simple", "INC", "BST", "DIFFMAXO", "INC_Speedup", "BST_Speedup", "DIFFMAXO_Speedup"]
+                columns = ["Dataset", "static", "incRecompute", "incBST", "incMinIBST", "incRecompute_Speedup", "incBST_Speedup", "incMinIBST_Speedup"]
                 caption = f"{metric_name} time comparison for {case_name}"
                 label = f"tab:{case_name.lower()}_{metric_name.lower()}_time"
             else:
-                columns = ["Dataset", "INC_Imp(%)", "BST_Imp(%)", "DIFFMAXO_Imp(%)"]
+                columns = ["Dataset", "incRecompute_Imp(%)", "incBST_Imp(%)", "incMinIBST_Imp(%)"]
                 caption = f"{metric_name} percentage improvement for {case_name}"
                 label = f"tab:{case_name.lower()}_{metric_name.lower()}_percent"
 

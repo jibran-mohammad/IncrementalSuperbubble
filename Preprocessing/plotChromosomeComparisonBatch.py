@@ -35,12 +35,12 @@ import os
 import re
 
 
-ALGORITHMS = ["Simple", "INCBATCH", "DIFFMAXO"]
+ALGORITHMS = ["static", "incBSTBatch", "incMinIBST"]
 
 DISPLAY_NAMES = {
-    "Simple": "Simple",
-    "INCBATCH": "INC",
-    "DIFFMAXO": "FINAL"
+    "static": "Static",
+    "incBSTBatch": "Inc-BST-Batch",
+    "incMinIBST": "FINAL"
 }
 
 def plot_component_comparison(paths, output_dir, mode):
@@ -93,9 +93,9 @@ def plot_component_comparison(paths, output_dir, mode):
     step_indices = np.arange(len(labels))
 
     x_positions = {
-        "Simple":   step_indices - bar_width,
-        "INCBATCH": step_indices ,
-        "DIFFMAXO": step_indices +  bar_width,
+        "static":   step_indices - bar_width,
+        "incBSTBatch": step_indices ,
+        "incMinIBST": step_indices +  bar_width,
     }
 
     fig, ax = plt.subplots(figsize=(20,6))
@@ -122,7 +122,7 @@ def plot_component_comparison(paths, output_dir, mode):
 
             data = totals[alg][comp]
 
-            label = comp if alg == "Simple" else None
+            label = comp if alg == "static" else None
 
             ax.bar(
                 x_positions[alg],
@@ -137,7 +137,7 @@ def plot_component_comparison(paths, output_dir, mode):
 
             version_bottoms[alg] += np.array(data)
 
-    # add Simple / INC / BST labels
+    # add static / incRecompute / incBST labels
     for i in range(len(labels)):
         for alg in ALGORITHMS:
 

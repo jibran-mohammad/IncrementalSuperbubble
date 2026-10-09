@@ -11,16 +11,25 @@ import argparse
 
 # Define the components and their corresponding column names
 
-ALGORITHMS = ["Simple", "INC", "BST", "DIFFMAXO"]
+ALGORITHMS = ["static", "incRecompute", "incBST", "incMinIBST"]
+
+# Names shown in legends (IDs and meanings: see ALGORITHMS.md)
+DISPLAY_NAMES = {
+    "static": "Static",
+    "incRecompute": "Inc-Recompute",
+    "incBST": "Inc-BST",
+    "incMinIBST": "Inc-MinI-BST",
+    "incBSTBatch": "Inc-BST-Batch",
+}
 
 TIME_COMPONENTS = {
-    'Insert':          ['SimpleInsertTime',          'INCInsertTime',          'BSTInsertTime',          'DIFFMAXOInsertTime'],
-    'DFS':             ['SimpleDFSTime',             'INCDFSTime',             'BSTDFSTime',             'DIFFMAXODFSTime'],
-    'TopologicalOrder':['SimpleTopologicalOrderTime','INCTopologicalOrderTime','BSTTopologicalOrderTime','DIFFMAXOTopologicalOrderTime'],
-    'MinI':            ['SimpleMinITime',            'INCMinITime',            'BSTMinITime',            'DIFFMAXOMinITime'],
-    'MaxO':            ['SimpleMaxOTime',            'INCMaxOTime',            'BSTMaxOTime',            'DIFFMAXOMaxOTime'],
-    'SBCompute':       ['SimpleSBComputeTime',       'INCSBComputeTime',       'BSTSBComputeTime',       'DIFFMAXOSBComputeTime'],
-    'Total':           ['SimpleTotalTime',           'INCTotalTime',           'BSTTotalTime',           'DIFFMAXOTotalTime'],
+    'Insert':          ['staticInsertTime',          'incRecomputeInsertTime',          'incBSTInsertTime',          'incMinIBSTInsertTime'],
+    'DFS':             ['staticDFSTime',             'incRecomputeDFSTime',             'incBSTDFSTime',             'incMinIBSTDFSTime'],
+    'TopologicalOrder':['staticTopologicalOrderTime','incRecomputeTopologicalOrderTime','incBSTTopologicalOrderTime','incMinIBSTTopologicalOrderTime'],
+    'MinI':            ['staticMinITime',            'incRecomputeMinITime',            'incBSTMinITime',            'incMinIBSTMinITime'],
+    'MaxO':            ['staticMaxOTime',            'incRecomputeMaxOTime',            'incBSTMaxOTime',            'incMinIBSTMaxOTime'],
+    'SBCompute':       ['staticSBComputeTime',       'incRecomputeSBComputeTime',       'incBSTSBComputeTime',       'incMinIBSTSBComputeTime'],
+    'Total':           ['staticTotalTime',           'incRecomputeTotalTime',           'incBSTTotalTime',           'incMinIBSTTotalTime'],
 }
 
 # Define color palette for the stacked bar chart components
@@ -36,10 +45,10 @@ STACK_COLORS = {
 
 # Define line styles for the three versions in line plots
 VERSION_STYLES = {
-    'Simple':  {'color': 'red',    'marker': 'o', 'linestyle': '-',   'linewidth': 0.7, 'markersize': 2},
-    'INC':     {'color': 'blue',   'marker': 's', 'linestyle': '--',  'linewidth': 0.7, 'markersize': 2},
-    'BST':     {'color': 'green',  'marker': '^', 'linestyle': '-.',  'linewidth': 0.7, 'markersize': 2},
-    'DIFFMAXO':{'color': 'orange', 'marker': 'D', 'linestyle': ':',   'linewidth': 0.7, 'markersize': 2},
+    'static':  {'color': 'red',    'marker': 'o', 'linestyle': '-',   'linewidth': 0.7, 'markersize': 2},
+    'incRecompute':     {'color': 'blue',   'marker': 's', 'linestyle': '--',  'linewidth': 0.7, 'markersize': 2},
+    'incBST':     {'color': 'green',  'marker': '^', 'linestyle': '-.',  'linewidth': 0.7, 'markersize': 2},
+    'incMinIBST':{'color': 'orange', 'marker': 'D', 'linestyle': ':',   'linewidth': 0.7, 'markersize': 2},
 }
 
 def build_plot_filename(dataset, mode, scale, plot_type):
@@ -57,15 +66,15 @@ def plot_vertex_activity(df, output_dir, dataset_name, mode, scale):
     df_plot = df[df["Step"] != 0].copy()
 
     # --- Vertex plot ---
-    v_affected_col = "INCAffectedVertices"
-    v_explored_col = "BSTExploredVertices"
+    v_affected_col = "incRecomputeAffectedVertices"
+    v_explored_col = "incBSTExploredVertices"
 
     if v_affected_col in df.columns or v_explored_col in df.columns:
         fig, ax = plt.subplots(figsize=(12, 6))
         if v_affected_col in df_plot.columns:
-            ax.plot(df_plot["Step"], df_plot[v_affected_col], label="Affected Vertices (INC)")
+            ax.plot(df_plot["Step"], df_plot[v_affected_col], label="Affected Vertices (Inc-Recompute)")
         if v_explored_col in df_plot.columns:
-            ax.plot(df_plot["Step"], df_plot[v_explored_col], label="Explored Vertices (BST)")
+            ax.plot(df_plot["Step"], df_plot[v_explored_col], label="Explored Vertices (Inc-BST)")
         ax.set_xlabel("Step")
         ax.set_ylabel("Vertices")
         ax.set_title(f"Affected vs Explored Vertices — {dataset_name}")
@@ -77,15 +86,15 @@ def plot_vertex_activity(df, output_dir, dataset_name, mode, scale):
         plt.close(fig)
 
     # --- Edge plot (new) ---
-    e_affected_col = "INCTotalAffectedEdges"
-    e_explored_col = "BSTTotalExploredEdges"
+    e_affected_col = "incRecomputeTotalAffectedEdges"
+    e_explored_col = "incBSTTotalExploredEdges"
 
     if e_affected_col in df.columns or e_explored_col in df.columns:
         fig, ax = plt.subplots(figsize=(12, 6))
         if e_affected_col in df_plot.columns:
-            ax.plot(df_plot["Step"], df_plot[e_affected_col], label="Affected Edges (INC)")
+            ax.plot(df_plot["Step"], df_plot[e_affected_col], label="Affected Edges (Inc-Recompute)")
         if e_explored_col in df_plot.columns:
-            ax.plot(df_plot["Step"], df_plot[e_explored_col], label="Explored Edges (BST)")
+            ax.plot(df_plot["Step"], df_plot[e_explored_col], label="Explored Edges (Inc-BST)")
         ax.set_xlabel("Step")
         ax.set_ylabel("Edges")
         ax.set_title(f"Affected vs Explored Edges — {dataset_name}")
@@ -99,7 +108,7 @@ def plot_vertex_activity(df, output_dir, dataset_name, mode, scale):
 def plot_total_time_bar(df, output_dir, dataset_name, mode, scale):
     """
     Plot total time (sum across all steps excluding Base)
-    for Simple, INC, BST as a single bar chart.
+    for static, incRecompute, incBST as a single bar chart.
     """
 
     print("Generating Plot: Total Time Comparison Bar Chart...")
@@ -145,7 +154,7 @@ def plot_total_time_bar(df, output_dir, dataset_name, mode, scale):
 def clean_and_normalize_df(df):
     """
     1) Ensure Step is numeric and 'Base'->0
-    2) Normalize expected column names (Simple/INC/BST + component)
+    2) Normalize expected column names (static/incRecompute/incBST + component)
     3) Coerce time columns to numeric and fill NaN with 0
     4) Fail fast with a readable error if a required column is missing
     """
@@ -172,7 +181,7 @@ def clean_and_normalize_df(df):
     cols = df.columns.tolist()
     for v in versions:
         for comp in components:
-            # candidates: e.g., "SimpleInsertTime", "SimpleInsert", "simple_insert_time"
+            # candidates: e.g., "staticInsertTime", "staticInsert", "simple_insert_time"
             candidates = [
                 f"{v}{comp}Time",
                 f"{v}{comp}",
@@ -294,7 +303,7 @@ def plot_separate_time_components(df, output_dir, dataset_name, mode, scale):
         
     
     legend_handles = [Line2D([0], [0], **VERSION_STYLES[v]) for v in ALGORITHMS]
-    legend_labels = ['Simple (SimpleDFS)', 'INC (IncrementalDFS)', 'BST (BSTIncrementalDFS)', 'DIFFMAXO (DifferentMaxO)']
+    legend_labels = [DISPLAY_NAMES[a] for a in ALGORITHMS]
 
 
     # Reserve space at the top and add a single global legend
@@ -322,7 +331,7 @@ def plot_separate_time_components(df, output_dir, dataset_name, mode, scale):
 
 def plot_total_time_line(df, output_dir, dataset_name, mode, scale):
     """
-    Plot Total Time vs Step for Simple, INC, BST.
+    Plot Total Time vs Step for static, incRecompute, incBST.
     This shows the overall runtime behaviour.
     """
 
@@ -336,26 +345,26 @@ def plot_total_time_line(df, output_dir, dataset_name, mode, scale):
 
     ax.plot(
         df_plot["Step"],
-        df_plot["SimpleTotalTime"] + eps,
-        **VERSION_STYLES["Simple"],
-        label="Simple"
+        df_plot["staticTotalTime"] + eps,
+        **VERSION_STYLES["static"],
+        label=DISPLAY_NAMES["static"]
     )
 
     ax.plot(
         df_plot["Step"],
-        df_plot["INCTotalTime"] + eps,
-        **VERSION_STYLES["INC"],
-        label="INC"
+        df_plot["incRecomputeTotalTime"] + eps,
+        **VERSION_STYLES["incRecompute"],
+        label=DISPLAY_NAMES["incRecompute"]
     )
 
     ax.plot(
         df_plot["Step"],
-        df_plot["BSTTotalTime"] + eps,
-        **VERSION_STYLES["BST"],
-        label="BST"
+        df_plot["incBSTTotalTime"] + eps,
+        **VERSION_STYLES["incBST"],
+        label=DISPLAY_NAMES["incBST"]
     )
 
-    ax.plot(df_plot["Step"], df_plot["DIFFMAXOTotalTime"] + eps, **VERSION_STYLES["DIFFMAXO"], label="DIFFMAXO")
+    ax.plot(df_plot["Step"], df_plot["incMinIBSTTotalTime"] + eps, **VERSION_STYLES["incMinIBST"], label=DISPLAY_NAMES["incMinIBST"])
 
     if scale == "log":
         ax.set_yscale("log", nonpositive="clip")
@@ -381,7 +390,7 @@ def plot_total_time_line(df, output_dir, dataset_name, mode, scale):
 def plot_stacked_bar_breakdown(df, output_dir, dataset_name, mode, scale, num_steps=5):
     """
     Generates a stacked bar chart showing the breakdown of Total Time
-    into component times for the Simple, INC, and BST versions across
+    into component times for the static, incRecompute, and incBST versions across
     a few representative Haplotype Steps.
     """
     print(f"Generating Plot 2: Total Time Stacked Breakdown (First {num_steps} Steps)...")
@@ -416,15 +425,15 @@ def plot_stacked_bar_breakdown(df, output_dir, dataset_name, mode, scale, num_st
         color = STACK_COLORS[comp]
         
         for version in versions:
-            # Column name in the DataFrame, e.g., 'SimpleInsertTime'
+            # Column name in the DataFrame, e.g., 'staticInsertTime'
             col_name = f'{version}{comp}Time'
             
             # The data for the current component and version across the steps
             data = df_plot[col_name].values
 
             # Plot the bar segment
-            # Only label the component for the 'Simple' version to avoid duplicates in the legend
-            label_text = f'{comp} Time' if version == 'Simple' else "" 
+            # Only label the component for the 'static' version to avoid duplicates in the legend
+            label_text = f'{comp} Time' if version == 'static' else "" 
             
             ax.bar(
                 x_positions[version], 
@@ -447,7 +456,7 @@ def plot_stacked_bar_breakdown(df, output_dir, dataset_name, mode, scale, num_st
         ax.axvline(x=x, color='gray', linestyle=':', linewidth=1.0, alpha=0.5)
     ymax = ax.get_ylim()[1]
     ax.set_ylim(0, ymax * 1.12)
-    # Add the version labels (Simple, INC, BST) centered above their respective bars
+    # Add the version labels (static, incRecompute, incBST) centered above their respective bars
     # Find the maximum height for each bar group to place the label just above it
     for i, step in enumerate(df_plot['Step']):
         max_heights = {v: version_bottoms[v][i] for v in versions}
@@ -495,7 +504,7 @@ def plot_stacked_bar_breakdown(df, output_dir, dataset_name, mode, scale, num_st
 
 def plot_aggregated_version_bars(df, output_dir, dataset_name, mode, scale):
     """
-    Produce a single stacked bar per version (Simple / INC / BST).
+    Produce a single stacked bar per version (static / incRecompute / incBST).
     Each bar is the sum over all steps (excluding Step==0/'Base') of the component times.
     This yields exactly three bars and a clear component legend.
     """
@@ -614,7 +623,7 @@ def plot_separate_time_components_peredge(df, output_dir, dataset_name, mode, sc
         axes[j].axis("off")
 
     handles = [Line2D([0], [0], **VERSION_STYLES[v]) for v in ALGORITHMS]
-    labels = ['Simple (SimpleDFS)', 'INC (IncrementalDFS)', 'BST (BSTIncrementalDFS)', 'DIFFMAXO (DifferentMaxO)']
+    labels = [DISPLAY_NAMES[a] for a in ALGORITHMS]
 
     fig.subplots_adjust(top=0.92)
     fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.98), ncol=3)
@@ -661,7 +670,7 @@ def plot_stacked_bar_breakdown_peredge(df, output_dir, dataset_name, mode, scale
             col_name = f"{version}{comp}Time"
             data_vals = df_plot[col_name].values
 
-            label_text = f"{comp}" if version == "Simple" else ""
+            label_text = f"{comp}" if version == "static" else ""
 
             ax.bar(
                 x_positions[version],
@@ -680,7 +689,7 @@ def plot_stacked_bar_breakdown_peredge(df, output_dir, dataset_name, mode, scale
     for x in step_indices[:-1] + (bar_width * 2):
         ax.axvline(x=x, color="gray", linestyle=":", linewidth=1.0, alpha=0.5)
 
-    # ✅ add Simple/INC/BST labels on top of each bar
+    # ✅ add static/incRecompute/incBST labels on top of each bar
     for i in range(len(df_plot)):
         for version in versions:
             x_pos = x_positions[version][i]

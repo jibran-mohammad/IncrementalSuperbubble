@@ -17,11 +17,11 @@ METRICS = {
     "SBCompute": "SBComputeTime",
 }
 VERTEX_METRICS = {
-    "Affected": ["INCAffectedVertices", "BSTAffectedVertices"],
-    "Explored": ["BSTExploredVertices"],
+    "Affected": ["incRecomputeAffectedVertices", "incBSTAffectedVertices"],
+    "Explored": ["incBSTExploredVertices"],
 }
 
-ALGORITHMS = ["Simple", "INC", "BST"]
+ALGORITHMS = ["static", "incRecompute", "incBST"]
 
 
 # ============================================================
@@ -30,7 +30,7 @@ ALGORITHMS = ["Simple", "INC", "BST"]
 
 def compute_speedup(simple_val, other_val):
     """
-    Speedup = Simple / Other
+    Speedup = static / Other
     """
     if simple_val == 0 or other_val == 0:
         return float("nan")
@@ -39,7 +39,7 @@ def compute_speedup(simple_val, other_val):
 
 def compute_percent(simple_val, other_val):
     """
-    Percentage reduction relative to Simple
+    Percentage reduction relative to static
     """
     if simple_val == 0:
         return float("nan")
@@ -79,7 +79,7 @@ def build_vertex_table(df, metric_name):
 
     for col in cols:
 
-        row = {"Metric": col.replace("Vertices","").replace("INC","INC ").replace("BST","BST ")}
+        row = {"Metric": col.replace("Vertices","").replace("incRecompute","Inc-Recompute ").replace("incBST","Inc-BST ")}
 
         for case in CASE_COLUMNS:
 
@@ -115,8 +115,8 @@ def build_metric_table(df, metric_name, mode):
     for algo in ALGORITHMS:
         rows_dict[f"{algo}"] = {}
 
-    rows_dict["INC_Improvement"] = {}
-    rows_dict["BST_Improvement"] = {}
+    rows_dict["incRecompute_Improvement"] = {}
+    rows_dict["incBST_Improvement"] = {}
 
     for case in CASE_COLUMNS:
 
@@ -126,14 +126,14 @@ def build_metric_table(df, metric_name, mode):
         case_df = df[df[case] > 0]
 
         # Compute sums per algorithm
-        simple_total = case_df.get(f"Simple{metric_suffix}", pd.Series(dtype=float)).sum()
-        inc_total = case_df.get(f"INC{metric_suffix}", pd.Series(dtype=float)).sum()
-        bst_total = case_df.get(f"BST{metric_suffix}", pd.Series(dtype=float)).sum()
+        simple_total = case_df.get(f"static{metric_suffix}", pd.Series(dtype=float)).sum()
+        inc_total = case_df.get(f"incRecompute{metric_suffix}", pd.Series(dtype=float)).sum()
+        bst_total = case_df.get(f"incBST{metric_suffix}", pd.Series(dtype=float)).sum()
 
         # Store raw values
-        rows_dict["Simple"][case] = format_value(simple_total)
-        rows_dict["INC"][case] = format_value(inc_total)
-        rows_dict["BST"][case] = format_value(bst_total)
+        rows_dict["static"][case] = format_value(simple_total)
+        rows_dict["incRecompute"][case] = format_value(inc_total)
+        rows_dict["incBST"][case] = format_value(bst_total)
 
         if mode == "time":
             inc_imp = compute_speedup(simple_total, inc_total)
@@ -142,8 +142,8 @@ def build_metric_table(df, metric_name, mode):
             inc_imp = compute_percent(simple_total, inc_total)
             bst_imp = compute_percent(simple_total, bst_total)
 
-        rows_dict["INC_Improvement"][case] = format_value(inc_imp, 2)
-        rows_dict["BST_Improvement"][case] = format_value(bst_imp, 2)
+        rows_dict["incRecompute_Improvement"][case] = format_value(inc_imp, 2)
+        rows_dict["incBST_Improvement"][case] = format_value(bst_imp, 2)
 
     # Convert to DataFrame
     final_rows = []

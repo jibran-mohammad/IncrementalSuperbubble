@@ -9,7 +9,7 @@
 #else
 #define LOG(x)
 #endif
-class IncrementalSuperbubbleBatch: public AlgorithmForSuperbubbles {
+class IncBSTBatchSuperbubble: public AlgorithmForSuperbubbles {
 public:  
     long getMemoryUsageInKB() {
         struct rusage usage;
@@ -241,7 +241,7 @@ int main(int argc, char* argv[]){
         std::cerr << "Usage: " << argv[0] << " <output_file_path> <perBatch|perEdge>" << std::endl;
         return 1; // Exit with an error code
     }
-	IncrementalSuperbubbleBatch incremental;
+	IncBSTBatchSuperbubble incremental;
     incremental.inputAndCompute(argv[1], argv[2]);
     return 0;
 }
