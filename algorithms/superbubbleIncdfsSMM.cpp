@@ -89,7 +89,7 @@ public:
         //d.displayReverseTopologicalOrder();
         //d.displayMinI();
         //d.displayMaxO();
-        superbubble.printSuperbubbles();
+        superbubble.printSuperbubbles(&g);
         
         #ifndef BENCHMARK
         timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";
@@ -208,7 +208,7 @@ public:
                     start = std::chrono::high_resolution_clock::now();
                     #endif
                     superbubble.computeSB(&d, &g);
-                    superbubble.printSuperbubbles();
+                    superbubble.printSuperbubbles(&g);
 
                     #ifndef BENCHMARK
                     end = std::chrono::high_resolution_clock::now();

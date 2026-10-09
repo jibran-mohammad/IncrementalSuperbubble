@@ -23,5 +23,6 @@ public:
 	int getInDegree(int x);
 	int getOutDegree(int x);
 	int getDegree(int x);
-};	
+	int toOriginal(int v);
+};
 #endif

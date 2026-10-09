@@ -88,7 +88,6 @@ TEST_SIMPLEDFS_SRCS = $(TEST_DIR)/testSimpleDFS.cpp
 TEST_INCDFS_SRCS = $(TEST_DIR)/testIncrementalDFS.cpp
 TEST_NEWINC_SRCS = $(TEST_DIR)/testnewIncrementalDFS.cpp
 TEST_NEWINCH1_SRCS = $(TEST_DIR)/testNewIncrementalDFSh1.cpp
-TEST_SUPERBUBBLESIMPLEDFS_SRCS= $(TEST_DIR)/testSuperbubble.cpp
 TEST_AVLTREE_SRCS= $(TEST_DIR)/testAVLtree.cpp
 TEST_DIFFERENTAVLTREE_SRCS = $(TEST_DIR)/testDifferentAvlTree.cpp
 SUPERBUBBLE_SRCS = $(SUPERBUBBLE_DIR)/superbubble.cpp
@@ -333,9 +332,6 @@ testIncrementalSuperbubble.o: $(TEST_INCSUPERBUBBLE_SRCS)
 $(SUPERBUBBLE_DIR)/superbubblesimpledfs.o: $(SUPERBUBBLE_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@	
 
-testSuperbubble.o: $(TEST_SUPERBUBBLESIMPLEDFS_SRCS)
-	$(CC) $(CFLAGS) -c $< -o $@	
-	
 $(DFS_DIR)/incDFSNoTree.o: $(INCDFSNOTREE_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@		
 

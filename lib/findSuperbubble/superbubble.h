@@ -22,7 +22,7 @@ public:
     std::list<pii> SB;
 public:    
     void computeSB(DFSCONTEXT *sdfs,GraphContext *g);
-    void printSuperbubbles() ;
+    void printSuperbubbles(GraphContext *g) ;
     int numberOfSuperbubbles();
     void insertE(DFSCONTEXT *sdfs,GraphContext *g,int u, int v);
     void insertBatch(DFSCONTEXT *sdfs, GraphContext *g);

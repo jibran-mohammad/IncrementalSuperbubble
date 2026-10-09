@@ -75,10 +75,11 @@
     }
 
     
-    void SuperbubbleCalculation::printSuperbubbles() {
+    // SB holds internal vertex ids; they are converted to input ids only for printing.
+    void SuperbubbleCalculation::printSuperbubbles(GraphContext *g) {
     	std::cout << "superbubbles of graph are" << std::endl;
     	for (pii element : this->SB) {
-            std::cout << "<"<<element.first <<" " << element.second <<">";
+            std::cout << "<"<<g->toOriginal(element.first) <<" " << g->toOriginal(element.second) <<">";
             std::cout << std::endl;
         }
         std::cout << std::endl;

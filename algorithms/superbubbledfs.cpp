@@ -74,19 +74,20 @@ public:
         #ifndef BENCHMARK
         auto start = std::chrono::high_resolution_clock::now();
         #endif
+        g.displayOutgoingGraph();
         d.performDFS(&g);
         //std::cout << "DFS performed successfully" << std::endl;
         d.createMinI(&g);
         //std::cout << "minI done successfully" << std::endl;
         d.createMaxO(&g);
         //std::cout << "maxO done successfully" << std:: endl;
-        //d.displayTopologicalOrder();
-        //d.displayReverseTopologicalOrder();
-        //d.displayMinI();
-        //d.displayMaxO();
+        d.displayTopologicalOrder();
+        d.displayReverseTopologicalOrder();
+        d.displayMinI();
+        d.displayMaxO();
         superbubble.computeSB(&d, &g);
         //std::cout << "superbubble function done successfully" << std::endl;
-        //superbubble.printSuperbubbles();
+        superbubble.printSuperbubbles(&g);
         #ifndef BENCHMARK
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
@@ -165,6 +166,7 @@ public:
                  start = std::chrono::high_resolution_clock::now();
                  #endif
                  superbubble.insertE(&d,&g,x,y);
+                 g.displayOutgoingGraph();
                  // use pointer to superbubble tree to flag affected superbubbles and all ancestors upto LCA
                  #ifndef BENCHMARK
                  end = std::chrono::high_resolution_clock::now();
@@ -189,7 +191,7 @@ public:
                      end = std::chrono::high_resolution_clock::now();
                      elapsed = end - start;
                      minITime = elapsed.count();
-                     //d.displayMinI();
+                     d.displayMinI();
 
                      start = std::chrono::high_resolution_clock::now();
                      #endif
@@ -199,7 +201,7 @@ public:
                      end = std::chrono::high_resolution_clock::now();
                      elapsed = end - start;
                      maxOTime = elapsed.count();
-                     //d.displayMaxO();
+                     d.displayMaxO();
 
                      start = std::chrono::high_resolution_clock::now();
                      #endif
@@ -210,7 +212,7 @@ public:
                      superbubbleTime = elapsed.count();
                      #endif
                      
-                     superbubble.printSuperbubbles();
+                     superbubble.printSuperbubbles(&g);
                      #ifndef BENCHMARK
                      totalTime = currentinsertTime + simdfs.latestTimes.dfsTime + simdfs.latestTimes.topologicalOrderTime + minITime + maxOTime + superbubbleTime;
                      timeFile << i + 1 << " " << clean_hap_name << " " << currentinsertTime << " " << simdfs.latestTimes.dfsTime << " " << simdfs.latestTimes.topologicalOrderTime << " " << minITime << " " << maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << "\n";

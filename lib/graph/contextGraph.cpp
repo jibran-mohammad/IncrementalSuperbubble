@@ -35,3 +35,11 @@
     int GraphContext::getInDegree(int x)  { return this->strategy->getInDegree(x);  }
     int GraphContext::getOutDegree(int x) { return this->strategy->getOutDegree(x); }
     int GraphContext::getDegree(int x)    { return this->strategy->getDegree(x);    }
+
+    /*
+      Converts an internal vertex id back to the vertex id given in the input
+      (ids 0 and 1, the artificial source and sink, map to themselves).
+    */
+    int GraphContext::toOriginal(int v) {
+        return this->strategy->mapping[v];
+    }

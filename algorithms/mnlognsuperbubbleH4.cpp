@@ -84,7 +84,7 @@ public:
         //d.displayReverseTopologicalOrder();
         //d.displayMinI();
         //d.displayMaxO();
-        superbubble.printSuperbubbles();
+        superbubble.printSuperbubbles(&g);
         
 
         // Record timing for the entire base graph construction
@@ -192,7 +192,7 @@ public:
                     currentsuperbubbleTime = 0.0;
                     #endif
 
-                    superbubble.printSuperbubbles();
+                    superbubble.printSuperbubbles(&g);
                 } 
                 
             }

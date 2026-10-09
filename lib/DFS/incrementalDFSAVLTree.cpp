@@ -109,7 +109,7 @@
 
                    start = std::chrono::high_resolution_clock::now();
                    #endif
-                   
+                   g->displayOutgoingGraph();
                    this->reverseTopologicalOrder[u] = this->n-1;
                    this->topOrd[u] = this->n - 1;
 
