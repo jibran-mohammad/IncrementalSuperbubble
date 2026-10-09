@@ -1,7 +1,8 @@
 """
 superbubbleComparator.py
 
-Runner for BubbleGun comparison experiments.
+Runs an external superbubble tool (BubbleGun, ...) on the same
+graph updates that the C++ algorithms process, for comparison.
 
 Features:
 
@@ -10,7 +11,7 @@ Features:
 ✔ Human chromosome support
 ✔ Per-edge mode
 ✔ Per-batch mode
-✔ Tool-independent architecture
+✔ Tool-independent architecture (pick the tool with -t)
 
 Datasets:
 
@@ -28,23 +29,37 @@ reduced_graph.gfa
 ordered_haplotypes.txt
 unique_elements.txt
 
+Output (directory named after the tool):
+
+output/Ecoli/<tool>/<perEdge|perbatch>/
+output/Human/chromosome_X/<tool>/<perEdge|perbatch>/
+
+    <tool>_time.txt          one row per update (edge or haplotype):
+                             time of one tool run on the whole graph
+                             and the number of bubbles of each type,
+                             followed by the total times
+    <tool>_superbubbles.txt  every bubble the tool reports, for the
+                             base graph and after each haplotype
+                             (the last block is the final graph)
+
 
 Usage Examples:
 
 Ecoli per-edge:
 
-python superbubbleComparator.py -d Ecoli -m perEdge -o ecoli_perEdge.csv
+python superbubbleComparator.py -d Ecoli -m perEdge
 
 
 Human chromosome 14 per-batch:
 
-python superbubbleComparator.py -d Human -c 14 -m perBatch -o ecoli_perEdge.csv
+python superbubbleComparator.py -d Human -c 14 -m perBatch -t bubblegun
 """
 
 import sys
 import pathlib
 import argparse
 import time
+
 
 ############################################################
 # Dynamic Path Discovery
@@ -101,119 +116,131 @@ sys.path.insert(0, str(REPO_ROOT_PATH))
 # Now imports work
 ############################################################
 
+
 from Preprocessing.haplotypeParser import *
 from Preprocessing.graphUpdater import *
 from Preprocessing.superbubbleTools.bubblegunTool import BubbleGunTool
 
 
+# Tools selectable with -t; the key is the tool's own name.
+TOOLS = {tool.name: tool for tool in (BubbleGunTool,)}
+
+# Same mode directory names as superbubbleRunner.py
+MODE_DIRS = {"perEdge": "perEdge", "perBatch": "perbatch"}
+
+
 #######################################################
 
-def run_perEdge(updater,hap_order,hap_edges,tool,outfile):
+def write_time_row(timefile,step,hap,update,result):
 
-    total_runtime = 0
+    counts = result["counts"]
 
-    ################################################
-    # Base graph
-    ################################################
-
-    gfa = updater.write_temp_gfa()
-
-    runtime, sb = tool.run(gfa)
-
-    total_runtime += runtime
-
-    outfile.write(f"Base,-,-,{runtime},{sb}\n")
-
-    print("Base completed")
-
-
-    ################################################
-    # Edge updates
-    ################################################
-
-    for hap in hap_order:
-
-        for edge in hap_edges[hap]:
-
-            updater.add_edge(edge)
-
-            gfa = updater.write_temp_gfa()
-
-            runtime, sb = tool.run(gfa)
-
-            total_runtime += runtime
-
-            outfile.write(
-                f"Edge,{hap},{edge},{runtime},{sb}\n"
-            )
-
-
-    ################################################
-    # Total BubbleGun runtime
-    ################################################
-
-    outfile.write("\n")
-
-    outfile.write(
-        f"TotalBubbleGunTime,{total_runtime}\n"
+    timefile.write(
+        f"{step},{hap},{update},{result['time']},"
+        + ",".join(str(n) for n in counts.values())
+        + f",{sum(counts.values())}\n"
     )
 
-    print("Total BubbleGun time:", total_runtime)
+
+def write_superbubbles(sbfile,title,result):
+
+    counts = result["counts"]
+
+    summary = " ".join(f"{t}={n}" for t,n in counts.items())
+
+    sbfile.write(f"# {title} | {summary} total={sum(counts.values())}\n")
+
+    for bubble_type,end1,end2 in sorted(result["bubbles"]):
+        sbfile.write(f"{bubble_type} {end1} {end2}\n")
+
+    sbfile.write("\n")
 
 
-#######################################################
-
-def run_perBatch(updater,hap_order,hap_edges,tool,outfile):
-
-    total_runtime = 0
+def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile):
 
     ################################################
     # Base graph
     ################################################
 
-    gfa = updater.write_temp_gfa()
+    result = tool.run(updater.write_temp_gfa(), keep_bubbles=True)
 
-    runtime, sb = tool.run(gfa)
+    base_time = result["time"]
 
-    total_runtime += runtime
+    timefile.write(
+        "Step,Haplotype," + ("Edge" if mode == "perEdge" else "Edges")
+        + ",Time," + ",".join(result["counts"]) + ",TotalBubbles\n"
+    )
 
-    outfile.write(f"Base,-,-,{runtime},{sb}\n")
+    write_time_row(timefile,"Base","-","-",result)
+
+    write_superbubbles(sbfile,"Base graph",result)
 
     print("Base completed")
 
 
     ################################################
-    # Batch updates
+    # Updates: one tool run per edge (perEdge) or
+    # per haplotype (perBatch); bubbles are listed
+    # after the last update of every haplotype
     ################################################
 
-    for hap in hap_order:
+    update_time = 0
 
-        for edge in hap_edges[hap]:
+    step = 0
 
-            updater.add_edge(edge)
+    for h, hap in enumerate(hap_order, 1):
 
-        gfa = updater.write_temp_gfa()
+        edges = hap_edges[hap]
 
-        runtime, sb = tool.run(gfa)
+        if mode == "perEdge":
 
-        total_runtime += runtime
+            for e, edge in enumerate(edges, 1):
 
-        outfile.write(
-            f"Batch,{hap},-,{runtime},{sb}\n"
+                updater.add_edge(edge)
+
+                step += 1
+
+                last = (e == len(edges))
+
+                result = tool.run(updater.write_temp_gfa(), keep_bubbles=last)
+
+                update_time += result["time"]
+
+                write_time_row(timefile,step,hap,edge,result)
+
+        else:
+
+            for edge in edges:
+                updater.add_edge(edge)
+
+            step += 1
+
+            result = tool.run(updater.write_temp_gfa(), keep_bubbles=True)
+
+            update_time += result["time"]
+
+            write_time_row(timefile,step,hap,len(edges),result)
+
+        write_superbubbles(
+            sbfile,
+            f"After haplotype {h}/{len(hap_order)}: {hap} (step {step})",
+            result
         )
 
+        print(f"Haplotype {h}/{len(hap_order)} completed: {hap}")
+
 
     ################################################
-    # Total BubbleGun runtime
+    # Total tool runtime
     ################################################
 
-    outfile.write("\n")
+    timefile.write("\n")
 
-    outfile.write(
-        f"TotalBubbleGunTime,{total_runtime}\n"
-    )
+    timefile.write(f"TotalUpdateTime,{update_time}\n")
 
-    print("Total BubbleGun time:", total_runtime)
+    timefile.write(f"TotalTime,{base_time + update_time}\n")
+
+    print(f"Total {tool.name} time:", base_time + update_time)
 
 
 #######################################################
@@ -236,18 +263,17 @@ if __name__=="__main__":
     )
 
     parser.add_argument(
-        "-o",
-        "--output",
-        default="superbubble_results.csv",
-        help="Output file for results"
+        "-t",
+        "--tool",
+        choices=sorted(TOOLS),
+        default="bubblegun",
+        help="Superbubble tool to run; also names the output directory"
     )
 
     args=parser.parse_args()
 
 
     ###################################################
-
-    script_dir=pathlib.Path(__file__).parent
 
     repo = REPO_ROOT_PATH
 
@@ -256,7 +282,7 @@ if __name__=="__main__":
 
     if args.d == "Ecoli":
 
-        graph_dir = repo / "input" / "Ecoli" / "Graphs"
+        dataset_path = pathlib.Path("Ecoli")
 
     elif args.d == "Human":
 
@@ -270,7 +296,9 @@ if __name__=="__main__":
 
         args.c = f"chromosome_{args.c}" if not args.c.startswith("chromosome_") else args.c    
 
-        graph_dir = repo / "input" / "Human" / args.c / "Graphs"
+        dataset_path = pathlib.Path("Human") / args.c
+
+    graph_dir = repo / "input" / dataset_path / "Graphs"
 
 
     ###################################################
@@ -289,34 +317,36 @@ if __name__=="__main__":
 
     updater=GraphUpdater(base_gfa)
 
-    tool=BubbleGunTool()
+    tool=TOOLS[args.tool]()
 
-    output_file = args.output
+    out_dir = repo / "output" / dataset_path / tool.name / MODE_DIRS[args.m]
 
-    with open(output_file,"w") as outfile:
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-        outfile.write(
-            "Mode,Haplotype,Edge,Runtime,Superbubbles\n"
-        )
+    time_path = out_dir / f"{tool.name}_time.txt"
 
-        if args.m=="perEdge":
+    sb_path = out_dir / f"{tool.name}_superbubbles.txt"
 
-            run_perEdge(
+    try:
+
+        with open(time_path,"w") as timefile, open(sb_path,"w") as sbfile:
+
+            run_updates(
+                args.m,
                 updater,
                 hap_order,
                 hap_edges,
                 tool,
-                outfile
+                timefile,
+                sbfile
             )
 
-        else:
+    finally:
 
-            run_perBatch(
-                updater,
-                hap_order,
-                hap_edges,
-                tool,
-                outfile
-            )
+        updater.cleanup()
 
-    print("Results written to:",output_file)
+        tool.close()
+
+    print("Times written to:",time_path)
+
+    print("Superbubbles written to:",sb_path)
