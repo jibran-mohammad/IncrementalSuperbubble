@@ -8,6 +8,10 @@ CFLAGS = -std=c++11 -Wall -g -O3 -I../graph/  -I../tree/
 ifeq ($(BENCHMARK),1)
 CFLAGS += -DBENCHMARK
 endif
+
+# Objects without an explicit rule are built by make's implicit C++ rule,
+# which uses CXXFLAGS; give it the same flags (-O3, -DBENCHMARK, ...)
+CXXFLAGS = $(CFLAGS)
 # Directories
 LIB_DIR = lib
 TEST_DIR = test
