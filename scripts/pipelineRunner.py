@@ -29,7 +29,20 @@ SCRIPT_DIR = REPO_ROOT / "scripts"
 
 INPUT_DIR = REPO_ROOT / "input"
 BASE_OUTPUT_DIR = REPO_ROOT / "output"
-OUTPUT_DIR = BASE_OUTPUT_DIR / "pipelineRunner"
+
+# Results go to output/<dataset>[/<chromosome>]/<TOOL_NAME>/<mode>/,
+# next to the folders of external tools such as output/Ecoli/bubblegun/.
+TOOL_NAME = "incsuperbubble"
+
+# Algorithm run by default (name from ALGORITHMS in superbubbleRunner.py).
+# incsuperbubbleDifferentMaxO = algorithms/mnlognsuperbubbleH4.cpp
+BEST_ALGORITHM = "incsuperbubbleDifferentMaxO"
+
+# Algorithms that are never run by the pipeline (not ready yet).
+NOT_READY_ALGORITHMS = {"IncrementalSuperbubbleBatch"}
+
+# Same mode directory names as superbubbleRunner.py
+MODE_DIRS = {"perEdge": "perEdge", "perBatch": "perbatch"}
 
 SUPERBUBBLE_RUNNER = SCRIPT_DIR / "superbubbleRunner.py"
 
@@ -279,19 +292,14 @@ def normalize_chromosome_names(chromosomes):
 
     return normalized
 
-def build_output_filename(dataset, chrom, algorithm, mode):
+def build_output_dir(dataset, chrom, mode):
 
-    parts = [dataset]
+    out_dir = BASE_OUTPUT_DIR / dataset
 
     if chrom:
-        parts.append(chrom)
+        out_dir = out_dir / chrom
 
-    if algorithm:
-        parts.append(algorithm)
-
-    parts.append(mode)
-
-    return "_".join(parts) + ".txt"
+    return out_dir / TOOL_NAME / MODE_DIRS[mode]
 
 # =============================
 # Main
@@ -303,7 +311,8 @@ def main():
 
     parser.add_argument("-d",default="Ecoli",choices=["Ecoli","Human"])
 
-    parser.add_argument("-a", nargs="+")
+    parser.add_argument("-a", nargs="+",
+                        help=f"Algorithms to run (default: {BEST_ALGORITHM})")
 
     parser.add_argument("-c",nargs="+")
 
@@ -317,16 +326,21 @@ def main():
 
     AVAILABLE_ALGORITHMS = [algo["name"] for algo in ALGORITHMS]
 
-    if args.a:
-        algorithms = args.a
-        for algo in algorithms:
-            if algo not in AVAILABLE_ALGORITHMS:
-                raise ValueError(f"Invalid algorithm: {algo}")
-    else:
-        algorithms = AVAILABLE_ALGORITHMS
+    algorithms = args.a if args.a else [BEST_ALGORITHM]
 
+    for algo in algorithms:
+        if algo not in AVAILABLE_ALGORITHMS:
+            raise ValueError(f"Invalid algorithm: {algo}")
 
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    skipped = [algo for algo in algorithms if algo in NOT_READY_ALGORITHMS]
+    algorithms = [algo for algo in algorithms if algo not in NOT_READY_ALGORITHMS]
+
+    for algo in skipped:
+        print(f"[SKIP] {algo} is not ready yet")
+
+    if not algorithms:
+        raise ValueError("No algorithm left to run")
+
     chromosomes=normalize_chromosome_names(args.c)
 
     gfa_files=discover_gfa_files(args.d,chromosomes)
@@ -349,10 +363,6 @@ def main():
         # ---------- Each algorithm on the edge list ----------
         for algo in algorithms:
 
-            if args.m == "perEdge" and algo == "IncrementalSuperbubbleBatch":
-                print(f"[SKIP] {algo} not valid for perEdge")
-                continue
-
             execution_time = run_superbubble(
                 args.d,
                 algo,
@@ -360,14 +370,11 @@ def main():
                 [chrom_name] if chrom_name else None
             )
 
-            filename = build_output_filename(
-                args.d,
-                chrom_name,
-                algo,
-                args.m
-            )
+            out_dir = build_output_dir(args.d, chrom_name, args.m)
 
-            out_file = OUTPUT_DIR / filename
+            out_dir.mkdir(parents=True, exist_ok=True)
+
+            out_file = out_dir / f"{algo}_time.txt"
 
             with open(out_file, "w") as f:
                 f.write(f"Dataset: {args.d}\n")
@@ -394,22 +401,20 @@ def main():
     print(total_time,"seconds")
 
 
-    total_file = OUTPUT_DIR / "TOTAL_PIPELINE_TIME.txt"
-
-    with open(total_file, "w") as f:
-        f.write(f"Total Pipeline Time: {total_time:.6f} seconds\n")
-
-
 if __name__=="__main__":
     main()
 
 
 """
-Times written per (dataset, chromosome, algorithm, mode) to output/pipelineRunner/:
+Runs BEST_ALGORITHM by default (-a to choose others).
+Times written per (dataset, chromosome, algorithm, mode) to
+output/<dataset>[/<chromosome>]/incsuperbubble/<perEdge|perbatch>/<algorithm>_time.txt:
   PreprocessingTime  GFA -> edge list (normalize, haplotype removal/sort, conversion)
   AlgorithmTime      one run of the compiled algorithm (BENCHMARK build, compilation excluded)
   Time               PreprocessingTime + AlgorithmTime
 
+python3 pipelineRunner.py -d Ecoli -m perEdge
+Runs the best algorithm on E. coli
 python3 pipelineRunner.py -d Human -a SimpleSuperbubble -m perEdge
 Runs all chromosomes for SimpleSuperbubble
 python3 pipelineRunner.py -d Ecoli -a SimpleSuperbubble -m perEdge
