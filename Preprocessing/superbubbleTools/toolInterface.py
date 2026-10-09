@@ -14,7 +14,10 @@ run(gfa_file, keep_bubbles=False)
 
     Return a dict:
 
-    time      wall-clock seconds of one run of the tool on gfa_file
+    time      seconds of one run of the tool on gfa_file (the work a
+              static tool must redo after every update; tool start-up
+              should not be included)
+    phases    {phase: seconds}, optional breakdown of the run
     counts    {bubble_type: number}, every type the tool reports
     bubbles   list of (bubble_type, end1, end2) with GFA segment
               names; filled only when keep_bubbles is True

@@ -35,7 +35,8 @@ output/Ecoli/<tool>/<perEdge|perbatch>/
 output/Human/chromosome_X/<tool>/<perEdge|perbatch>/
 
     <tool>_time.txt          one row per update (edge or haplotype):
-                             time of one tool run on the whole graph
+                             time of one tool run on the whole graph,
+                             its phases (BubbleGun: read, find, chains),
                              and the number of bubbles of each type,
                              followed by the total times
     <tool>_superbubbles.txt  every bubble the tool reports, for the
@@ -135,8 +136,11 @@ def write_time_row(timefile,step,hap,update,result):
 
     counts = result["counts"]
 
+    phases = result.get("phases", {})
+
     timefile.write(
         f"{step},{hap},{update},{result['time']},"
+        + "".join(f"{t}," for t in phases.values())
         + ",".join(str(n) for n in counts.values())
         + f",{sum(counts.values())}\n"
     )
@@ -168,7 +172,9 @@ def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile):
 
     timefile.write(
         "Step,Haplotype," + ("Edge" if mode == "perEdge" else "Edges")
-        + ",Time," + ",".join(result["counts"]) + ",TotalBubbles\n"
+        + ",Time,"
+        + "".join(f"{p.capitalize()}Time," for p in result.get("phases", {}))
+        + ",".join(result["counts"]) + ",TotalBubbles\n"
     )
 
     write_time_row(timefile,"Base","-","-",result)

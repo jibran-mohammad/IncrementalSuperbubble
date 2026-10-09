@@ -36,8 +36,12 @@ class GraphUpdater:
             if line.startswith("S\t")
         }
 
-        self.current_edges=set()
-        self.new_nodes=set()
+        # dicts used as insertion-ordered sets: the temp GFA lists nodes
+        # and edges in the order they were added, so it is identical on
+        # every run (set order changes between Python processes, and
+        # BubbleGun's choice of bubble source/sink depends on line order)
+        self.current_edges={}
+        self.new_nodes={}
 
         # Private temp file, so parallel runs do not overwrite each other.
         fd,self.temp_name=tempfile.mkstemp(prefix="temp_graph_",suffix=".gfa")
@@ -49,14 +53,14 @@ class GraphUpdater:
         if edge in self.current_edges:
             return
 
-        self.current_edges.add(edge)
+        self.current_edges[edge]=None
 
         u,v=edge.split("->")
 
         for node in (u[:-1],v[:-1]):
 
             if node not in self.base_nodes:
-                self.new_nodes.add(node)
+                self.new_nodes[node]=None
 
 
     def write_temp_gfa(self):
