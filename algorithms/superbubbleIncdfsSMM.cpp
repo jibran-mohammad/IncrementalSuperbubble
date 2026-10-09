@@ -5,10 +5,12 @@
 #include <string>
 #include <sstream>
 
-#ifdef BENCHMARK
-#define LOG(x)
-#else
+// LOG(...) is debug output: enabled only with `make ... DEBUG=1`
+// (was: enabled unless BENCHMARK)
+#ifdef DEBUG_OUTPUT
 #define LOG(x) x
+#else
+#define LOG(x)
 #endif
 
 class IncrementalSuperbubbleSMM: public AlgorithmForSuperbubbles {
@@ -36,7 +38,7 @@ public:
         // --- Skip initial comment lines ---
         while (std::getline(std::cin, line) && (line.empty() || line[0] == '#')) {
             // This loop reads and discards all comment lines at the top of the file.
-            #ifndef BENCHMARK
+            #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
             std::cout << line << std::endl;
             #endif
         }
@@ -91,7 +93,7 @@ public:
         //d.displayReverseTopologicalOrder();
         //d.displayMinI();
         //d.displayMaxO();
-        #ifndef BENCHMARK
+        #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
         superbubble.printSuperbubbles(&g);
         #endif
         
@@ -212,7 +214,7 @@ public:
                     start = std::chrono::high_resolution_clock::now();
                     #endif
                     superbubble.computeSB(&d, &g);
-                    #ifndef BENCHMARK
+                    #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
                     superbubble.printSuperbubbles(&g);
                     #endif
 

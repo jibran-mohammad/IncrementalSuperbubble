@@ -9,6 +9,15 @@ ifeq ($(BENCHMARK),1)
 CFLAGS += -DBENCHMARK
 endif
 
+# Debug output (graph, topological orders, minI/maxO and superbubble lists
+# printed after every update, echoed input lines) is in #ifdef DEBUG_OUTPUT
+# blocks and is off by default, in normal and in BENCHMARK builds.
+# Turn it on with:  make clean && make TARGET=<target> DEBUG=1
+# (make clean is needed so that already-built objects are recompiled)
+ifeq ($(DEBUG),1)
+CFLAGS += -DDEBUG_OUTPUT
+endif
+
 # Objects without an explicit rule are built by make's implicit C++ rule,
 # which uses CXXFLAGS; give it the same flags (-O3, -DBENCHMARK, ...)
 CXXFLAGS = $(CFLAGS)

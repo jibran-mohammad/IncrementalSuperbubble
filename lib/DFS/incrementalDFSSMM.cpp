@@ -78,7 +78,7 @@
                
                //case where u is new node
                if(g->strategy->newu == true){
-                   #ifndef BENCHMARK
+                   #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
                    std::cout << "u is new node" << std::endl;
                    #endif
                    this->cases = 1;

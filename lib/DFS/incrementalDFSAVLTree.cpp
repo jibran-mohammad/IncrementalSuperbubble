@@ -111,7 +111,7 @@
 
                    start = std::chrono::high_resolution_clock::now();
                    #endif
-                   #ifndef BENCHMARK
+                   #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
                    g->displayOutgoingGraph();
                    #endif
                    this->reverseTopologicalOrder[u] = this->n-1;

@@ -2,10 +2,12 @@
 #include"superbubbleAlgorithms.h"
 #include<fstream>
 #include<chrono>
-#ifdef BENCHMARK
-#define LOG(x)
-#else
+// LOG(...) is debug output: enabled only with `make ... DEBUG=1`
+// (was: enabled unless BENCHMARK)
+#ifdef DEBUG_OUTPUT
 #define LOG(x) x
+#else
+#define LOG(x)
 #endif
 class IncrementalSuperbubbleBatch: public AlgorithmForSuperbubbles {
 public:  

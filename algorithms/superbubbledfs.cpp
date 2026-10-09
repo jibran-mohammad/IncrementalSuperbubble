@@ -5,10 +5,12 @@
 #include <string>
 #include <sstream>
 
-#ifdef BENCHMARK
-#define LOG(x)
-#else
+// LOG(...) is debug output: enabled only with `make ... DEBUG=1`
+// (was: enabled unless BENCHMARK)
+#ifdef DEBUG_OUTPUT
 #define LOG(x) x
+#else
+#define LOG(x)
 #endif
 
 class SimpleSuperbubble: public AlgorithmForSuperbubbles {
@@ -68,7 +70,7 @@ public:
             LOG(std::cout << x << " "<< y << std::endl;)
             d.updateEdge(&g, x, y); 
         }
-        #ifndef BENCHMARK
+        #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
         std::cout << "All edges updated succesfully" << std::endl;
         #endif
         //g.displayOutgoingGraph();
@@ -76,7 +78,7 @@ public:
         #ifndef BENCHMARK
         auto start = std::chrono::high_resolution_clock::now();
         #endif
-        #ifndef BENCHMARK
+        #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
         g.displayOutgoingGraph();
         #endif
         d.performDFS(&g);
@@ -85,7 +87,7 @@ public:
         //std::cout << "minI done successfully" << std::endl;
         d.createMaxO(&g);
         //std::cout << "maxO done successfully" << std:: endl;
-        #ifndef BENCHMARK
+        #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
         d.displayTopologicalOrder();
         d.displayReverseTopologicalOrder();
         d.displayMinI();
@@ -93,7 +95,7 @@ public:
         #endif
         superbubble.computeSB(&d, &g);
         //std::cout << "superbubble function done successfully" << std::endl;
-        #ifndef BENCHMARK
+        #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
         superbubble.printSuperbubbles(&g);
         #endif
         #ifndef BENCHMARK
@@ -169,14 +171,14 @@ public:
             //start = std::chrono::high_resolution_clock::now();
             for (int i = 0; i < hap_edge_count; ++i) {
                  std::cin >> x >> y;
-                 #ifndef BENCHMARK
+                 #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
                  std::cout << x << " " << y << std::endl;
                  #endif
                  #ifndef BENCHMARK
                  start = std::chrono::high_resolution_clock::now();
                  #endif
                  superbubble.insertE(&d,&g,x,y);
-                 #ifndef BENCHMARK
+                 #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
                  g.displayOutgoingGraph();
                  #endif
                  // use pointer to superbubble tree to flag affected superbubbles and all ancestors upto LCA
@@ -189,7 +191,7 @@ public:
                  if (mode == "perEdge") {
                      
                      d.performDFS(&g);
-                     #ifndef BENCHMARK
+                     #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
                      d.displayTopologicalOrder();
                      d.displayReverseTopologicalOrder();
                      #endif
@@ -205,7 +207,9 @@ public:
                      end = std::chrono::high_resolution_clock::now();
                      elapsed = end - start;
                      minITime = elapsed.count();
+                     #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1`
                      d.displayMinI();
+                     #endif
 
                      start = std::chrono::high_resolution_clock::now();
                      #endif
@@ -215,7 +219,9 @@ public:
                      end = std::chrono::high_resolution_clock::now();
                      elapsed = end - start;
                      maxOTime = elapsed.count();
+                     #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1`
                      d.displayMaxO();
+                     #endif
 
                      start = std::chrono::high_resolution_clock::now();
                      #endif
@@ -226,7 +232,7 @@ public:
                      superbubbleTime = elapsed.count();
                      #endif
                      
-                     #ifndef BENCHMARK
+                     #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
                      superbubble.printSuperbubbles(&g);
                      #endif
                      #ifndef BENCHMARK
