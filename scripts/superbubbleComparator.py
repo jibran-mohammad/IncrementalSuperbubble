@@ -37,8 +37,11 @@ output/Human/chromosome_X/<tool>/<perEdge|perbatch>/
     <tool>_time.txt          one row per update (edge or haplotype):
                              time of one tool run on the whole graph,
                              its phases (BubbleGun: read, find, chains),
-                             and the number of bubbles of each type,
-                             followed by the total times
+                             the number of bubbles of each type and, at
+                             the base graph and after each haplotype, the
+                             peak memory of the tool (separate, untimed
+                             run), followed by the total times and the
+                             largest PeakMemory(KB)
     <tool>_superbubbles.txt  every bubble the tool reports, for the
                              base graph and after each haplotype
                              (the last block is the final graph)
@@ -132,18 +135,32 @@ MODE_DIRS = {"perEdge": "perEdge", "perBatch": "perbatch"}
 
 #######################################################
 
-def write_time_row(timefile,step,hap,update,result):
+def write_time_row(timefile,step,hap,update,result,memory=None):
 
     counts = result["counts"]
 
     phases = result.get("phases", {})
 
+    # memory is only measured at the base graph and at haplotype boundaries
+    mem = f"{memory['peak']},{memory['baseline']}" if memory else "-,-"
+
     timefile.write(
         f"{step},{hap},{update},{result['time']},"
         + "".join(f"{t}," for t in phases.values())
         + ",".join(str(n) for n in counts.values())
-        + f",{sum(counts.values())}\n"
+        + f",{sum(counts.values())},{mem}\n"
     )
+
+
+def measure_memory(tool,gfa,memories):
+    """Peak memory of the tool on gfa (separate, untimed run), if supported."""
+
+    memory = tool.memory(gfa)
+
+    if memory:
+        memories.append(memory)
+
+    return memory
 
 
 def write_superbubbles(sbfile,title,result):
@@ -166,7 +183,11 @@ def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile):
     # Base graph
     ################################################
 
-    result = tool.run(updater.write_temp_gfa(), keep_bubbles=True)
+    memories = []
+
+    gfa = updater.write_temp_gfa()
+
+    result = tool.run(gfa, keep_bubbles=True)
 
     base_time = result["time"]
 
@@ -174,10 +195,10 @@ def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile):
         "Step,Haplotype," + ("Edge" if mode == "perEdge" else "Edges")
         + ",Time,"
         + "".join(f"{p.capitalize()}Time," for p in result.get("phases", {}))
-        + ",".join(result["counts"]) + ",TotalBubbles\n"
+        + ",".join(result["counts"]) + ",TotalBubbles,PeakMemoryKB,BaselineMemoryKB\n"
     )
 
-    write_time_row(timefile,"Base","-","-",result)
+    write_time_row(timefile,"Base","-","-",result,measure_memory(tool,gfa,memories))
 
     write_superbubbles(sbfile,"Base graph",result)
 
@@ -208,11 +229,15 @@ def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile):
 
                 last = (e == len(edges))
 
-                result = tool.run(updater.write_temp_gfa(), keep_bubbles=last)
+                gfa = updater.write_temp_gfa()
+
+                result = tool.run(gfa, keep_bubbles=last)
 
                 update_time += result["time"]
 
-                write_time_row(timefile,step,hap,edge,result)
+                memory = measure_memory(tool,gfa,memories) if last else None
+
+                write_time_row(timefile,step,hap,edge,result,memory)
 
         else:
 
@@ -221,11 +246,13 @@ def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile):
 
             step += 1
 
-            result = tool.run(updater.write_temp_gfa(), keep_bubbles=True)
+            gfa = updater.write_temp_gfa()
+
+            result = tool.run(gfa, keep_bubbles=True)
 
             update_time += result["time"]
 
-            write_time_row(timefile,step,hap,len(edges),result)
+            write_time_row(timefile,step,hap,len(edges),result,measure_memory(tool,gfa,memories))
 
         write_superbubbles(
             sbfile,
@@ -247,6 +274,17 @@ def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile):
     timefile.write(f"TotalTime,{base_time + update_time}\n")
 
     print(f"Total {tool.name} time:", base_time + update_time)
+
+    # Largest measured peak, comparable with PeakMemory(KB) of the C++ algorithms
+    if memories:
+
+        largest = max(memories, key=lambda m: m["peak"])
+
+        timefile.write(f"PeakMemory(KB),{largest['peak']}\n")
+
+        timefile.write(f"BaselineMemory(KB),{largest['baseline']}\n")
+
+        print(f"{tool.name} peak memory: {largest['peak']} KB (baseline {largest['baseline']} KB)")
 
 
 #######################################################

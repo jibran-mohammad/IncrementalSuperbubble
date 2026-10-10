@@ -23,6 +23,17 @@ run(gfa_file, keep_bubbles=False)
               names; filled only when keep_bubbles is True
 
     keep_bubbles must not change what "time" measures.
+
+memory(gfa_file)   (optional; return None if not supported)
+
+    Peak memory of the tool on gfa_file, measured in a separate process
+    so the caller's own memory is not included. Return a dict:
+
+    peak      peak resident memory (KB) of that process, comparable with
+              PeakMemory(KB) of the C++ algorithms
+    baseline  resident memory (KB) of the process before the graph is
+              read (interpreter + tool code); peak - baseline is what
+              the graph and its processing cost
 """
 
 
@@ -33,3 +44,8 @@ class SuperbubbleTool:
     def run(self,gfa_file,keep_bubbles=False):
 
         raise NotImplementedError
+
+
+    def memory(self,gfa_file):
+
+        return None

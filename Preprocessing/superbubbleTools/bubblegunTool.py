@@ -17,11 +17,18 @@ Timed phases of one run (seconds):
 
 "time" = read + find: what a static tool has to redo after every update.
 
+Memory (memory()) is measured in a fresh Python process, because the peak
+memory of this process only ever grows and includes the comparator itself:
+peak = VmHWM after read + find (the same work as "time"), baseline = VmHWM
+after importing BubbleGun, before reading the graph.
+
 BubbleGun reports three bubble types (simple, super, insertion);
 all of them are superbubbles, so all three are counted.
 """
 
 import logging
+import subprocess
+import sys
 import time
 
 from .toolInterface import SuperbubbleTool
@@ -30,6 +37,27 @@ from BubbleGun.Graph import Graph
 from BubbleGun.find_bubbles import find_bubbles
 from BubbleGun.connect_bubbles import connect_bubbles
 from BubbleGun.find_parents import find_parents
+
+
+# Run in a fresh interpreter by BubbleGunTool.memory(); prints
+# "<baseline KB> <peak KB>" (VmHWM = peak resident memory of this process).
+MEMORY_SCRIPT = """
+import logging, sys
+
+def vm_hwm():
+    for line in open("/proc/self/status"):
+        if line.startswith("VmHWM:"):
+            return int(line.split()[1])
+
+logging.disable(logging.CRITICAL)
+from BubbleGun.Graph import Graph
+from BubbleGun.find_bubbles import find_bubbles
+
+baseline = vm_hwm()
+graph = Graph(sys.argv[1])
+find_bubbles(graph)
+print(baseline, vm_hwm())
+"""
 
 
 class WarningCounter(logging.Handler):
@@ -123,6 +151,22 @@ class BubbleGunTool(SuperbubbleTool):
             },
             "bubbles": bubbles,
         }
+
+
+    def memory(self,gfa_file):
+
+        result=subprocess.run(
+            [sys.executable,"-c",MEMORY_SCRIPT,gfa_file],
+            capture_output=True,
+            text=True
+        )
+
+        if result.returncode != 0:
+            raise RuntimeError(f"BubbleGun memory run failed on {gfa_file}:\n{result.stderr}")
+
+        baseline,peak=map(int,result.stdout.split())
+
+        return {"peak": peak, "baseline": baseline}
 
 
     def close(self):
