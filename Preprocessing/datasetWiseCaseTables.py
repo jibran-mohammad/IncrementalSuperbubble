@@ -1,3 +1,41 @@
+r"""
+datasetWiseCaseTables.py
+
+Writes LaTeX tables for ONE dataset that split the time of each step by
+update case (Case1..Case5: which kind of edge insertion an update was),
+with one row per algorithm and one column per case, plus tables of
+affected / explored vertices per case.
+
+=====================================================================
+HOW TO RUN
+=====================================================================
+
+Run from the repository root, with the virtual environment active
+(source venv/bin/activate), after Preprocessing/parse_to_csv.py.
+
+    python3 Preprocessing/datasetWiseCaseTables.py \
+        --csv output/Human/chromosome_11/timeFile/perEdge/haplotype_build_comparison.csv \
+        --dataset chr11 --outdir output/caseTables/chr11
+
+Options:
+
+    --csv       haplotype_build_comparison.csv of one dataset            (required)
+    --dataset   name used in file names and captions, e.g. Ecoli, chr11   (required)
+    --outdir    folder for the .tex files                                 (required)
+    --mode      time: speedup; percent: percentage improvement           (default: time)
+
+=====================================================================
+OUTPUT (.tex files in --outdir)
+=====================================================================
+
+    <dataset>_<step>.tex      step = Insert, DFS, Topo, MinI, MaxO, SBCompute:
+                              time of that step per algorithm and case
+    <dataset>_<metric>.tex    Affected / Explored vertices per case
+
+Compared algorithms: ALGORITHMS below (static, incRecompute, incBST);
+add incMinIBST there to include the current best algorithm.
+"""
+
 import pandas as pd
 import os
 import argparse

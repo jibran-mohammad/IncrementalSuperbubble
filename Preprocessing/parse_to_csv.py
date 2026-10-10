@@ -1,3 +1,64 @@
+"""
+parse_to_csv.py
+
+Merges the timing files of all algorithms of one dataset and mode into one
+CSV, haplotype_build_comparison.csv, which the plot and table scripts read
+(plotcsv.py, csvToLatex.py, datasetWiseCaseTables.py,
+plotChromosomeComparison*.py).
+
+=====================================================================
+HOW TO RUN
+=====================================================================
+
+Run from the repository root, with the virtual environment active
+(source venv/bin/activate), after scripts/superbubbleRunner.py has
+written the timing files (or after copying them from the server into
+the same output/ folders).
+
+    # E. coli, per-edge results
+    python3 Preprocessing/parse_to_csv.py -d ecoli -m peredge
+
+    # E. coli, per-haplotype results
+    python3 Preprocessing/parse_to_csv.py -d ecoli -m perbatch
+
+    # human chromosomes 1, 2 and 22
+    python3 Preprocessing/parse_to_csv.py -d human -c 1 2 22 -m peredge
+
+    # all human chromosomes (every output/Human/chromosome_* folder)
+    python3 Preprocessing/parse_to_csv.py -d human -m peredge
+
+    # E. coli and all human chromosomes
+    python3 Preprocessing/parse_to_csv.py -d all -m peredge
+
+Options:
+
+    -d / --dataset      ecoli | human | all (lowercase)               (required)
+    -c / --chromosome   human only: chromosome numbers, e.g. 1 2 22   (default: all)
+    -m / --mode         peredge | perbatch (lowercase)                (default: perbatch)
+
+=====================================================================
+INPUT / OUTPUT
+=====================================================================
+
+Input, per folder output/Ecoli/timeFile/<perEdge|perbatch>/ or
+output/Human/chromosome_<X>/timeFile/<perEdge|perbatch>/:
+
+    static_time.txt, incRecompute_time.txt, incBST_time.txt,
+    incMinIBST_time.txt, incBSTBatch_time.txt
+    (written by superbubbleRunner.py; missing files are skipped with a
+    warning, e.g. incBSTBatch_time.txt in perEdge mode)
+
+Output, in the same folder:
+
+    haplotype_build_comparison.csv
+        one row per update (Step), with HaplotypeName, Nodes, Edges,
+        SuperbubbleCount (of static), the per-algorithm columns
+        <ID><Metric> (e.g. incMinIBSTTotalTime, incBSTAffectedVertices;
+        IDs: see ALGORITHMS.md) and the cases Case1..Case5
+
+Next steps: python3 Preprocessing/plotcsv.py ..., python3 Preprocessing/csvToLatex.py ...
+"""
+
 import pandas as pd
 import re
 import os
@@ -600,52 +661,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
 # ==============================================================================
 
 def main():
-    """
-    Main function to find output directories and process them.
-
-    --------------------------------------------------------------------------
-    HOW TO RUN THIS SCRIPT:
-    --------------------------------------------------------------------------
-
-    1.  **Prerequisites:**
-        * You must have the 'pandas' library installed:
-            `pip install pandas`
-        * This script MUST be located somewhere inside your
-            'IncSuperbubble' repository directory structure.
-            It doesn't matter where (e.g., can be in 'Preprocessing',
-            'output', or the root), as it will find the root dynamically.
-
-    2.  **Running the script:**
-        * Open your terminal or command prompt.
-        * Navigate to the directory containing this script.
-        * Run the script using python, specifying the dataset:
-
-            `python3 parse_to_csv.py -d ecoli`
-        
-            To run a specific chromosome: 
-            python3 parse_to_csv.py -d human -c 1
-            To rually downn multiple specific chromosomes: 
-            python3 parse_to_csv.py -d human -c 1 2 22
-            To run everything (it will still find perEdge/perbatch): 
-            python3 parse_to_csv.py -d human
-
-            python3 parse_to_csv.py -d human -m peredge or 
-            python3 parse_to_csv.py -d ecoli -m peredge
-            python3 parse_to_csv.py -d ecoli -m perbatch
-
-
-    3.  **What it does:**
-        * It automatically finds the 'IncSuperbubble' repository root.
-        * It looks for the 'output' directory.
-        * It processes `output/Ecoli/timeFile/` and saves a CSV inside it.
-        * It finds all `output/Human/chromosome_*` directories, looks
-            for a `timeFile` subdirectory in each one, and saves a
-            separate CSV inside each `timeFile` directory it finds.
-
-    4.  **Output:**
-        * A file named `haplotype_build_comparison.csv` will be created
-            inside each `timeFile` directory that is processed.
-    """
+    """Finds the timing folders and writes their CSVs; see the guide at the top of this file."""
     parser = argparse.ArgumentParser(
         description="Parses haplotype time-tracking files into CSVs.",
         formatter_class=argparse.RawDescriptionHelpFormatter

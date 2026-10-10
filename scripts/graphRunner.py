@@ -1,3 +1,106 @@
+"""
+graphRunner.py
+
+Builds the pangenome graph of a dataset from its genome FASTA files and
+turns it into the edge list that the superbubble algorithms read:
+FASTA files -> pangenome graph (GFA) -> numeric_edgelist.txt.
+
+=====================================================================
+HOW TO RUN
+=====================================================================
+
+Run from the repository root, with the virtual environment active
+(source venv/bin/activate):
+
+    # E. coli (note: lowercase "ecoli")
+    python3 scripts/graphRunner.py -d ecoli
+
+    # all human chromosomes (every input/Human/chromosome_* folder)
+    python3 scripts/graphRunner.py -d Human
+
+    # specific human chromosomes (numbers or letters: 1 2 X M)
+    python3 scripts/graphRunner.py -d Human -c 1 2 X
+
+    # virus dataset
+    python3 scripts/graphRunner.py -d Virus
+
+    # build the graph with minigraph instead of minichain
+    python3 scripts/graphRunner.py -d ecoli --graph-backend minigraph
+
+Options:
+
+    -d / --dataset       ecoli | Human | Virus                        (required)
+    -c / --chromosomes   Human only: chromosome numbers/letters, or "all"
+                                                                      (default: all)
+    --graph-backend      minichain | minigraph: tool that builds the graph
+                                                                      (default: minichain)
+
+Takes several minutes per dataset (about 8 minutes for E. coli).
+
+=====================================================================
+INPUT
+=====================================================================
+
+    Ecoli    input/Ecoli/coli3682_dataset/*.fna
+             reference: GCF_000005845.2_ASM584v2_genomic.fna
+    Human    input/Human/chromosome_<X>/ (one .fa/.fna/.fasta per haplotype)
+             reference: chromosome_<X>.fa
+    Virus    input/Virus/cleanGenomes/*.fna
+             reference: GCF_009858895.2_ASM985889v3_genomic.fna
+
+Every other FASTA file in the folder is added as a haplotype.
+
+External tools (see README, Phase 0), in Pangenome_Construction/:
+minichain or minigraph (graph construction), Mash (orders the genomes by
+distance to the reference), vg (optional: reference walk; if vg does not
+run, the reference is aligned with minichain instead).
+
+=====================================================================
+WHAT IT DOES
+=====================================================================
+
+For every dataset (each human chromosome separately) it runs these
+steps from Preprocessing/, in order, and stops at the first failure:
+
+    graphgeneration.py        build the graph from the FASTA files
+                              (minichain/minigraph), align every genome
+                              to it and add one walk per genome
+    normalizeOrientations.py  rewrite the graph so all links go + -> +
+    DAGCheck.py               check that the graph is acyclic (no files)
+    haplotypeRemoval.py       base graph = reference only (reduced_graph.gfa),
+                              and the nodes/edges each haplotype adds
+                              (unique_elements.txt)
+    haplotypeSorter.py        order in which the haplotypes are added
+                              (ordered_haplotypes.txt)
+    gfaToEdgeListConverter.py base graph + haplotype edges as an edge list
+    edgeListProcessor.py      number the nodes (segment sX -> X+1) and
+                              write numeric_edgelist.txt
+
+The dataset and reference are passed to the steps through the environment
+variables PIPELINE_DATASET_NAME, PIPELINE_REF_FASTA and
+PIPELINE_GRAPH_BACKEND.
+
+=====================================================================
+OUTPUT (in input/<dataset>/Graphs/, for Human input/Human/chromosome_<X>/Graphs/)
+=====================================================================
+
+    <reference>.gfa             pangenome graph with one walk per genome
+    <reference>_pos.gfa         same graph, all links in + orientation
+    reduced_graph.gfa           base graph (reference only)
+    ordered_haplotypes.txt      haplotypes in the order they are added
+    unique_elements.txt         nodes and edges each haplotype adds
+    numeric_edgelist.txt        input of the superbubble algorithms
+                                (superbubbleRunner.py, pipelineRunner.py)
+
+Alignments go to input/<dataset>/GAF_Files/.
+
+Next step: python3 scripts/superbubbleRunner.py -d Ecoli -m perEdge
+
+To add another graph construction tool: implement a backend class in
+Preprocessing/graphBackend/, register it in Preprocessing/graphgeneration.py
+and add it to the --graph-backend choices below.
+"""
+
 import subprocess
 import sys
 import pathlib
@@ -187,117 +290,7 @@ def get_dataset_configs(args):
     return configs
 
 def main():
-    """
-    HOW TO RUN THIS SCRIPT:
-    
-    This script orchestrates the entire pangenome pipeline.
-    You must run this script from your terminal (bash, zsh, etc.).
-    
-    Replace 'python3' with 'python' if needed for your environment.
-    Replace '/path/to/Preprocessing/graphRunner.py' with the actual path to this script.
-    
-    --------------------------------------------------------------------------
-    
-    OPTION 1: Run the 'Ecoli' dataset
-    
-    This is the original behavior. It will process the 'Ecoli' directory.
-    
-    COMMAND:
-    python3 /path/to/Preprocessing/graphRunner.py --dataset ecoli
-    
-    --------------------------------------------------------------------------
-    
-    OPTION 2: Run the 'Human' dataset (ALL chromosomes)
-    
-    This will find all directories inside 'input/Human/' that start with
-    'chromosome_' (e.g., chromosome_1, chromosome_2, ..., chromosome_X)
-    and run the full pipeline on each one sequentially.
-    
-    COMMAND:
-    python3 /path/to/Preprocessing/graphRunner.py --dataset Human --chromosomes all
-    
-    (Note: '--chromosomes all' is the default, so you can also just run:
-     python3 /path/to/Preprocessing/graphRunner.py --dataset Human)
-     
-    --------------------------------------------------------------------------
-    
-    OPTION 3: Run the 'Human' dataset (SPECIFIC chromosomes)
-    
-    This will run the pipeline only on the specified chromosomes.
-    Just list the chromosome numbers/letters after '--chromosomes'.
-    
-    EXAMPLE (run on 1, 2, and X):
-    python3 /path/to/Preprocessing/graphRunner.py --dataset Human --chromosomes 1 2 X
-    
-    EXAMPLE (run on just chromosome M):
-    python3 /path/to/Preprocessing/graphRunner.py --dataset Human --chromosomes M
-
-
-    OPTION 4: Run the 'Virus' dataset
-     
-    It will process the 'Ecoli' directory.
-    
-    COMMAND: python3 /path/to/Preprocessing/graphRunner.py --dataset Virus 
-
-
-    --------------------------------------------------------------------------
-    GRAPH GENERATION BACKEND OPTIONS
-
-    The pipeline supports multiple tools for pangenome graph construction.
-    The choice of tool ONLY affects the graph generation stage
-    (graphgeneration.py). All downstream steps remain unchanged.
-
-    The backend is selected using the --graph-backend option.
-
-    Available backends:
-
-      1) minichain  (default)
-         - Incremental pangenome construction
-         - Mash-based genome ordering
-         - Baseline backend used in existing experiments
-
-      2) minigraph
-         - Reference-anchored pangenome construction
-         - Faster for large genome sets
-         - Useful for comparison experiments
-
-    --------------------------------------------------------------------------
-    EXAMPLES
-
-    Run E. coli dataset using minichain (default):
-      python3 graphRunner.py --dataset ecoli
-
-    Run E. coli dataset using minigraph:
-      python3 graphRunner.py --dataset ecoli --graph-backend minigraph
-
-    Run all human chromosomes using minichain:
-      python3 graphRunner.py --dataset Human --chromosomes all
-
-    Run chromosome 22 using minigraph:
-      python3 graphRunner.py --dataset Human --chromosomes 22 --graph-backend minigraph
-
-    Run virus dataset using minigraph:
-      python3 graphRunner.py --dataset Virus --graph-backend minigraph
-
-    --------------------------------------------------------------------------
-    NOTES
-
-    - The backend choice is passed internally via the environment variable:
-        PIPELINE_GRAPH_BACKEND
-
-    - graphgeneration.py reads this variable and selects the appropriate
-      backend implementation.
-
-    - If no backend is specified, 'minichain' is used by default for
-      backward compatibility.
-
-    - To add a new graph construction tool in the future:
-        1) Implement a new backend class in graph_backends/
-        2) Register it in graphgeneration.py
-        3) Add it to the --graph-backend choices here
-
-    
-    """
+    """Runs the pipeline; see the guide at the top of this file."""
     parser = argparse.ArgumentParser(description="Pangenome Processing Pipeline Runner")
     parser.add_argument(
         "-d", "--dataset",

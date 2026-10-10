@@ -1,3 +1,15 @@
+"""
+normalizeOrientations.py
+
+Step 2 of the graph pipeline: rewrites <reference>.gfa so that all links
+go + -> + and writes <reference>_pos.gfa.
+
+Not run directly: called by scripts/graphRunner.py (and, without
+graphgeneration.py, by scripts/pipelineRunner.py), which pass the dataset
+and reference through the environment variables PIPELINE_DATASET_NAME
+(e.g. Ecoli, Human/chromosome_11) and PIPELINE_REF_FASTA. Files are in
+input/<dataset>/Graphs/. See the guide at the top of scripts/graphRunner.py.
+"""
 import re
 from collections import defaultdict
 import os

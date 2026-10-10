@@ -1,3 +1,15 @@
+"""
+DAGCheck.py
+
+Step 3 of the graph pipeline: checks that the graph
+is acyclic; writes no files.
+
+Not run directly: called by scripts/graphRunner.py (pipelineRunner.py
+skips this check), which passes the dataset
+and reference through the environment variables PIPELINE_DATASET_NAME
+(e.g. Ecoli, Human/chromosome_11) and PIPELINE_REF_FASTA. Files are in
+input/<dataset>/Graphs/. See the guide at the top of scripts/graphRunner.py.
+"""
 import os
 import sys
 import glob

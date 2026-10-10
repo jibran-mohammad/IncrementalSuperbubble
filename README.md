@@ -66,6 +66,8 @@ The pipeline uses several external bioinformatics tools. These executables must 
 
 The workflow is divided into four phases. You must complete Phase 0 before running any other steps.
 
+Every script you run has a guide at the top of its file (HOW TO RUN, options, input and output files), and `python3 <script> --help` lists its options. Algorithm names are explained in [ALGORITHMS.md](ALGORITHMS.md).
+
 ### Phase 0: External Tool Setup (One-Time)
 This step ensures that the required external bioinformatics tools (vg, mash, minichain, minigraph) are present in the correct locations for the preprocessing scripts to function.
 

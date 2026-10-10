@@ -1,3 +1,82 @@
+"""
+superbubbleRunner.py
+
+Compiles the C++ superbubble algorithms and runs them on the edge list of
+a dataset, 100 times each; writes the averaged timing file and the final
+superbubble list of every algorithm. These files feed the plots and
+tables (parse_to_csv.py, plotcsv.py, csvToLatex.py) and the comparison
+with external tools (toolComparisonToLatex.py).
+
+=====================================================================
+HOW TO RUN
+=====================================================================
+
+Run from the repository root, with the virtual environment active
+(source venv/bin/activate). The edge list must exist first
+(scripts/graphRunner.py).
+
+    # E. coli, all algorithms, one update per edge
+    python3 scripts/superbubbleRunner.py -d Ecoli -m perEdge
+
+    # E. coli, one update per haplotype
+    python3 scripts/superbubbleRunner.py -d Ecoli -m perBatch
+
+    # only some algorithms (IDs: see ALGORITHMS.md)
+    python3 scripts/superbubbleRunner.py -d Ecoli -m perEdge -a static incMinIBST
+
+    # all human chromosomes: chromosome_1 ... chromosome_22, chromosome_X,
+    # chromosome_y (lowercase y in ALL_HUMAN_CHROMOSOMES), chromosome_M;
+    # those without an edge list are skipped with a warning
+    python3 scripts/superbubbleRunner.py -d Human -m perEdge
+
+    # specific human chromosomes (full folder names)
+    python3 scripts/superbubbleRunner.py -d Human -m perEdge -c chromosome_1 chromosome_X
+
+Options:
+
+    -d / --dataset       Ecoli | Human                            (default: Ecoli)
+    -a / --algorithms    algorithm IDs: static incRecompute incBST incMinIBST
+                         incBSTBatch                              (default: all)
+    -c / --chromosomes   Human only: chromosome_1 chromosome_X ... (default: all)
+    -m / --mode          perEdge: recompute after every edge;
+                         perBatch: after every haplotype           (default: perBatch)
+
+Notes:
+
+  - incBSTBatch only runs in perBatch mode (skipped in perEdge). It does
+    not compile at the moment, which stops a perBatch run; until it is
+    fixed, list the other algorithms with -a.
+  - Every run starts with "make clean" and uses one _tmp_runs/ folder in
+    the repository root, so run only one superbubbleRunner.py at a time
+    per copy of the repository.
+  - NUM_RUNS (below) sets the number of runs per algorithm (100); the
+    times in the output are their average. Debug output is off (build
+    with make DEBUG=1 to see it).
+  - Run by pipelineRunner.py, this script works in "pipeline mode"
+    (SUPERBUBBLE_PIPELINE_MODE=1): BENCHMARK build, no timing files, only
+    the wall-clock time of each run is reported back.
+
+=====================================================================
+INPUT / OUTPUT
+=====================================================================
+
+Input:   input/Ecoli/Graphs/numeric_edgelist.txt
+         input/Human/chromosome_<X>/Graphs/numeric_edgelist.txt
+
+Output:  output/Ecoli/timeFile/<perEdge|perbatch>/
+         output/Human/chromosome_<X>/timeFile/<perEdge|perbatch>/
+
+    <ID>_time.txt           per update: insert, DFS, topological order,
+                            minI, maxO and superbubble times, superbubble
+                            count, and (incremental algorithms) cases and
+                            affected/explored vertices and edges; last
+                            line PeakMemory(KB); averaged over NUM_RUNS
+    <ID>_superbubbles.txt   superbubbles of the final graph, one
+                            "<entrance> <exit>" per line in input ids
+
+Next step: python3 Preprocessing/parse_to_csv.py --dataset ecoli -m peredge
+"""
+
 import os
 import subprocess
 import sys
@@ -5,44 +84,6 @@ import shutil
 import argparse
 import time
 
-# --- HOW TO RUN ---
-#
-# This script uses command-line arguments to select the dataset and algorithms.
-#
-# 1. Run on Ecoli dataset (default) with ALL algorithms:
-#    python3 superbubbleRunner.py
-#    OR
-#    python3 superbubbleRunner.py -d Ecoli
-#
-# 2. Run on Human dataset with ALL algorithms:
-#    python3 superbubbleRunner.py -d Human
-#
-# 3. Run on Ecoli dataset with a SINGLE specific algorithm:
-#    python3 superbubbleRunner.py -a static
-#
-# 4. Run on Ecoli dataset with MULTIPLE specific algorithms:
-#    python3 superbubbleRunner.py -a static incBST
-#
-# 5. Run on Human dataset with a SINGLE specific algorithm:
-#    python3 superbubbleRunner.py -d Human -a incRecompute
-#
-# 6. Run on Human dataset with MULTIPLE specific algorithms:
-#    python3 superbubbleRunner.py -d Human -a incRecompute incBST
-#
-# 
-# 7. Run on Human dataset for ONLY chromosome_1:
-#    python3 superbubbleRunner.py -d Human -c chromosome_1
-#
-# 8. Run on Human dataset for chromosome_1 and chromosome_X with a specific algorithm:
-#    python3 superbubbleRunner.py -d Human -a static -c chromosome_1 chromosome_X
-# 
-# 9. For Batch processing: python3 superbubbleRunner.py -d Human -m perBatch
-
-# 10.For Every-Edge processing: python3 superbubbleRunner.py -d Human -m perEdge
-  
-# 11.  python3 superbubbleRunner.py -d Ecoli -a SimpleSuperbubbleH1 -m perEdge 
-#
-# --- END HOW TO RUN ---
 
 
 # --- DYNAMIC PATH CONFIGURATION ---

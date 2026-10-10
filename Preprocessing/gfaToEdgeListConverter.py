@@ -1,4 +1,15 @@
 """
+gfaToEdgeListConverter.py
+
+Step 6 of the graph pipeline: reduced_graph.gfa + ordered_haplotypes.txt
+-> full_graph_edgelist.txt (base edges, then each haplotype's edges).
+
+Not run directly: called by scripts/graphRunner.py (and, without
+graphgeneration.py, by scripts/pipelineRunner.py), which pass the dataset
+and reference through the environment variables PIPELINE_DATASET_NAME
+(e.g. Ecoli, Human/chromosome_11) and PIPELINE_REF_FASTA. Files are in
+input/<dataset>/Graphs/. See the guide at the top of scripts/graphRunner.py.
+
 A script to convert a base pangenome graph and a series of haplotype
 augmentations into a consolidated edge list format.
 

@@ -1,3 +1,60 @@
+r"""
+csvToLatex.py
+
+Writes LaTeX summary tables that compare the algorithms over one or more
+datasets: total time of each step, speedup over the static algorithm (or
+percentage improvement), time per case, and ratios of affected/explored
+vertices and edges. One row per dataset.
+
+=====================================================================
+HOW TO RUN
+=====================================================================
+
+Run from the repository root, with the virtual environment active
+(source venv/bin/activate), after Preprocessing/parse_to_csv.py.
+
+    # E. coli and chromosomes 11 and 13, per-edge results, raw times
+    python3 Preprocessing/csvToLatex.py \
+        --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv \
+              output/Human/chromosome_11/timeFile/perEdge/haplotype_build_comparison.csv \
+              output/Human/chromosome_13/timeFile/perEdge/haplotype_build_comparison.csv \
+        --outdir output/latexTablesperEdge
+
+    # percentage improvement instead of times and speedups
+    python3 Preprocessing/csvToLatex.py --csv <csv files> --outdir <folder> --mode percent
+
+Options:
+
+    --csv      one or more haplotype_build_comparison.csv files; the dataset
+               name of each row comes from the path (chromosome_11 -> chr11,
+               Ecoli)                                                (required)
+    --outdir   folder for the .tex files (created if missing)        (required)
+    --mode     time: times and speedup over static;
+               percent: improvement over static in %                 (default: time)
+
+Use CSVs of the same mode (all perEdge or all perbatch) in one call.
+
+=====================================================================
+OUTPUT (.tex files in --outdir)
+=====================================================================
+
+    table_<step>.tex             step = Insert, DFS, TopoOrder, MinI, MaxO,
+                                 SBCompute: total time of that step per
+                                 algorithm (and speedup / improvement)
+    table_TotalTime.tex          total time and peak memory
+    table_<case>_<step>_<mode>.tex   the same per case (Case1..Case5)
+    table_cases.tex              number of updates of each case
+    table_vertex_ratio.tex, table_edge_ratio.tex
+                                 affected / explored vertices and edges
+                                 relative to the graph size
+    table_size_haplotypes.tex    graph size per dataset
+
+Columns use the display names of the algorithms (DISPLAY_NAMES below,
+e.g. "Inc-MinI-BST Speedup"); the compared algorithms are listed in
+ALGORITHMS below. The comparison with external tools such as BubbleGun is
+made by Preprocessing/toolComparisonToLatex.py.
+"""
+
 import pandas as pd
 import os
 import sys

@@ -1,3 +1,84 @@
+"""
+pipelineRunner.py
+
+Measures the end-to-end time of the best algorithm on a dataset: from the
+pangenome graph (GFA) through preprocessing to the finished superbubble
+computation. This is the time used to compare the algorithm with
+external tools (Preprocessing/toolComparisonToLatex.py).
+
+=====================================================================
+HOW TO RUN
+=====================================================================
+
+Run from the repository root, with the virtual environment active
+(source venv/bin/activate). The graph must exist first
+(scripts/graphRunner.py builds it).
+
+    # best algorithm (BEST_ALGORITHM below) on E. coli
+    python3 scripts/pipelineRunner.py -d Ecoli -m perEdge
+
+    # per haplotype instead of per edge
+    python3 scripts/pipelineRunner.py -d Ecoli -m perBatch
+
+    # human chromosomes 1 and X (note the format: c1, cX)
+    python3 scripts/pipelineRunner.py -d Human -c c1 cX -m perEdge
+
+    # all human chromosomes
+    python3 scripts/pipelineRunner.py -d Human -m perEdge
+
+    # other algorithms, more timed runs
+    python3 scripts/pipelineRunner.py -d Ecoli -m perEdge -a static incBST --repeat 20
+
+Options:
+
+    -d           Ecoli | Human                                   (default: Ecoli)
+    -a           algorithm IDs, see ALGORITHMS.md        (default: BEST_ALGORITHM)
+    -c           Human only: c1 ... c22, cX, cY, cM      (default: all chromosome_*
+                                                         folders in input/Human/)
+    -m           perEdge | perBatch                              (default: perBatch)
+    --repeat     timed runs per algorithm; AlgorithmTime is their mean (default: 10)
+
+To change the algorithm that runs by default, edit BEST_ALGORITHM below.
+Algorithms in NOT_READY_ALGORITHMS (incBSTBatch) are never run.
+
+=====================================================================
+WHAT IT DOES
+=====================================================================
+
+For each graph (E. coli: the original GFA in input/Ecoli/Graphs/, not
+_mg.gfa, _pos.gfa or reduced_graph.gfa; Human:
+input/Human/chromosome_<X>/Graphs/chromosome_<X>.gfa):
+
+  1. Preprocessing, timed once: normalizeOrientations.py,
+     haplotypeRemoval.py, haplotypeSorter.py, gfaToEdgeListConverter.py,
+     edgeListProcessor.py (GFA -> numeric_edgelist.txt). This rewrites
+     the files in the dataset's Graphs/ folder (with the same content if
+     the graph has not changed).
+  2. For each algorithm: superbubbleRunner.py in pipeline mode compiles it
+     with BENCHMARK=1 (no per-step timing, no debug output, no output
+     files) and runs it --repeat times. Each time is the wall-clock time
+     of the program itself: reading the edge list, building the base
+     graph and processing all updates. Compilation is not timed.
+
+=====================================================================
+OUTPUT
+=====================================================================
+
+    output/Ecoli/incsuperbubble/<perEdge|perbatch>/<ID>_time.txt
+    output/Human/chromosome_<X>/incsuperbubble/<perEdge|perbatch>/<ID>_time.txt
+
+        PreprocessingTime   GFA -> edge list (step 1)
+        Runs                number of timed runs (--repeat)
+        AlgorithmTime       mean time of one run (step 2)
+        AlgorithmTimeStd    standard deviation of the runs
+        Time                PreprocessingTime + AlgorithmTime
+
+"incsuperbubble" (TOOL_NAME below) is the folder of this repository's
+algorithms, next to the folders of external tools (e.g. bubblegun/).
+Peak memory and the superbubble list are not measured here (BENCHMARK
+build); they come from scripts/superbubbleRunner.py.
+"""
+
 import os
 import sys
 import time
@@ -311,17 +392,22 @@ def build_output_dir(dataset, chrom, mode):
 
 def main():
 
-    parser=argparse.ArgumentParser()
+    parser=argparse.ArgumentParser(
+        description="End-to-end time of the best algorithm: GFA -> preprocessing -> "
+                    "superbubbles. See the guide at the top of this file.")
 
-    parser.add_argument("-d",default="Ecoli",choices=["Ecoli","Human"])
+    parser.add_argument("-d",default="Ecoli",choices=["Ecoli","Human"],
+                        help="Dataset (default: Ecoli)")
 
     parser.add_argument("-a", nargs="+",
                         help=f"Algorithms to run (default: {BEST_ALGORITHM})")
 
-    parser.add_argument("-c",nargs="+")
+    parser.add_argument("-c",nargs="+",
+                        help="Human chromosomes: c1 ... c22, cX, cY, cM (default: all)")
 
     parser.add_argument("-m",default="perBatch",
-                        choices=["perBatch","perEdge"])
+                        choices=["perBatch","perEdge"],
+                        help="perEdge: update after every edge; perBatch: after every haplotype (default: perBatch)")
 
     parser.add_argument("--repeat", type=int, default=10,
                         help="Timed runs per algorithm; AlgorithmTime is their mean (default: 10)")
@@ -417,24 +503,3 @@ def main():
 
 if __name__=="__main__":
     main()
-
-
-"""
-Runs BEST_ALGORITHM by default (-a to choose others).
-Times written per (dataset, chromosome, algorithm, mode) to
-output/<dataset>[/<chromosome>]/incsuperbubble/<perEdge|perbatch>/<algorithm>_time.txt:
-  PreprocessingTime  GFA -> edge list (normalize, haplotype removal/sort, conversion)
-  AlgorithmTime      mean over --repeat runs (default 10) of the compiled algorithm
-                     (BENCHMARK build; reading the edge list + base graph + all
-                     updates; compilation excluded), AlgorithmTimeStd its std. dev.
-  Time               PreprocessingTime + AlgorithmTime
-
-python3 pipelineRunner.py -d Ecoli -m perEdge
-Runs the best algorithm on E. coli
-python3 pipelineRunner.py -d Human -a static -m perEdge
-Runs all chromosomes for the static algorithm
-python3 pipelineRunner.py -d Ecoli -a static -m perEdge
-python3 pipelineRunner.py -d Human -c c1 -a static -m perEdge
-
-
-"""

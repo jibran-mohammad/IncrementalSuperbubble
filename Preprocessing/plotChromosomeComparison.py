@@ -1,29 +1,45 @@
 #!/usr/bin/env python3
 
-"""
+r"""
 plotChromosomeComparison.py
 
-Generate a bar plot comparing algorithm runtime across chromosomes.
+One bar chart comparing algorithms across datasets: for every dataset
+(chromosome or E. coli) one group of bars, one bar per algorithm, each
+bar stacked from the time of each step (Insert, DFS, TopologicalOrder,
+MinI, MaxO, SBCompute) summed over all updates (the base graph is left
+out). Algorithms: static, incRecompute and incMinIBST (shown as "Final"); change ALGORITHMS / DISPLAY_NAMES below to
+plot others. Intended for perEdge or perbatch results.
 
-The script expects directories that contain the file:
+=====================================================================
+HOW TO RUN
+=====================================================================
 
-    haplotype_build_comparison.csv
+Run from the repository root, with the virtual environment active
+(source venv/bin/activate), after Preprocessing/parse_to_csv.py for every
+dataset in the plot.
 
-Example directory:
+    python3 Preprocessing/plotChromosomeComparison.py \
+        -p output/Human/chromosome_11/timeFile/perEdge \
+           output/Human/chromosome_13/timeFile/perEdge \
+           output/Ecoli/timeFile/perEdge \
+        -m perEdge -o output/comparisonPlots
 
-/home/.../chromosome_11/timeFile/perEdge/
-    haplotype_build_comparison.csv
+Options:
 
+    -p / --paths    timing folders that contain haplotype_build_comparison.csv
+                    (one per dataset; the label comes from the path:
+                    chromosome_11 -> chr11, Ecoli)                   (required)
+    -m / --mode     perEdge | perbatch, used in the file name          (required)
+    -o / --output   folder for the PNG file                            (required)
 
-Example usage:
+There is no hard limit on the number of datasets; more than about five
+makes the bars narrow.
 
-python plotChromosomeComparison.py -p path/chromosome_1/timeFile/perEdge path/chromosome_2/timeFile/perEdge \
-   path/chromosome_11/timeFile/perEdge \
--m perEdge \
--o plots
+=====================================================================
+OUTPUT
+=====================================================================
 
-
-Maximum number of chromosomes allowed: 5
+    <output>/comparison_<mode>_<datasets>_<algorithms>.png
 """
 
 

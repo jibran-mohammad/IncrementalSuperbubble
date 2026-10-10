@@ -1,3 +1,52 @@
+r"""
+plotcsv.py
+
+Makes the performance plots of one dataset and mode from the CSV written
+by parse_to_csv.py: time per update, time components, totals per
+algorithm, and affected/explored vertices and edges.
+
+=====================================================================
+HOW TO RUN
+=====================================================================
+
+Run from the repository root, with the virtual environment active
+(source venv/bin/activate), after Preprocessing/parse_to_csv.py.
+
+    # E. coli, per-edge results, logarithmic y-axis
+    python3 Preprocessing/plotcsv.py \
+        --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv \
+        --out plots/ecoli_perEdge --mode peredge --dataset Ecoli --scale log
+
+    # chromosome 11, per-haplotype results, linear y-axis
+    python3 Preprocessing/plotcsv.py \
+        --csv output/Human/chromosome_11/timeFile/perbatch/haplotype_build_comparison.csv \
+        --out plots/chr11_perbatch --mode perbatch --dataset chr11
+
+Options:
+
+    --csv       haplotype_build_comparison.csv of one dataset and mode   (required)
+    --out       folder for the PNG files (created if missing)            (required)
+    --mode      peredge | perbatch, must match the CSV                    (required)
+    --dataset   name used in titles and file names, e.g. Ecoli, chr11     (required)
+    --scale     linear | log y-axis                                       (default: linear)
+
+=====================================================================
+OUTPUT (PNG files in --out, named <dataset>_<mode>_<scale>_<plot>.png)
+=====================================================================
+
+    total_time_line       total time per update, one line per algorithm
+    total_time_bar        total time over all updates, per algorithm
+    components            time of each step (insert, DFS, topological
+                          order, minI, maxO, superbubbles) per algorithm
+    stacked_breakdown     the same steps stacked, for a few updates
+    aggregated_versions   time of each step summed over all updates
+    vertex_activity       affected / explored vertices per update
+    edge_activity         affected / explored edges per update
+
+Algorithms are shown with their display names (DISPLAY_NAMES below, e.g.
+Inc-MinI-BST); the plotted algorithms are listed in ALGORITHMS below.
+"""
+
 import pandas as pd
 import matplotlib
 matplotlib.use('Agg') 
