@@ -94,6 +94,10 @@ names: their results go to `output/<dataset>[/<chromosome>]/<tool>/<mode>/`
 the tool's `name` in `Preprocessing/superbubbleTools/` (see
 `scripts/superbubbleComparator.py`).
 
+`Preprocessing/toolComparisonToLatex.py -t <tool>` compares the best
+algorithm with any such tool (time, peak memory, and the superbubbles of
+the final graph) and writes LaTeX tables to `output/toolComparison/<tool>/`.
+
 
 ## Build switches
 

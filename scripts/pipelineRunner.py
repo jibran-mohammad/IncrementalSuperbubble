@@ -4,6 +4,7 @@ import time
 import argparse
 import subprocess
 import pathlib
+import statistics
 import tempfile
 # =============================
 # Dynamic repo discovery
@@ -134,11 +135,13 @@ def run_preprocessing(gfa_file, dataset):
 # Run superbubble
 # =============================
 
-def run_superbubble(dataset,algorithm,mode,chromosomes):
+def run_superbubble(dataset,algorithm,mode,chromosomes,repeat):
     """
     Runs one algorithm through superbubbleRunner.py in pipeline mode
-    (BENCHMARK build, single run) and returns the wall-clock time of
-    the executable itself, i.e. without make clean / compilation.
+    (BENCHMARK build) `repeat` times and returns the wall-clock times of
+    the executable itself (one per run), i.e. without make clean /
+    compilation. Each time covers reading the edge list, building the base
+    graph and processing all updates.
     """
 
     cmd = [
@@ -161,6 +164,7 @@ def run_superbubble(dataset,algorithm,mode,chromosomes):
     env = os.environ.copy()
     env["SUPERBUBBLE_PIPELINE_MODE"] = "1"
     env["SUPERBUBBLE_TIMING_FILE"] = timing_file
+    env["SUPERBUBBLE_PIPELINE_RUNS"] = str(repeat)
 
     try:
 
@@ -173,10 +177,10 @@ def run_superbubble(dataset,algorithm,mode,chromosomes):
 
         os.remove(timing_file)
 
-    if not times:
-        raise RuntimeError(f"No execution time reported for {algorithm}")
+    if len(times) != repeat:
+        raise RuntimeError(f"Expected {repeat} execution times for {algorithm}, got {len(times)}")
 
-    return sum(times)
+    return times
 
 
 
@@ -319,6 +323,9 @@ def main():
     parser.add_argument("-m",default="perBatch",
                         choices=["perBatch","perEdge"])
 
+    parser.add_argument("--repeat", type=int, default=10,
+                        help="Timed runs per algorithm; AlgorithmTime is their mean (default: 10)")
+
     args=parser.parse_args()
 
 
@@ -363,12 +370,17 @@ def main():
         # ---------- Each algorithm on the edge list ----------
         for algo in algorithms:
 
-            execution_time = run_superbubble(
+            times = run_superbubble(
                 args.d,
                 algo,
                 args.m,
-                [chrom_name] if chrom_name else None
+                [chrom_name] if chrom_name else None,
+                args.repeat
             )
+
+            execution_time = statistics.mean(times)
+
+            execution_std = statistics.stdev(times) if len(times) > 1 else 0.0
 
             out_dir = build_output_dir(args.d, chrom_name, args.m)
 
@@ -384,7 +396,9 @@ def main():
                 f.write(f"Mode: {args.m}\n")
                 f.write(f"GFA: {gfa}\n")
                 f.write(f"PreprocessingTime: {preprocessing_time:.6f} seconds\n")
+                f.write(f"Runs: {len(times)}\n")
                 f.write(f"AlgorithmTime: {execution_time:.6f} seconds\n")
+                f.write(f"AlgorithmTimeStd: {execution_std:.6f} seconds\n")
                 f.write(f"Time: {preprocessing_time + execution_time:.6f} seconds\n")
 
             print(f"\n{algo}: preprocessing {preprocessing_time:.3f}s + algorithm {execution_time:.3f}s"
@@ -410,7 +424,9 @@ Runs BEST_ALGORITHM by default (-a to choose others).
 Times written per (dataset, chromosome, algorithm, mode) to
 output/<dataset>[/<chromosome>]/incsuperbubble/<perEdge|perbatch>/<algorithm>_time.txt:
   PreprocessingTime  GFA -> edge list (normalize, haplotype removal/sort, conversion)
-  AlgorithmTime      one run of the compiled algorithm (BENCHMARK build, compilation excluded)
+  AlgorithmTime      mean over --repeat runs (default 10) of the compiled algorithm
+                     (BENCHMARK build; reading the edge list + base graph + all
+                     updates; compilation excluded), AlgorithmTimeStd its std. dev.
   Time               PreprocessingTime + AlgorithmTime
 
 python3 pipelineRunner.py -d Ecoli -m perEdge

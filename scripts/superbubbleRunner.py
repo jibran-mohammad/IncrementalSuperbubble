@@ -62,8 +62,9 @@ PIPELINE_MODE = os.environ.get("SUPERBUBBLE_PIPELINE_MODE") == "1"
 # time of each executable run (compilation excluded) is appended to it.
 PIPELINE_TIMING_FILE = os.environ.get("SUPERBUBBLE_TIMING_FILE")
 
-# Number of repetitions for averaging (a single run in pipeline mode)
-NUM_RUNS = 1 if PIPELINE_MODE else 100
+# Number of repetitions for averaging. In pipeline mode pipelineRunner.py
+# sets SUPERBUBBLE_PIPELINE_RUNS (its --repeat) and averages the reported times.
+NUM_RUNS = int(os.environ.get("SUPERBUBBLE_PIPELINE_RUNS", "1")) if PIPELINE_MODE else 100
 
 print("PIPELINE MODE:", PIPELINE_MODE)
 

@@ -164,6 +164,19 @@ python3 Preprocessing/plotcsv.py --csv output/Ecoli/timeFile/perEdge/haplotype_b
 python3 Preprocessing/plotcsv.py --csv output/Human/chromosome_11/timeFile/perbatch/haplotype_build_comparison.csv --out plots/chr11_charts/ --mode perbatch --dataset GRCh38_chr11 --scale log
 ```
 
+#### Step 3c: Compare the best algorithm with an external tool (toolComparisonToLatex.py)
+Writes LaTeX tables comparing the best algorithm (`BEST_ALGORITHM` in `scripts/pipelineRunner.py`) with a superbubble tool (default `bubblegun`; any tool run through `scripts/superbubbleComparator.py -t <tool>` works the same way). It needs, per dataset and mode:
+
+* the tool results: `python3 scripts/superbubbleComparator.py -d Ecoli -m perEdge`
+* the algorithm time: `python3 scripts/pipelineRunner.py -d Ecoli -m perEdge`
+* the algorithm memory and superbubble list: `python3 scripts/superbubbleRunner.py -d Ecoli -m perEdge`
+
+```Bash
+python3 Preprocessing/toolComparisonToLatex.py -d Ecoli
+python3 Preprocessing/toolComparisonToLatex.py -d Ecoli Human -c 11 13 X -t bubblegun
+```
+Output in `output/toolComparison/<tool>/`: `performance_<mode>.tex` (time, speedup, peak memory), `agreement.tex` (superbubbles of the final graph found by both / only one) and `agreement_details_<dataset>.txt` (the differing superbubbles).
+
 ## 🧪 Test Run Instructions (Quick Start Example)
 
 To verify the installation and test the pipeline end-to-end, use five sample E. coli genomes. Genome files are not tracked in git, so download them from NCBI RefSeq and place the `.fna` files in **input/Ecoli/coli3682_dataset/**:
