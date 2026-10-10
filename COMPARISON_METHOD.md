@@ -1,0 +1,186 @@
+# How the algorithm is compared with an external tool
+
+This document describes, from the code, how the best algorithm of this
+repository (`BEST_ALGORITHM` in `scripts/pipelineRunner.py`, currently
+`incMinIBST` = Inc-MinI-BST) is compared with an external superbubble tool
+(currently BubbleGun): what is timed on each side and why, how memory and
+the superbubbles are compared, how to read the speedup, and which earlier
+results are not comparable with current ones.
+
+How the graphs and updates themselves are prepared is described in
+[GRAPH_PREPARATION.md](GRAPH_PREPARATION.md); algorithm names in
+[ALGORITHMS.md](ALGORITHMS.md). The commands are in the README
+("Rerunning All Experiments" and Step 3c).
+
+
+## 1. What is compared
+
+Both sides process **the same sequence of graphs**: the base graph
+(= the reference walk), then one update at a time until the final graph
+(the union of all genome walks). The sequence is produced once by the
+preprocessing (`pipelineRunner.py` / `graphRunner.py`):
+
+- the algorithm reads `numeric_edgelist.txt`;
+- the tool gets, after every update, a GFA with the base graph
+  (`reduced_graph.gfa`), the edges added so far (`unique_elements.txt` in
+  the order of `ordered_haplotypes.txt`) and an `S` line for every segment
+  they introduce (`Preprocessing/graphUpdater.py`).
+
+Two modes:
+
+| Mode | One update | Number of updates |
+|---|---|---|
+| perEdge | one edge | number of added edges (E. coli 2,236; chromosome 21 6,863) |
+| perBatch | all edges of one genome | number of genomes (E. coli 5; chromosome 21 63) |
+
+A static tool such as BubbleGun recomputes all superbubbles of the whole
+graph after every update; the dynamic algorithm keeps its data structures
+and only processes the change.
+
+
+## 2. Time
+
+### Algorithm: `AlgorithmTime` (`scripts/pipelineRunner.py`)
+
+- **Build:** `BENCHMARK=1` (`-O3`; no per-step timers, no debug output, no
+  output files). Compilation is not timed.
+- **What is timed:** the wall-clock time of the program, from start to
+  exit: reading the edge list, building the base graph and computing its
+  superbubbles, and processing all updates (in perEdge mode the
+  superbubbles are recomputed after every edge, in perBatch after every
+  genome). Program start-up is about 1 ms.
+- **Repetitions:** `--repeat` runs (default 10); `AlgorithmTime` is the
+  mean, `AlgorithmTimeStd` the standard deviation (E. coli perEdge:
+  0.29 s +- 0.01 s; chromosome 21 perEdge: 4.75 s +- 0.13 s).
+
+### Tool: `TotalTime` (`scripts/superbubbleComparator.py`, `Preprocessing/superbubbleTools/bubblegunTool.py`)
+
+- **How it runs:** BubbleGun is used as a Python library inside the
+  comparator, so Python start-up and importing BubbleGun (about 50 ms per
+  run) are **not** timed: a user of a static tool on a changing graph
+  would keep it loaded.
+- **What is timed, per update:** reading the whole GFA into BubbleGun's
+  graph + `find_bubbles` (finding all bubbles from scratch). This is what
+  a static tool has to redo after every update. Building chains and
+  nesting (`ChainsTime`) is extra BubbleGun work, recorded but **not**
+  included. Writing the temporary GFA is done by the comparator and is not
+  timed.
+- `TotalTime` = base graph + all updates (as for the algorithm, which also
+  includes its base graph). One run, no repetition; it is the sum of
+  thousands of runs in perEdge mode.
+
+### Not included on either side
+
+**Preprocessing** (GFA -> edge list / reduced GFA, `PreprocessingTime`)
+produces the input of both, so it is reported once, as a separate column,
+and added to neither time.
+
+### Speedup
+
+`Speedup = TotalTime (tool) / AlgorithmTime (algorithm)`, per dataset and
+mode (`performance_<mode>.tex` of `Preprocessing/toolComparisonToLatex.py`).
+
+
+## 3. Memory
+
+| | Algorithm | Tool |
+|---|---|---|
+| Value | `PeakMemory(KB)` in `<ID>_time.txt` (`superbubbleRunner.py`, normal build, mean of 100 runs) | `PeakMemory(KB)` in `<tool>_time.txt` |
+| Measured | peak resident memory of the program over the whole run (`VmHWM` in `/proc/self/status`, read just before exit) | peak resident memory of a fresh Python process that reads the graph and finds the bubbles, at the base graph and after each genome; the largest value |
+| Includes | the C++ runtime | the Python interpreter + BubbleGun (`BaselineMemory(KB)`, about 14 MB, measured before the graph is read) |
+
+Both are whole-process peaks, measured the same way (`VmHWM`). The
+tool's memory is measured in separate, untimed runs, so measuring it does
+not change the tool's time. On small graphs the tool's value is dominated
+by the Python baseline; the graph-dependent part is `PeakMemory -
+BaselineMemory`.
+
+
+## 4. Superbubbles (agreement)
+
+`agreement.tex`: the superbubbles of the **final graph** found by the
+algorithm (`<ID>_superbubbles.txt`) and by the tool (last block of
+`<tool>_superbubbles.txt`), compared as sets:
+
+- pairs are written as GFA segment names (input id k = segment `s{k-1}`)
+  and compared **unordered** (tools may report the ends in either order);
+- left out on **both** sides, using the final graph from
+  `numeric_edgelist.txt`: pairs with the artificial source/sink (ids 0 and
+  1, which only the algorithm has) and **single-edge superbubbles** (the
+  entrance's only out-neighbour is the exit), which BubbleGun does not
+  report;
+- BubbleGun's three bubble types (simple, super, insertion) all count.
+
+If the algorithm is correct and the tool reports every superbubble, the
+columns "Only <algorithm>" and "Only <tool>" are 0;
+`agreement_details_<dataset>.txt` lists any differing superbubbles.
+
+The agreement table checks only the final graph. Correctness after every
+update is checked by comparing the superbubble counts per update of the
+algorithms with the static one (column `SB_Count` of the `<ID>_time.txt`
+files): an error can cancel out by the final graph (it did on 10.10.2026:
+final graphs agreed, but 1,079 of 2,236 E. coli updates differed).
+
+
+## 5. How to read the speedup
+
+- **perEdge** is the case dynamic algorithms are made for: many small
+  updates. The tool reads and processes the whole graph thousands of times;
+  the algorithm processes one edge each time.
+- **perBatch** has few, large updates (a whole genome each). The tool
+  recomputes only once per genome while the algorithm still processes
+  every edge of the genome, so the speedup is much smaller and can be
+  about 1 on small datasets.
+- Speedups of different modes or datasets are not comparable with each
+  other; report them per mode, together with the number of updates and
+  the time per update.
+
+Reference values (10.10.2026, commit 17895c1; Inc-MinI-BST vs BubbleGun):
+
+| Dataset, mode | Updates | BubbleGun per update | Inc-MinI-BST per update | Speedup (end-to-end) |
+|---|---|---|---|---|
+| E. coli, perEdge | 2,236 | 24.6 ms | 0.15 ms | 192x |
+| chromosome 21, perBatch | 63 | 174 ms | 40 ms | 6.1x |
+| E. coli, perBatch | 5 | | | about 1x |
+
+(Per-update values from the timing files; the speedup uses the end-to-end
+times of section 2.)
+
+
+## 6. Changes to the measurement (results before them are not comparable)
+
+Results produced before a change below measure something else and must
+not be mixed with later ones. All dates 2026.
+
+| Date, commit | Change | Effect on earlier results |
+|---|---|---|
+| 09.10, efa7842 | the tool's GFA gets `S` lines for new segments | before, BubbleGun skipped every link to a new segment (E. coli: 2,141 of 2,236 added edges) and analysed almost only the base graph |
+| 09.10, 7a5da8e | all three BubbleGun bubble types counted; bubble lists saved | before, only the "super" type was counted (E. coli final graph: 220 of 825) |
+| 09.10, edcc2df / 5c8af2c | pipelineRunner times one algorithm per call, compilation excluded | from 10.04 to 09.10 pipelineRunner did not run at all; earlier versions timed 100 runs plus compilation |
+| 09.10, ecbc342 | BubbleGun timed in-process | before, every run included starting Python and importing BubbleGun (about 50 of about 70 ms on E. coli): BubbleGun appeared up to about 3x slower |
+| 09.10, ac66a81 / a19887b | debug output only with `make DEBUG=1` | before, debug output (graph, orders, superbubbles after every update) ran inside the timed programs |
+| 09.10, 399e0f4 | all C++ objects compiled with `-O3` | before, `superbubble.cpp`, the graph classes, the AVL tree and the AVL incremental DFS were compiled without optimisation: the algorithms were about 5x slower (e.g. static 1.54 -> 0.30 s on E. coli) |
+| 10.10, abe8796 | `PeakMemory` from `VmHWM` | before, a program started by the Python runners reported the runner's peak memory when it was larger (all E. coli algorithms 13,440 KB; 27 April human files 12,032 KB) |
+| 10.10, 7190235 | BubbleGun peak memory recorded | none before |
+| 10.10, 22951e3 | `AlgorithmTime` = mean of 10 runs | before, one run |
+| 10.10, 9482bb7 | graph defined by the walks: links no walk uses dropped, backward link traversals fixed | before, base graphs of human chromosomes contained links of no genome (chromosome 21: 979) |
+| 10.10, 17895c1 | each element is added with the first genome that uses it | before, with the last one: a different update sequence (same final graph) |
+
+All results in `output/` produced before 10.10.2026 (including the April
+human results and `scripts/ecoli_perEdge.csv`) are affected by several of
+these changes and need to be rerun before they are compared.
+
+
+## 7. Producing the comparison
+
+1. `scripts/pipelineRunner.py` (preprocessing + `AlgorithmTime`),
+2. `scripts/superbubbleRunner.py` (memory, superbubble lists, per-update
+   counts of all algorithms),
+3. `scripts/superbubbleComparator.py -t <tool>` (tool time, memory,
+   bubbles),
+4. `Preprocessing/toolComparisonToLatex.py -t <tool>` (tables).
+
+Another tool (e.g. BubbleFinder) is measured with the same rules: it must
+time only its own work on the given graph (no start-up), report peak
+memory in a separate process, and list its bubbles with their two ends;
+see `Preprocessing/superbubbleTools/toolInterface.py`.

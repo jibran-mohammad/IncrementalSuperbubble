@@ -7,6 +7,7 @@ every update (an edge in perEdge mode, a haplotype in perBatch mode) the
 tool computes all bubbles of the whole graph from scratch. Records the
 time of every run, the tool's peak memory and its bubble lists, for the
 comparison with the algorithms (Preprocessing/toolComparisonToLatex.py).
+What is timed and how the comparison works: COMPARISON_METHOD.md.
 
 =====================================================================
 HOW TO RUN

@@ -5,7 +5,8 @@ Compares the best algorithm of this repository (BEST_ALGORITHM in
 scripts/pipelineRunner.py, currently incMinIBST) with an external
 superbubble tool (BubbleGun, BubbleFinder, ...) and writes LaTeX tables:
 one with time / speedup / memory, one with how many superbubbles of the
-final graph both found.
+final graph both found. What is measured on each side, and why, is
+described in COMPARISON_METHOD.md.
 
 =====================================================================
 HOW TO RUN

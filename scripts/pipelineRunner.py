@@ -4,7 +4,8 @@ pipelineRunner.py
 Measures the end-to-end time of the best algorithm on a dataset: from the
 pangenome graph (GFA) through preprocessing to the finished superbubble
 computation. This is the time used to compare the algorithm with
-external tools (Preprocessing/toolComparisonToLatex.py).
+external tools (Preprocessing/toolComparisonToLatex.py); see
+COMPARISON_METHOD.md for what is timed on each side.
 
 =====================================================================
 HOW TO RUN
