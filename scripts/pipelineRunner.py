@@ -34,7 +34,9 @@ Options:
     -d           Ecoli | Human                                   (default: Ecoli)
     -a           algorithm IDs, see ALGORITHMS.md        (default: BEST_ALGORITHM)
     -c           Human only: c1 ... c22, cX, cY, cM      (default: all chromosome_*
-                                                         folders in input/Human/)
+                                                         folders in input/Human/;
+                                                         those without a graph are
+                                                         skipped with a warning)
     -m           perEdge | perBatch                              (default: perBatch)
     --repeat     timed runs per algorithm; AlgorithmTime is their mean (default: 10)
 
@@ -314,8 +316,12 @@ def discover_gfa_files(dataset, chromosomes):
             expected = f"{c}.gfa"
             gfa_file = gfa_dir / expected
 
+            # Chromosomes without a graph are skipped (like graphRunner.py and
+            # superbubbleRunner.py do), so one missing folder does not stop
+            # the whole run.
             if not gfa_file.exists():
-                raise RuntimeError(f"Missing GFA: {gfa_file}")
+                print(f"[!] Warning: no graph for {c} ({gfa_file}), skipping it.", file=sys.stderr)
+                continue
 
             gfas.append((gfa_file, c))
 

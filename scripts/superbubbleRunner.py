@@ -25,8 +25,8 @@ Run from the repository root, with the virtual environment active
     python3 scripts/superbubbleRunner.py -d Ecoli -m perEdge -a static incMinIBST
 
     # all human chromosomes: chromosome_1 ... chromosome_22, chromosome_X,
-    # chromosome_y (lowercase y in ALL_HUMAN_CHROMOSOMES), chromosome_M;
-    # those without an edge list are skipped with a warning
+    # chromosome_Y, chromosome_M; those without an edge list are skipped
+    # with a warning
     python3 scripts/superbubbleRunner.py -d Human -m perEdge
 
     # specific human chromosomes (full folder names)
@@ -388,7 +388,7 @@ def main():
         
         ### MODIFIED ###
         # Define the full list of chromosomes
-        ALL_HUMAN_CHROMOSOMES = [f"chromosome_{i}" for i in range(1, 23)] + ["chromosome_X", "chromosome_y", "chromosome_M"]
+        ALL_HUMAN_CHROMOSOMES = [f"chromosome_{i}" for i in range(1, 23)] + ["chromosome_X", "chromosome_Y", "chromosome_M"]
         
         chromosomes_to_process = []
         
