@@ -1,6 +1,7 @@
 #include <sys/resource.h>
 #include"superbubbleAlgorithms.h"
 #include<fstream>
+#include<string>
 #include<chrono>
 // LOG(...) is debug output: enabled only with `make ... DEBUG=1`
 // (was: enabled unless BENCHMARK)
@@ -11,10 +12,19 @@
 #endif
 class IncBSTSuperbubble: public AlgorithmForSuperbubbles {
 public:  
+    // Peak resident memory (KB) of this program: VmHWM from /proc/self/status.
+    // Not getrusage(RUSAGE_SELF).ru_maxrss: on Linux a program started by
+    // another process inherits that process's peak, so when started from the
+    // Python runners it reported the runner's memory instead of its own.
     long getMemoryUsageInKB() {
-        struct rusage usage;
-        getrusage(RUSAGE_SELF, &usage);
-        return usage.ru_maxrss; // memory in kilobytes
+        std::ifstream status("/proc/self/status");
+        std::string line;
+        while (std::getline(status, line)) {
+            if (line.compare(0, 6, "VmHWM:") == 0) {
+                return std::stol(line.substr(6));   // "VmHWM:     4960 kB"
+            }
+        }
+        return -1;
     }   
     void inputAndCompute(std::string output_path, std::string mode) {
         // --- File path configuration ---
