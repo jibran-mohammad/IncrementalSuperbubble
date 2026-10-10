@@ -30,9 +30,13 @@ Run from the repository root, with the virtual environment active
     # other algorithms, more timed runs
     python3 scripts/pipelineRunner.py -d Ecoli -m perEdge -a static incBST --repeat 20
 
+    # only regenerate the edge lists of ALL datasets (E. coli + every human
+    # chromosome with a graph) and run the preprocessing checks; no timing
+    python3 scripts/pipelineRunner.py -d all --preprocess-only
+
 Options:
 
-    -d           Ecoli | Human                                   (default: Ecoli)
+    -d           Ecoli | Human | all (= Ecoli + Human)           (default: Ecoli)
     -a           algorithm IDs, see ALGORITHMS.md        (default: BEST_ALGORITHM)
     -c           Human only: c1 ... c22, cX, cY, cM      (default: all chromosome_*
                                                          folders in input/Human/;
@@ -40,6 +44,12 @@ Options:
                                                          skipped with a warning)
     -m           perEdge | perBatch                              (default: perBatch)
     --repeat     timed runs per algorithm; AlgorithmTime is their mean (default: 10)
+    --preprocess-only   only steps 1 below (edge lists + checks), no algorithm runs
+
+A dataset/chromosome that fails (a preprocessing check or an algorithm) is
+skipped and the run continues with the others. At the end a SUMMARY lists
+every dataset/chromosome with its status and graph sizes (from
+haplotype_removal_report.txt); the exit code is 1 if any failed.
 
 To change the algorithm that runs by default, edit BEST_ALGORITHM below.
 Algorithms in NOT_READY_ALGORITHMS (incBSTBatch) are never run.
@@ -403,8 +413,8 @@ def main():
         description="End-to-end time of the best algorithm: GFA -> preprocessing -> "
                     "superbubbles. See the guide at the top of this file.")
 
-    parser.add_argument("-d",default="Ecoli",choices=["Ecoli","Human"],
-                        help="Dataset (default: Ecoli)")
+    parser.add_argument("-d",default="Ecoli",choices=["Ecoli","Human","all"],
+                        help="Dataset; all = Ecoli and every human chromosome (default: Ecoli)")
 
     parser.add_argument("-a", nargs="+",
                         help=f"Algorithms to run (default: {BEST_ALGORITHM})")
@@ -418,6 +428,10 @@ def main():
 
     parser.add_argument("--repeat", type=int, default=10,
                         help="Timed runs per algorithm; AlgorithmTime is their mean (default: 10)")
+
+    parser.add_argument("--preprocess-only", action="store_true",
+                        help="Only regenerate the edge lists and run the checks of the "
+                             "preprocessing (no algorithm runs, no timing files)")
 
     args=parser.parse_args()
 
@@ -443,46 +457,77 @@ def main():
 
     chromosomes=normalize_chromosome_names(args.c)
 
-    gfa_files=discover_gfa_files(args.d,chromosomes)
+    # (dataset, gfa, chromosome) for every graph to process
+    datasets = ["Ecoli", "Human"] if args.d == "all" else [args.d]
+
+    jobs = []
+    for dataset in datasets:
+        try:
+            gfas = discover_gfa_files(dataset, chromosomes if dataset == "Human" else None)
+        except RuntimeError as e:
+            print(f"[!] {dataset}: {e}", file=sys.stderr)
+            continue
+        jobs += [(dataset, gfa, chrom) for gfa, chrom in gfas]
 
     total_start=time.time()
 
+    # One failing dataset/chromosome does not stop the others; failures are
+    # listed in the summary at the end.
+    summary = []   # (label, status, graph folder)
 
-    for gfa, chrom_name in gfa_files:
+    for dataset, gfa, chrom_name in jobs:
+
+        label = f"{dataset}/{chrom_name}" if chrom_name else dataset
 
         # ---------- GFA -> edge list (shared by all algorithms) ----------
         print("\nProcessing:",gfa)
 
         start = time.time()
 
-        run_preprocessing(str(gfa), args.d)
+        try:
+            run_preprocessing(str(gfa), dataset)
+        except subprocess.CalledProcessError as e:
+            step = os.path.basename(str(e.cmd[1])) if len(e.cmd) > 1 else str(e.cmd)
+            print(f"[!] {label}: preprocessing failed in {step}, skipping it", file=sys.stderr)
+            summary.append((label, f"FAILED in {step}", gfa.parent))
+            continue
 
         preprocessing_time = time.time() - start
 
+        if args.preprocess_only:
+            summary.append((label, "ok", gfa.parent))
+            continue
+
+        status = "ok"
 
         # ---------- Each algorithm on the edge list ----------
         for algo in algorithms:
 
-            times = run_superbubble(
-                args.d,
-                algo,
-                args.m,
-                [chrom_name] if chrom_name else None,
-                args.repeat
-            )
+            try:
+                times = run_superbubble(
+                    dataset,
+                    algo,
+                    args.m,
+                    [chrom_name] if chrom_name else None,
+                    args.repeat
+                )
+            except (subprocess.CalledProcessError, RuntimeError) as e:
+                print(f"[!] {label}: {algo} failed ({e}), skipping it", file=sys.stderr)
+                status = f"FAILED: {algo}"
+                continue
 
             execution_time = statistics.mean(times)
 
             execution_std = statistics.stdev(times) if len(times) > 1 else 0.0
 
-            out_dir = build_output_dir(args.d, chrom_name, args.m)
+            out_dir = build_output_dir(dataset, chrom_name, args.m)
 
             out_dir.mkdir(parents=True, exist_ok=True)
 
             out_file = out_dir / f"{algo}_time.txt"
 
             with open(out_file, "w") as f:
-                f.write(f"Dataset: {args.d}\n")
+                f.write(f"Dataset: {dataset}\n")
                 if chrom_name:
                     f.write(f"Chromosome: {chrom_name}\n")
                 f.write(f"Algorithm: {algo}\n")
@@ -497,6 +542,8 @@ def main():
             print(f"\n{algo}: preprocessing {preprocessing_time:.3f}s + algorithm {execution_time:.3f}s"
                   f" = {preprocessing_time + execution_time:.3f}s  -> {out_file}")
 
+        summary.append((label, status, gfa.parent))
+
 
     total_time=time.time()-total_start
 
@@ -506,6 +553,36 @@ def main():
     print("===================")
 
     print(total_time,"seconds")
+
+    print_summary(summary)
+
+    if any(status != "ok" for _, status, _ in summary):
+        sys.exit(1)
+
+
+def print_summary(summary):
+    """Status of every dataset/chromosome, with the graph sizes from its
+    haplotype_removal_report.txt (written by the preprocessing)."""
+
+    print("\n===================")
+    print("SUMMARY")
+    print("===================")
+
+    for label, status, graph_dir in summary:
+        report = {}
+        path = graph_dir / "haplotype_removal_report.txt"
+        if status == "ok" and path.exists():
+            for line in open(path):
+                key, _, value = line.partition(": ")
+                report[key] = value.strip()
+        sizes = ""
+        if report:
+            sizes = (f" | base graph {report.get('base graph segments (= reference walk)')} segments"
+                     f" / {report.get('base graph links (= reference walk)')} links"
+                     f" | {report.get('links added by haplotypes')} edges added by"
+                     f" {int(report.get('walks (genomes, incl. reference)', 1)) - 1} genomes"
+                     f" | dropped (no walk): {report.get('links used by no walk (dropped)')} links")
+        print(f"{label:22s} {status}{sizes}")
 
 
 if __name__=="__main__":

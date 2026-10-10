@@ -206,22 +206,25 @@ want the old ones.
 Regenerates `reduced_graph.gfa`, `unique_elements.txt`,
 `ordered_haplotypes.txt`, `numeric_edgelist.txt` and
 `haplotype_removal_report.txt` (rules and checks:
-[GRAPH_PREPARATION.md](GRAPH_PREPARATION.md)) and times the best algorithm
-(10 runs). Run one chromosome per call, so that a chromosome that fails a
-check does not stop the others:
+[GRAPH_PREPARATION.md](GRAPH_PREPARATION.md)). One command does this for
+E. coli and every human chromosome that has a graph:
 
 ```Bash
-python3 scripts/pipelineRunner.py -d Ecoli -m perEdge
-python3 scripts/pipelineRunner.py -d Ecoli -m perBatch
-
-for c in $(ls input/Human | sed -n 's/^chromosome_//p'); do
-    [ -f input/Human/chromosome_$c/Graphs/chromosome_$c.gfa ] || continue
-    python3 scripts/pipelineRunner.py -d Human -c c$c -m perEdge
-    python3 scripts/pipelineRunner.py -d Human -c c$c -m perBatch
-done 2>&1 | tee pipeline.log
-
-grep -E "check failed|Traceback" pipeline.log    # should print nothing
+python3 scripts/pipelineRunner.py -d all --preprocess-only
 ```
+
+It takes seconds per chromosome. A chromosome that fails a check is
+skipped and the others continue; the SUMMARY at the end lists every
+dataset with its status and graph sizes, and the command exits with
+code 1 if any failed. Then time the best algorithm (10 runs) for both
+modes:
+
+```Bash
+python3 scripts/pipelineRunner.py -d all -m perEdge 2>&1 | tee pipeline_perEdge.log
+python3 scripts/pipelineRunner.py -d all -m perBatch 2>&1 | tee pipeline_perBatch.log
+```
+
+(These also rerun the preprocessing, with the same result.)
 
 Chromosomes without a graph are skipped. Each chromosome's
 counts are in `input/Human/chromosome_<X>/Graphs/haplotype_removal_report.txt`.
