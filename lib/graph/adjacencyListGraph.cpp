@@ -12,7 +12,6 @@
    */
 
    void AdjacencyListGraph::addEdge(int x, int y) {
-       bool flagIncoming = false, flagOutgoing = false;
        this->artificialParentRemoved = false;
        if (x < 0 || y < 0) {
            std::cout << "ERROR: Incorrect arguments addEdge " << x << " " << y << std::endl;
@@ -149,7 +148,7 @@
        // Return a reference to the outgoing neighbors for consistency
        static const std::list<int> empty_list;  
 
-       if (x < 0 || x >= this->adjLOutgoing.size()) {  
+       if (x < 0 || x >= (int)this->adjLOutgoing.size()) {  
            return empty_list;
        }
         return this->adjLOutgoing[x];
@@ -163,7 +162,7 @@
    const std::list<int>& AdjacencyListGraph::getNeighboursIncoming(int x) const {
        static const std::list<int> empty_list;  
 
-       if (x < 0 || x >= this->adjLIncoming.size()) {  
+       if (x < 0 || x >= (int)this->adjLIncoming.size()) {  
            return empty_list;
        }
        return this->adjLIncoming[x];
@@ -187,7 +186,7 @@
    }
 
     int AdjacencyListGraph::getInDegree(int x) const {
-        if (x < 0 || x >= this->adjLIncoming.size()) {
+        if (x < 0 || x >= (int)this->adjLIncoming.size()) {
             std::cout << "ERROR: Node " << x << " not found" << std::endl;
             return -1;
         }
@@ -196,7 +195,7 @@
 
     int AdjacencyListGraph::getOutDegree(int x) const {
         
-        if (x < 0 || x >= this->adjLOutgoing.size()) {
+        if (x < 0 || x >= (int)this->adjLOutgoing.size()) {
             std::cout << "ERROR: Node " << x << " not found" << std::endl;
             return -1;
         }
