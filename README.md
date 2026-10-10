@@ -179,6 +179,100 @@ python3 Preprocessing/toolComparisonToLatex.py -d Ecoli Human -c 11 13 X -t bubb
 ```
 Output in `output/toolComparison/<tool>/`: `performance_<mode>.tex` (time, speedup, peak memory), `agreement.tex` (superbubbles of the final graph found by both / only one) and `agreement_details_<dataset>.txt` (the differing superbubbles).
 
+## 🔁 Rerunning All Experiments (e.g. on a Server)
+
+Use this after a change to the preprocessing or to the algorithms. The
+pangenome graphs (`<ref>.gfa` with walks) do **not** have to be generated
+again: everything below starts from the existing graphs. Do not run
+`scripts/graphRunner.py` for this (it rebuilds the graphs, which takes
+months for the human chromosomes).
+
+**0. Code and data**
+
+```Bash
+git pull                      # branch repo-new-track
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+Every dataset needs its graph with walks:
+`input/Ecoli/Graphs/GCF_000005845.2_ASM584v2_genomic.gfa` and
+`input/Human/chromosome_<X>/Graphs/chromosome_<X>.gfa`. The next step
+rewrites the other files in these `Graphs/` folders; keep a copy if you
+want the old ones.
+
+**1. Preprocessing + end-to-end time of the best algorithm** (`pipelineRunner.py`)
+
+Regenerates `reduced_graph.gfa`, `unique_elements.txt`,
+`ordered_haplotypes.txt`, `numeric_edgelist.txt` and
+`haplotype_removal_report.txt` (rules and checks:
+[GRAPH_PREPARATION.md](GRAPH_PREPARATION.md)) and times the best algorithm
+(10 runs). Run one chromosome per call, so that a chromosome that fails a
+check does not stop the others:
+
+```Bash
+python3 scripts/pipelineRunner.py -d Ecoli -m perEdge
+python3 scripts/pipelineRunner.py -d Ecoli -m perBatch
+
+for c in $(ls input/Human | sed -n 's/^chromosome_//p'); do
+    [ -f input/Human/chromosome_$c/Graphs/chromosome_$c.gfa ] || continue
+    python3 scripts/pipelineRunner.py -d Human -c c$c -m perEdge
+    python3 scripts/pipelineRunner.py -d Human -c c$c -m perBatch
+done 2>&1 | tee pipeline.log
+
+grep -E "check failed|Traceback" pipeline.log    # should print nothing
+```
+
+Chromosomes without a graph are skipped. Each chromosome's
+counts are in `input/Human/chromosome_<X>/Graphs/haplotype_removal_report.txt`.
+
+**2. All algorithms** (`superbubbleRunner.py`, 100 runs each): timing
+files, peak memory and final superbubble lists for the plots and tables.
+Only one `superbubbleRunner.py` at a time per copy of the repository.
+
+```Bash
+python3 scripts/superbubbleRunner.py -d Ecoli -m perEdge
+python3 scripts/superbubbleRunner.py -d Ecoli -m perBatch -a static incRecompute incBST incMinIBST
+python3 scripts/superbubbleRunner.py -d Human -m perEdge
+python3 scripts/superbubbleRunner.py -d Human -m perBatch -a static incRecompute incBST incMinIBST
+```
+
+(Leave out `-a ...` in perBatch once `incBSTBatch` compiles.)
+
+**3. BubbleGun** (`superbubbleComparator.py`, one chromosome per call):
+
+```Bash
+python3 scripts/superbubbleComparator.py -d Ecoli -m perEdge
+python3 scripts/superbubbleComparator.py -d Ecoli -m perBatch
+for c in $(ls input/Human | sed -n 's/^chromosome_//p'); do
+    [ -f input/Human/chromosome_$c/Graphs/reduced_graph.gfa ] || continue
+    python3 scripts/superbubbleComparator.py -d Human -c $c -m perEdge
+    python3 scripts/superbubbleComparator.py -d Human -c $c -m perBatch
+done
+```
+
+**Rough times** (measured on chromosome 21: 64 genomes, 6,863 edge
+updates; larger chromosomes take longer): step 1 about 1 minute per
+chromosome; step 2 about 50 minutes perEdge (half of it for `static`) and
+7 minutes perBatch; step 3 about 30 seconds perBatch and, by estimate,
+30-60 minutes perEdge.
+
+**4. Copy back** (to the same paths in this repository):
+
+```
+output/Ecoli/{timeFile,incsuperbubble,bubblegun}/
+output/Human/chromosome_*/{timeFile,incsuperbubble,bubblegun}/
+input/Ecoli/Graphs/{numeric_edgelist.txt,haplotype_removal_report.txt}
+input/Human/chromosome_*/Graphs/{numeric_edgelist.txt,haplotype_removal_report.txt}
+```
+
+(`numeric_edgelist.txt` is needed by `toolComparisonToLatex.py`; the
+reports give the graph sizes for the paper.)
+
+**5. Tables and plots** (locally): Phase 3 above
+(`parse_to_csv.py -d all`, `plotcsv.py`, `csvToLatex.py`) and Step 3c
+(`toolComparisonToLatex.py -d Ecoli Human`).
+
 ## 🧪 Test Run Instructions (Quick Start Example)
 
 To verify the installation and test the pipeline end-to-end, use five sample E. coli genomes. Genome files are not tracked in git, so download them from NCBI RefSeq and place the `.fna` files in **input/Ecoli/coli3682_dataset/**:

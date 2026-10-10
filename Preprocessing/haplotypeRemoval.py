@@ -10,12 +10,17 @@ Rules (the graph is defined by the walks, one per genome):
   - a segment or link that no walk uses is dropped (graphgeneration.py
     already drops such segments; links are dropped here)
   - base graph = exactly the segments and links of the reference walk
-  - every other segment/link is given to one haplotype: the last one, in
-    W-line order, whose walk uses it (its use count reaches 0 there)
+  - every other segment/link is given to one haplotype: the FIRST one, in
+    W-line (Mash) order, whose walk uses it. Haplotypes are removed from
+    the full graph starting with the last one; an element is given to the
+    haplotype whose removal leaves no walk using it. Updates are added in
+    forward order, so the graph after adding haplotypes 1..k is exactly
+    the union of the walks of the reference and haplotypes 1..k.
 Checks (the script stops if one fails): one walk per genome, all links
-+ -> + and all walk steps forward (after normalizeOrientations.py), and
-the written base graph equals the reference walk with every link's
-segments defined.
++ -> + and all walk steps forward (after normalizeOrientations.py), the
+graph of all walks is acyclic, the written base graph equals the reference
+walk with every link's segments defined, and every haplotype's walk is
+complete in the graph right after that haplotype is added.
 
 Not run directly: called by scripts/graphRunner.py (and, without
 graphgeneration.py, by scripts/pipelineRunner.py), which pass the dataset
@@ -274,6 +279,40 @@ def check_acyclic(nodes, edges):
                            f"(the superbubble algorithms need a DAG)")
 
 
+def check_incremental(walks, ref_sample, unique_file):
+    """
+    Adding the haplotypes in order (base graph = reference walk, then each
+    haplotype's NODE/EDGE lines from unique_elements.txt), every haplotype's
+    walk must be complete in the graph right after it is added.
+    """
+    ref = walks[ref_sample]
+    present_nodes = {u for u, _ in ref}
+    present_edges = {(u, uo, v, vo) for (u, uo), (v, vo) in zip(ref, ref[1:])}
+
+    incomplete = []
+    hap = None
+    with open(unique_file) as f:
+        for line in f:
+            if line.startswith("# HAPLOTYPE:"):
+                hap = line.split(":", 1)[1].strip()
+            elif line.startswith("NODE"):
+                present_nodes.add(line.split()[1])
+            elif line.startswith("EDGE"):
+                a, b = line.split()[1].split("->")
+                present_edges.add((a[:-1], a[-1], b[:-1], b[-1]))
+            elif line.startswith("WALK"):
+                path = walks[hap]
+                steps = {(u, uo, v, vo) for (u, uo), (v, vo) in zip(path, path[1:])}
+                if not ({u for u, _ in path} <= present_nodes and steps <= present_edges):
+                    incomplete.append(hap)
+
+    if incomplete:
+        raise RuntimeError(f"incremental check failed: the walks of {len(incomplete)} haplotypes "
+                           f"are not complete when they are added (first: {incomplete[0]})")
+
+    return len(walks) - 1
+
+
 def write_report(report_file, stats):
     """Counts of this step, for checking and for describing the data."""
     with open(report_file, 'w') as f:
@@ -294,39 +333,62 @@ def increment_counts(nodes, edges, walks):
 
 
 def process_haplotypes(nodes, edges, walks, raw_walks, unique_file, ref_sample):
+    """
+    Give every non-reference segment/link to a haplotype and write, per
+    haplotype, what it adds (unique_elements.txt).
+
+    Haplotypes are removed from the full graph one at a time, starting with
+    the LAST one in W-line (Mash) order: each element has a use count over
+    all walks, a haplotype's walk decrements it, and when it reaches 0 no
+    remaining walk uses it, so it belongs to the haplotype just removed.
+    Peeling from the last means an element is given to the FIRST haplotype
+    whose walk uses it. The results are written in forward order, the order
+    in which the updates are added, so the graph after adding haplotypes
+    1..k is the union of the walks of the reference and haplotypes 1..k.
+    The reference is never removed: its elements stay (base graph).
+    """
+    haplotypes = [hap for hap in walks if hap != ref_sample]
+    print(f"Skipping reference haplotype: {ref_sample}")
+
+    added = {}   # haplotype -> (unique_nodes, unique_edges)
+
+    for hap in reversed(haplotypes):
+        path = walks[hap]
+        unique_nodes = []
+        unique_edges = []
+
+        for i in range(len(path)):
+            u, uo = path[i]         # ← unpack (node_id, orient)
+            if u in nodes:
+                nodes[u]['count'] -= 1
+                if nodes[u]['count'] == 0:
+                    unique_nodes.append(u)
+
+            if i < len(path) - 1:
+                (u, uo) = path[i]
+                (v, vo) = path[i+1]
+                edge_key = (u, uo, v, vo)
+                if edge_key in edges:
+                    edges[edge_key]['count'] -= 1
+                    if edges[edge_key]['count'] == 0:
+                        unique_edges.append(edge_key)
+
+        # Remove this haplotype's elements from the graph
+        for u in unique_nodes:
+            del nodes[u]
+        for e in unique_edges:
+            del edges[e]
+        added[hap] = (unique_nodes, unique_edges)
+
+    # Write in forward (insertion) order
     with open(unique_file, 'w') as f:
-        for hap, path in walks.items():
-            #Skip the reference haplotype CHM13#0
-            if hap == ref_sample:
-                print(f"Skipping reference haplotype: {hap}")
-                continue
-            unique_nodes = []
-            unique_edges = []
-
-            for i in range(len(path)):
-                u, uo = path[i]         # ← unpack (node_id, orient)
-                if u in nodes:
-                    nodes[u]['count'] -= 1
-                    if nodes[u]['count'] == 0:
-                        unique_nodes.append(u)
-
-                if i < len(path) - 1:
-                    (u, uo) = path[i]
-                    (v, vo) = path[i+1]
-                    edge_key = (u, uo, v, vo)
-                    if edge_key in edges:
-                        edges[edge_key]['count'] -= 1
-                        if edges[edge_key]['count'] == 0:
-                            unique_edges.append(edge_key)
-
-            # Write results for this haplotype
+        for hap in haplotypes:
+            unique_nodes, unique_edges = added[hap]
             f.write(f"# HAPLOTYPE: {hap}\n")
             for u in unique_nodes:
                 f.write(f"NODE\t{u}\n")
-                del nodes[u]
             for (u, uo, v, vo) in unique_edges:
                 f.write(f"EDGE\t{u}{uo}->{v}{vo}\n")
-                del edges[(u, uo, v, vo)]
             f.write(f"WALK\t{raw_walks[hap]}\n\n")
 
 
@@ -393,6 +455,9 @@ def main():
     base_segments, base_links = check_base_graph(reduced_gfa, walks[ref_sample])
     print(f"✅ Base graph = reference walk: {base_segments} segments, {base_links} links")
 
+    checked = check_incremental(walks, ref_sample, unique_file)
+    print(f"✅ Every haplotype's walk is complete right after it is added ({checked} haplotypes)")
+
     stats += [("base graph segments (= reference walk)", base_segments),
               ("base graph links (= reference walk)", base_links)]
     added = [0, 0]
@@ -402,7 +467,9 @@ def main():
                 added[0] += 1
             elif line.startswith("EDGE"):
                 added[1] += 1
-    stats += [("segments added by haplotypes", added[0]), ("links added by haplotypes", added[1])]
+    stats += [("segments added by haplotypes", added[0]), ("links added by haplotypes", added[1]),
+              ("element given to", "first haplotype (W-line order) whose walk uses it"),
+              ("walk complete when its haplotype is added", f"yes ({checked} haplotypes)")]
     write_report(report_file, stats)
     print(f"📝 Report written to {report_file}")
 

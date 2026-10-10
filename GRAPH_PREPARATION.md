@@ -74,11 +74,13 @@ Rules (each element = a segment or a link):
    (chromosome 21: 979 links, 125 of them pointing at segments that are
    not in the base graph).
 2. **Base graph = exactly the segments and links of the reference walk.**
-3. **Every other element is given to one genome: the last one, in
-   walk (Mash) order, whose walk uses it.** (Each element has a use count
-   over all walks; walks are processed in order and the element is given
-   to the genome where its count reaches 0. The reference is not
-   processed, so reference elements never reach 0 and stay in the base.)
+3. **Every other element is given to one genome: the first one, in
+   walk (Mash) order, whose walk uses it.** Genomes are removed from the
+   full graph one at a time, starting with the last one: each element has
+   a use count over all walks, removing a genome decrements the counts of
+   the elements its walk uses, and an element whose count reaches 0 (no
+   remaining walk uses it) belongs to the genome just removed. The
+   reference is never removed, so its elements stay in the base graph.
 
 Checks (the script stops with a message if one fails):
 
@@ -88,25 +90,27 @@ Checks (the script stops with a message if one fails):
   checks the graph that is actually used, after step 2, whereas
   `DAGCheck.py` checks `<ref>.gfa`;
 - the written base graph equals the reference walk, and every link in it
-  connects two segments it defines.
+  connects two segments it defines;
+- adding the genomes in order, every genome's walk is complete in the
+  graph right after that genome is added.
 
 The counts are written to `haplotype_removal_report.txt`.
 
-**Consequence of rule 3 for the intermediate graphs.** The graph after
-adding genome k is the base graph plus the elements whose *last* user
-(in walk order) is among the first k genomes. It is **not** the union of
-the walks of the reference and the first k genomes: an element shared by
-genomes 1 and 5 appears only when genome 5 is added. Only the final graph
-contains every walk completely. Share of a genome's own walk edges present
-right after adding it:
+**Consequence of rule 3: the intermediate graphs.** Updates are added in
+walk (Mash) order. Because every element comes with the first genome that
+uses it, the graph after adding genomes 1..k is **exactly the union of the
+walks of the reference and genomes 1..k**, for every k (checked, see
+above). The final graph contains every walk.
 
-| Dataset | min | median | genomes whose walk is complete when added |
-|---|---|---|---|
-| E. coli | 73.9 % | 83.8 % | 1 of 5 |
-| chromosome 21 | 63.2 % | 71.8 % | 1 of 63 |
-
-If the intermediate graphs should be "reference + first k genomes", rule 3
-has to give each element to the *first* genome that uses it instead.
+An earlier version removed genomes starting with the *first* one, which
+gives every element to the *last* genome that uses it. The intermediate
+graphs were then not unions of whole walks: a genome's walk was complete
+right after adding it for only 1 of 5 E. coli genomes (min 73.9 %) and
+1 of 63 chromosome 21 genomes (min 63.2 %). The final graph and the set of
+added edges are the same under both rules; only which update an edge
+belongs to differs (E. coli: 607 of 2,236 edges, chromosome 21: 4,992 of
+6,863). Results computed before this change are per-update results of the
+other rule.
 
 
 ## 4. Order of the updates (`haplotypeSorter.py`)
@@ -183,7 +187,6 @@ ones and the artificial source/sink excluded; see section 6).
 - **Construction graph vs. analysed graph.** Segments and links of the
   construction graph that no walk uses are not analysed (chromosome 21:
   9,379 segments removed in step 1, 979 links in step 3).
-- **Intermediate graphs** are not unions of whole walks (section 3).
 
 
 ## 9. For the next version (e.g. keeping orientations)
@@ -203,11 +206,13 @@ these points on purpose (the checks make the pipeline stop otherwise):
   alignment files), and `haplotypeRemoval.py` must store walks per
   (genome, piece) instead of per genome; the one-walk-per-genome check
   then becomes a per-piece check.
-- **Order of elements.** Decide between "last user" and "first user"
-  (section 3) and state it in the paper.
+- **Order of elements.** Keep giving each element to the first genome
+  that uses it (section 3), so that intermediate graphs are unions of
+  whole walks; the incremental check enforces it.
 - Keep the other rules and checks: base graph = reference walk, every
   link in the base graph has both segments, every walk step is a link,
-  elements used by no walk are dropped.
+  elements used by no walk are dropped, every walk is complete when its
+  genome is added.
 
 To check a dataset: run the preprocessing (e.g. `scripts/pipelineRunner.py`)
 and read `input/<dataset>/Graphs/haplotype_removal_report.txt`; the BubbleGun
