@@ -5,8 +5,11 @@
       1) edge (u,v) inserted, one new node inserted and u is new node.
       2) edge (u,v) inserted, one new node inserted and v is new node.
       3) edge (u,v) inserted, two new nodes inserted.
-      4) edge (u,v) inserted, edge is from right to left.
-      5) edge (u,v) inserted, edge if from left to right.
+      4) edge (u,v) inserted, both nodes exist, edge is from left to right in the DFS tree
+         (u is visited before v's part of the tree, u after v in the topological order:
+         the order is broken and partialDFS re-places v and what it reaches after u).
+      5) edge (u,v) inserted, both nodes exist, edge is from right to left in the DFS tree
+         (u before v in the topological order: the order stays valid, nothing is reordered).
       the difference from the O(m^2logn) is the number of vertices we need to explore whose topological order
       got changed due to insertion of an edge. We are only changing the vertices in the special balanced binary
       search tree whos reachability changed.  
