@@ -38,9 +38,14 @@ public:
 
     int sizeE, sizeV;
     bool newu, newv;
+
+    // Set by addEdge when the inserted edge u->v gave v its first real
+    // parent, so the artificial edge 0->v was deleted (v was a child of the
+    // artificial source in the DFS tree). Reset at the start of every addEdge.
+    bool artificialParentRemoved;
     std::vector<int> incoming;
     std::vector<int> outgoing;
-    Graph(int m):sizeE(m),sizeV(0),newu(false),newv(false) {}
+    Graph(int m):sizeE(m),sizeV(0),newu(false),newv(false),artificialParentRemoved(false) {}
 
 public:
 	virtual void addEdge(int x,int y) = 0;

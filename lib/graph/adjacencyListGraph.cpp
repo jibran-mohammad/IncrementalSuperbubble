@@ -13,6 +13,7 @@
 
    void AdjacencyListGraph::addEdge(int x, int y) {
        bool flagIncoming = false, flagOutgoing = false;
+       this->artificialParentRemoved = false;
        if (x < 0 || y < 0) {
            std::cout << "ERROR: Incorrect arguments addEdge " << x << " " << y << std::endl;
            return;
@@ -47,6 +48,19 @@
        }
        if(this->incoming[this->reverseMapping[y]] == 2) {
            this->incoming[this->reverseMapping[y]] = 1 ;
+           /*
+              y had only the artificial parent 0 and now has a real one: delete
+              the artificial edge 0->y. Otherwise the DFS from 0 keeps y's
+              subtree under 0 instead of moving it under x, and the
+              superbubble computation, which needs a DFS order, misses
+              superbubbles. Artificial edges to the sink 1 are kept: they do
+              not change the DFS tree (1 is the first vertex visited) and are
+              ignored by maxO.
+           */
+           this->adjLOutgoing[0].remove(this->reverseMapping[y]);
+           this->adjLIncoming[this->reverseMapping[y]].remove(0);
+           this->sizeE--;
+           this->artificialParentRemoved = true;
        }
        else {
            this->incoming[this->reverseMapping[y]] = 1;

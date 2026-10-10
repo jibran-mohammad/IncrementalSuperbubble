@@ -116,10 +116,12 @@ columns "Only <algorithm>" and "Only <tool>" are 0;
 `agreement_details_<dataset>.txt` lists any differing superbubbles.
 
 The agreement table checks only the final graph. Correctness after every
-update is checked by comparing the superbubble counts per update of the
-algorithms with the static one (column `SB_Count` of the `<ID>_time.txt`
-files): an error can cancel out by the final graph (it did on 10.10.2026:
-final graphs agreed, but 1,079 of 2,236 E. coli updates differed).
+update is checked with `Preprocessing/checkSuperbubbles.py`, which
+recomputes the superbubbles after every update with an independent
+reference (definition-based algorithm of Onodera et al.) and compares the
+count of each algorithm (column `SB_Count` of `<ID>_time.txt`): an error
+can cancel out by the final graph (on 10.10.2026 the final graphs agreed,
+but the static algorithm was wrong on 971 of 2,236 E. coli updates).
 
 
 ## 5. How to read the speedup

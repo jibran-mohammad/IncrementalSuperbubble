@@ -166,6 +166,14 @@ python3 Preprocessing/plotcsv.py --csv output/Ecoli/timeFile/perEdge/haplotype_b
 python3 Preprocessing/plotcsv.py --csv output/Human/chromosome_11/timeFile/perbatch/haplotype_build_comparison.csv --out plots/chr11_charts/ --mode perbatch --dataset GRCh38_chr11 --scale log
 ```
 
+#### Step 3b2: Check the superbubbles after every update (checkSuperbubbles.py)
+Compares the superbubble count of one or more algorithms after every update with an independent reference (and the final superbubble lists), e.g.:
+
+```Bash
+python3 Preprocessing/checkSuperbubbles.py --edgelist input/Ecoli/Graphs/numeric_edgelist.txt -m perEdge \
+    --time output/Ecoli/timeFile/perEdge/static_time.txt output/Ecoli/timeFile/perEdge/incMinIBST_time.txt
+```
+
 #### Step 3c: Compare the best algorithm with an external tool (toolComparisonToLatex.py)
 Writes LaTeX tables comparing the best algorithm (`BEST_ALGORITHM` in `scripts/pipelineRunner.py`) with a superbubble tool (default `bubblegun`; any tool run through `scripts/superbubbleComparator.py -t <tool>` works the same way). It needs, per dataset and mode:
 
