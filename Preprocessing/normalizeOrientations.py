@@ -2,7 +2,9 @@
 normalizeOrientations.py
 
 Step 2 of the graph pipeline: rewrites <reference>.gfa so that all links
-go + -> + and writes <reference>_pos.gfa.
+go + -> + and writes <reference>_pos.gfa. A segment visited backwards is
+replaced by a forward copy; for walk steps that use a link backwards a
+forward link is added. See GRAPH_PREPARATION.md, section 2.
 
 Not run directly: called by scripts/graphRunner.py (and, without
 graphgeneration.py, by scripts/pipelineRunner.py), which pass the dataset
@@ -208,6 +210,29 @@ def normalize_gfa_to_positive(gfa_in, gfa_out, reverse_complement=False):
             new_tokens.append(f">{node2}")  # always positive / '>'
         parts[-1] = "".join(new_tokens)
         w_lines_out.append("\t".join(parts) + "\n")
+
+    # --- Links for walk steps that traverse a link backwards ---
+    # A link "a + b -" is rewritten above as a -> b' (b' = clone of b-), but a
+    # walk can use the same link in the other direction ("<b ... >b <a" is
+    # read as b -> a', i.e. ">b <a"), which becomes b -> a' after the walk
+    # rewrite. In the original graph that step is a valid link (read
+    # backwards), but no line above produces b -> a'. Add a forward link for
+    # every normalized walk step that has none, so every walk step is a link
+    # (all links in these graphs have overlap 0M). Links and clones that no
+    # walk uses are dropped later by haplotypeRemoval.py.
+    existing = set()
+    for line in l_lines_out:
+        parts = line.rstrip("\n").split("\t")
+        existing.add((parts[1], parts[3]))
+    added_links = 0
+    for line in w_lines_out:
+        steps = re.findall(r'>(s\d+)', line.rstrip("\n").split("\t")[-1])
+        for u, v in zip(steps, steps[1:]):
+            if (u, v) not in existing:
+                existing.add((u, v))
+                l_lines_out.append(f"L\t{u}\t+\t{v}\t+\t0M\n")
+                added_links += 1
+    print(f"🔗 Added {added_links} links for walk steps that use a link backwards")
 
     # --- Build cloned S lines in deterministic order (by numeric id) ---
     cloned_ids = [neg_map[k] for k in sorted(neg_map.keys(), key=_numeric_key)]

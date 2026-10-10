@@ -3,7 +3,19 @@ haplotypeRemoval.py
 
 Step 4 of the graph pipeline: from <reference>_pos.gfa writes the base
 graph with only the reference (reduced_graph.gfa) and, per haplotype, the
-nodes and edges it adds (unique_elements.txt).
+nodes and edges it adds (unique_elements.txt), plus a report with the
+counts (haplotype_removal_report.txt). See GRAPH_PREPARATION.md.
+
+Rules (the graph is defined by the walks, one per genome):
+  - a segment or link that no walk uses is dropped (graphgeneration.py
+    already drops such segments; links are dropped here)
+  - base graph = exactly the segments and links of the reference walk
+  - every other segment/link is given to one haplotype: the last one, in
+    W-line order, whose walk uses it (its use count reaches 0 there)
+Checks (the script stops if one fails): one walk per genome, all links
++ -> + and all walk steps forward (after normalizeOrientations.py), and
+the written base graph equals the reference walk with every link's
+segments defined.
 
 Not run directly: called by scripts/graphRunner.py (and, without
 graphgeneration.py, by scripts/pipelineRunner.py), which pass the dataset
@@ -98,6 +110,7 @@ try:
     gfa_file = str(GRAPH_DIR / f"{REF_BASE_NAME}_pos.gfa")
     unique_file = str(GRAPH_DIR / "unique_elements.txt")
     reduced_gfa = str(GRAPH_DIR / "reduced_graph.gfa")
+    report_file = str(GRAPH_DIR / "haplotype_removal_report.txt")
     
 
 except FileNotFoundError as e:
@@ -124,6 +137,7 @@ def parse_gfa(file_path):
     edges = defaultdict(lambda: {'src_orient': '','dest_orient': '','info': '','count': 0})
     walks = defaultdict(list)
     raw_walks = {}  # To preserve original walk string
+    walk_lines = 0  # number of W lines (checked against distinct sample names)
 
     with open(file_path, 'r') as f:
         for line in f:
@@ -143,6 +157,7 @@ def parse_gfa(file_path):
                         'count': 0
                 }
             elif line.startswith('W'):
+                walk_lines += 1
                 parts = line.strip().split('\t')
                 hap_name = parts[1]
                 path_str = parts[-1]
@@ -150,7 +165,120 @@ def parse_gfa(file_path):
                 tokens = re.findall(r'([<>])s(\d+)', path_str)  # e.g. [('>', '123'), ('<', '124')]
                 # store as list of (node_id, orient_plus_minus), e.g. ('s123','+')
                 walks[hap_name] = [(f"s{n}", '+' if o == '>' else '-') for (o, n) in tokens]
-    return nodes, edges, walks, raw_walks
+    return nodes, edges, walks, raw_walks, walk_lines
+
+
+def check_input(edges, walks, walk_lines):
+    """
+    Assumptions of the rules below; stop with a clear message if one does
+    not hold (e.g. for a future graph that keeps orientations).
+    """
+    problems = []
+
+    # One walk per genome: walks are stored by sample name, so a second walk
+    # of the same genome would silently replace the first.
+    if walk_lines != len(walks):
+        problems.append(f"{walk_lines} W lines but {len(walks)} distinct sample names "
+                        f"(a genome with more than one walk)")
+
+    # Links and walk steps must all be forward, as written by
+    # normalizeOrientations.py; links are matched in their stored direction.
+    backward_links = sum(1 for (u, uo, v, vo) in edges if (uo, vo) != ('+', '+'))
+    backward_steps = sum(1 for path in walks.values() for _, o in path if o != '+')
+    if backward_links or backward_steps:
+        problems.append(f"{backward_links} links and {backward_steps} walk steps are not + "
+                        f"(run normalizeOrientations.py first)")
+
+    if problems:
+        raise RuntimeError("haplotypeRemoval.py input check failed: " + "; ".join(problems))
+
+
+def drop_unused(nodes, edges):
+    """
+    Drop segments and links that no walk uses (use count 0 after
+    increment_counts). Without this they would never be given to a
+    haplotype and would end up in the base graph, although they belong to
+    no genome; a link to a segment that is not in the base graph would
+    then dangle there.
+    """
+    unused_nodes = [n for n, d in nodes.items() if d['count'] == 0]
+    unused_edges = [e for e, d in edges.items() if d['count'] == 0]
+
+    for n in unused_nodes:
+        del nodes[n]
+    for e in unused_edges:
+        del edges[e]
+
+    return len(unused_nodes), len(unused_edges)
+
+
+def check_base_graph(reduced_gfa, reference_path):
+    """
+    The written base graph must be exactly the reference walk, and every
+    link in it must connect two segments it defines.
+    """
+    segs, links = set(), set()
+    with open(reduced_gfa) as f:
+        for line in f:
+            parts = line.rstrip('\n').split('\t')
+            if parts[0] == 'S':
+                segs.add(parts[1])
+            elif parts[0] == 'L':
+                links.add((parts[1], parts[2], parts[3], parts[4]))
+
+    ref_segs = {u for u, _ in reference_path}
+    ref_links = {(u, uo, v, vo) for (u, uo), (v, vo) in zip(reference_path, reference_path[1:])}
+
+    problems = []
+    dangling = sum(1 for (u, _, v, _) in links if u not in segs or v not in segs)
+    if dangling:
+        problems.append(f"{dangling} links to segments not in the base graph")
+    if segs != ref_segs:
+        problems.append(f"segments: {len(segs - ref_segs)} not on the reference walk, "
+                        f"{len(ref_segs - segs)} of the reference walk missing")
+    if links != ref_links:
+        problems.append(f"links: {len(links - ref_links)} not on the reference walk, "
+                        f"{len(ref_links - links)} of the reference walk missing")
+
+    if problems:
+        raise RuntimeError("base graph check failed: " + "; ".join(problems))
+
+    return len(segs), len(links)
+
+
+def check_acyclic(nodes, edges):
+    """
+    The superbubble algorithms need a DAG. Check the graph that is actually
+    used (after dropping unused segments/links) with Kahn's algorithm; the
+    DAG check in DAGCheck.py runs on the graph before normalization.
+    """
+    indegree = {n: 0 for n in nodes}
+    out = defaultdict(list)
+    for (u, _, v, _) in edges:
+        out[u].append(v)
+        indegree[v] = indegree.get(v, 0) + 1
+        indegree.setdefault(u, 0)
+
+    queue = [n for n, d in indegree.items() if d == 0]
+    seen = 0
+    while queue:
+        n = queue.pop()
+        seen += 1
+        for v in out[n]:
+            indegree[v] -= 1
+            if indegree[v] == 0:
+                queue.append(v)
+
+    if seen != len(indegree):
+        raise RuntimeError(f"graph check failed: {len(indegree) - seen} segments are on a cycle "
+                           f"(the superbubble algorithms need a DAG)")
+
+
+def write_report(report_file, stats):
+    """Counts of this step, for checking and for describing the data."""
+    with open(report_file, 'w') as f:
+        for key, value in stats:
+            f.write(f"{key}: {value}\n")
 
 
 def increment_counts(nodes, edges, walks):
@@ -230,12 +358,30 @@ def main():
     print(f"Reference haplotype detected: {ref_sample}")
 
     print("🔍 Parsing GFA...")
-    nodes, edges, walks, raw_walks = parse_gfa(gfa_file)
+    nodes, edges, walks, raw_walks, walk_lines = parse_gfa(gfa_file)
 
     print(f"Nodes: {len(nodes)} | Edges: {len(edges)} | Haplotypes: {len(walks)}")
 
+    check_input(edges, walks, walk_lines)
+
+    stats = [("graph", gfa_file), ("walks (genomes, incl. reference)", len(walks)),
+             ("reference walk", ref_sample),
+             ("segments in graph", len(nodes)), ("links in graph", len(edges))]
+
     print("🔢 Incrementing counts...")
     increment_counts(nodes, edges, walks)
+
+    # Segments/links on no walk belong to no genome: drop them (see drop_unused).
+    unused_nodes, unused_edges = drop_unused(nodes, edges)
+    print(f"🗑️  Dropped {unused_nodes} segments and {unused_edges} links that no walk uses")
+    stats += [("segments used by no walk (dropped)", unused_nodes),
+              ("links used by no walk (dropped)", unused_edges)]
+
+    check_acyclic(nodes, edges)
+    print(f"✅ Graph used by the algorithms is acyclic: {len(nodes)} segments, {len(edges)} links")
+    stats += [("segments used (graph of all walks)", len(nodes)),
+              ("links used (graph of all walks)", len(edges)),
+              ("acyclic", "yes")]
 
     print("🧩 Identifying haplotype-unique nodes and edges...")
     process_haplotypes(nodes, edges, walks, raw_walks, unique_file, ref_sample)
@@ -243,6 +389,22 @@ def main():
 
     print("🧹 Writing reduced graph (without unique haplotype nodes/edges)...")
     write_reduced_gfa(nodes, edges, gfa_file, reduced_gfa, ref_sample)
+
+    base_segments, base_links = check_base_graph(reduced_gfa, walks[ref_sample])
+    print(f"✅ Base graph = reference walk: {base_segments} segments, {base_links} links")
+
+    stats += [("base graph segments (= reference walk)", base_segments),
+              ("base graph links (= reference walk)", base_links)]
+    added = [0, 0]
+    with open(unique_file) as f:
+        for line in f:
+            if line.startswith("NODE"):
+                added[0] += 1
+            elif line.startswith("EDGE"):
+                added[1] += 1
+    stats += [("segments added by haplotypes", added[0]), ("links added by haplotypes", added[1])]
+    write_report(report_file, stats)
+    print(f"📝 Report written to {report_file}")
 
 
 if __name__ == "__main__":
