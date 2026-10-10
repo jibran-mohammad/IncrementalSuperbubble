@@ -506,6 +506,15 @@ def main():
             fh.writelines(averaged_lines)
         print(f"   ...Averaged output written to: {job['full_output_path']}")
 
+        # Superbubbles of the final graph (<ID>_superbubbles.txt, written by the
+        # algorithm next to its timing file); identical in every run, so the
+        # list of run 1 is kept.
+        sb_name = filename.replace("_time.txt", "_superbubbles.txt")
+        sb_run1 = os.path.join(tmp_runs_dir, "run_001", rel_output_dir, sb_name)
+        if sb_name != filename and os.path.exists(sb_run1):
+            shutil.copyfile(sb_run1, os.path.join(job['output_dir'], sb_name))
+            print(f"   ...Superbubble list written to: {os.path.join(job['output_dir'], sb_name)}")
+
     # Clean up temporary run directories
     shutil.rmtree(tmp_runs_dir, ignore_errors=True)
     print(f"\n   ...Temporary run files cleaned up.")

@@ -86,6 +86,14 @@
     }
 
 
+    // One superbubble per line, "<entrance> <exit>", in input ids.
+    void SuperbubbleCalculation::writeSuperbubbles(GraphContext *g, std::ostream &out) {
+        for (pii element : this->SB) {
+            out << g->toOriginal(element.first) << " " << g->toOriginal(element.second) << "\n";
+        }
+    }
+
+
     int SuperbubbleCalculation::numberOfSuperbubbles() {
     	int numElements = this->SB.size();
     	return numElements;

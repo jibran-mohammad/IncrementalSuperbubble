@@ -236,6 +236,8 @@ public:
         #ifndef BENCHMARK
         timeFile << "PeakMemory(KB): " << getMemoryUsageInKB() << "\n";
         timeFile.close();
+        // superbubbles of the final graph -> <ID>_superbubbles.txt
+        writeFinalSuperbubbles(output_path, superbubble, g);
         #endif
     }
 

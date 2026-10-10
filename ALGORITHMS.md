@@ -34,6 +34,7 @@ Example: `incMinIBST`
 | `superbubbleRunner.py` name (`-a`) | `<ID>` | `-a incMinIBST` |
 | `pipelineRunner.py` (`-a`, `BEST_ALGORITHM`) | `<ID>` | `BEST_ALGORITHM = "incMinIBST"` |
 | Timing file (superbubbleRunner) | `output/<dataset>/timeFile/<mode>/<ID>_time.txt` | `output/Ecoli/timeFile/perEdge/incMinIBST_time.txt` |
+| Superbubble list, final graph (superbubbleRunner, normal builds) | `output/<dataset>/timeFile/<mode>/<ID>_superbubbles.txt`: `# Final graph \| total=<n>`, then `<entrance> <exit>` per line in input ids | `output/Ecoli/timeFile/perEdge/incMinIBST_superbubbles.txt` |
 | Timing file (pipelineRunner) | `output/<dataset>[/<chromosome>]/incsuperbubble/<mode>/<ID>_time.txt` | `output/Ecoli/incsuperbubble/perEdge/incMinIBST_time.txt` |
 | CSV columns (`parse_to_csv.py`) | `<ID><Metric>` | `incMinIBSTTotalTime`, `incMinIBSTAffectedVertices` |
 | LaTeX table columns (`csvToLatex.py`) | `<ID>`, `<ID>_Speedup`, `<ID>_Imp(%)` in the data; display name in the printed header | `Inc-MinI-BST Speedup` |

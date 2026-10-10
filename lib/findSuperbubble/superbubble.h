@@ -8,6 +8,7 @@
 #include<cassert>
 #include<map>
 #include<algorithm>
+#include<ostream>
 #include"../graph/contextGraph.h"
 #include"../DFS/contextdfs.h"
 
@@ -23,6 +24,7 @@ public:
 public:    
     void computeSB(DFSCONTEXT *sdfs,GraphContext *g);
     void printSuperbubbles(GraphContext *g) ;
+    void writeSuperbubbles(GraphContext *g, std::ostream &out);
     int numberOfSuperbubbles();
     void insertE(DFSCONTEXT *sdfs,GraphContext *g,int u, int v);
     void insertBatch(DFSCONTEXT *sdfs, GraphContext *g);
