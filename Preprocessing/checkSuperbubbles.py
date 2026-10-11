@@ -77,8 +77,12 @@ def read_edge_list(path):
         # "# HAPLOTYPE: <name>" (separator lines "# HAPLOTYPE: ####" are skipped)
         if len(x) >= 3 and x[0] == '#' and x[1] == 'HAPLOTYPE:' and not x[2].startswith('#'):
             k += 1
-            while not lines[k]:
+            while k < len(lines) and not lines[k]:
                 k += 1
+            # a genome that adds no new edge has no count line (and no edges)
+            if k >= len(lines) or not lines[k][0].isdigit():
+                haplotypes.append([])
+                continue
             count = int(lines[k][0])
             haplotypes.append([tuple(map(int, e)) for e in lines[k + 1:k + 1 + count]])
             k += 1 + count
@@ -160,17 +164,36 @@ def real(pairs):
     return {(s, t) for s, t in pairs if s > 1 and t > 1}
 
 
-def read_counts(time_file):
-    """Superbubble count after each update (column SB_Count) of a timing file."""
+def read_counts(time_file, haplotypes, mode):
+    """
+    Superbubble count after each update (column SB_Count) of a timing file:
+    one per edge (perEdge) or per genome (perBatch).
+
+    The rows are read in step with the genomes of the edge list: a genome
+    with edges has one row per edge (perEdge) or one row (perBatch); a
+    genome that adds no edge has one short row "<k> <name> 0 <SB_Count>"
+    in both modes, which is an update only in perBatch mode.
+    """
 
     lines = open(time_file).read().splitlines()
     header = lines[2].split()
     # Haplotype names may contain spaces, so SB_Count is located from the
     # end of the row: the number of columns after it is the same in every row.
     after = len(header) - header.index("SB_Count") - 1
-    rows = [l.split() for l in lines[3:]]
-    # rows of updates start with the update number
-    return [int(r[-1 - after]) for r in rows if len(r) >= len(header) and r[0].isdigit()]
+    # update rows start with a number and have at least 4 fields (the lines
+    # "<edges> <vertices>" after each genome have 2)
+    rows = iter(l.split() for l in lines[3:] if len(l.split()) >= 4 and l.split()[0].isdigit())
+
+    counts = []
+    for h in haplotypes:
+        if not h:
+            r = next(rows)
+            if mode == "perBatch":
+                counts.append(int(r[-1]))
+        else:
+            for _ in range(len(h) if mode == "perEdge" else 1):
+                counts.append(int(next(rows)[-1 - after]))
+    return counts
 
 
 def read_final_list(time_file):
@@ -198,7 +221,7 @@ def main():
     else:
         updates = [h for h in haplotypes]
 
-    algorithms = {t: read_counts(t) for t in args.time}
+    algorithms = {t: read_counts(t, haplotypes, args.mode) for t in args.time}
     for t, c in algorithms.items():
         if len(c) != len(updates):
             print(f"[!] {t}: {len(c)} updates in the timing file, {len(updates)} in the edge list "
