@@ -12,6 +12,13 @@
          the order is broken and partialDFS re-places v and what it reaches after u).
       5) edge (u,v) inserted, both nodes exist, edge is from right to left in the DFS tree
          (u before v in the topological order: the order stays valid, nothing is reordered).
+
+      Cases 1 and 5 when v's only parent was the artificial source 0: the graph
+      deletes the edge 0->v (g->strategy->artificialParentRemoved), but in the
+      DFS tree v and its subtree are still children of 0, so they are not placed
+      under u: superbubbles that now contain v are not contiguous in the order
+      and computeSB misses them. The order is then recomputed once with the
+      static DFS (rebuildFromStaticDFS), in which v's subtree hangs under u.
     */
     void IncrementalDFSSMM::insert(GraphContext *g, int u, int v) {
         int x;
@@ -95,6 +102,11 @@
                    start = std::chrono::high_resolution_clock::now();
                    #endif
 
+                   if(g->strategy->artificialParentRemoved) {
+                       // v's only parent was 0: move v's subtree under u
+                       this->rebuildFromStaticDFS(g);
+                   }
+                   else {
                    this->reverseTopologicalOrder[u] = this->n-1;
                    this->topOrd[u] = this->n - 1;
 
@@ -102,6 +114,7 @@
                    //std::cout << "partial DFS done in case where u is new node" << std::endl;
                    this->update(g);
                    this->reset();
+                   }
 
                     #ifndef BENCHMARK
                     end = std::chrono::high_resolution_clock::now();
@@ -211,6 +224,19 @@
                 this->edgeTypes.case5 +=1;
                 this->edgeTypes.currentcase5 = 1;
                 #endif
+                if(g->strategy->artificialParentRemoved) {
+                    // v's only parent was 0: move v's subtree under u
+                    #ifndef BENCHMARK
+                    start = std::chrono::high_resolution_clock::now();
+                    #endif
+                    this->rebuildFromStaticDFS(g);
+                    #ifndef BENCHMARK
+                    end = std::chrono::high_resolution_clock::now();
+                    elapsed = end - start;
+                    this->latestTimes.currentdfsTime += elapsed.count();
+                    this->latestTimes.dfsTime += elapsed.count();
+                    #endif
+                }
             }   
         }
         /*
@@ -318,6 +344,23 @@
         std::fill(this->postorderChanged.begin(), this->postorderChanged.end(), 0);
         std::fill(this->intermediatepostorder.begin(), this->intermediatepostorder.end(), 0);
         this->m=0;
+    }
+
+    /*
+      Recomputes the whole order with the static DFS (BaseDFS::dfs) on the
+      current graph. Used in cases 1 and 5 when the inserted edge removed v's
+      artificial edge 0->v (see insert). minI and maxO need nothing extra:
+      incRecompute recomputes them from the order after every update.
+    */
+    void IncrementalDFSSMM::rebuildFromStaticDFS(GraphContext *g) {
+        std::fill(this->visit.begin(), this->visit.end(), 0);
+        this->postorderNumber = 0;
+        this->dfs(g);
+        this->reset();
+        this->staticRebuilds++;
+        #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1`
+        std::cout << "v's only parent was 0: order recomputed with the static DFS" << std::endl;
+        #endif
     }
 
     void IncrementalDFSSMM::calculateMaxO(GraphContext *g) {
