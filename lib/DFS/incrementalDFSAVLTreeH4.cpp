@@ -106,8 +106,8 @@
                    }
                    else {
                    DifferentBalancedBinaryTree binaryTreeIncoming(this->reverseTopologicalOrder);
-                   end = std::chrono::high_resolution_clock::now();
                    #ifndef BENCHMARK
+                   end = std::chrono::high_resolution_clock::now();
                    elapsed = end - start;
                    this->latestTimes.currentminITime += elapsed.count();
                    this->latestTimes.minITime += elapsed.count();
