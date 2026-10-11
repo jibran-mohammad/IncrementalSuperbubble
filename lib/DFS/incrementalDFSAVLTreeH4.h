@@ -57,6 +57,9 @@ public:
     std::vector<int> reachable;
     std::vector<DifferentBalancedBinaryTree> minIbst;
     int m,u,v;    
+    // number of updates after which the whole order was recomputed with the
+    // static DFS (rebuildFromStaticDFS)
+    int staticRebuilds;
 
 public:
 	IncrementalDFSTREEH4(GraphContext *g): BaseDFS(g) {
@@ -64,6 +67,7 @@ public:
         g->insertEdge(0,1);
         n=g->displayNumberVertices();
         this->m=0;
+        this->staticRebuilds=0;
     	this->reverseTopologicalOrder.resize(n);
     	this->topOrd.resize(n);
     	this->minI.resize(n);
@@ -99,6 +103,7 @@ public:
 	void reset() override;
 	void partialDFS(GraphContext *g,int u , int v );
 	void update(GraphContext *g);
+	void rebuildFromStaticDFS(GraphContext *g);
 	void calculateMinI(GraphContext *g) override;
 	void calculateMaxO(GraphContext *g) override;
 	void printMinI() const override;

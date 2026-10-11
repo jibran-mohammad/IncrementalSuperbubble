@@ -10,6 +10,13 @@
          the order is broken and partialDFS re-places v and what it reaches after u).
       5) edge (u,v) inserted, both nodes exist, edge is from right to left in the DFS tree
          (u before v in the topological order: the order stays valid, nothing is reordered).
+
+      Cases 1 and 5 when v's only parent was the artificial source 0: the graph
+      deletes the edge 0->v (g->strategy->artificialParentRemoved), but in the
+      DFS tree v and its subtree are still children of 0, so they are not placed
+      under u: superbubbles that now contain v are not contiguous in the order
+      and computeSB misses them. The order is then recomputed once with the
+      static DFS (rebuildFromStaticDFS), in which v's subtree hangs under u.
       the difference from the O(m^2logn) is the number of vertices we need to explore whose topological order
       got changed due to insertion of an edge. We are only changing the vertices in the special balanced binary
       search tree whos reachability changed.  
@@ -94,6 +101,11 @@
                    //std::cout << "case 1" << std::endl;
                    start = std::chrono::high_resolution_clock::now();
                    #endif
+                   if(g->strategy->artificialParentRemoved) {
+                       // v's only parent was 0: move v's subtree under u
+                       this->rebuildFromStaticDFS(g);
+                   }
+                   else {
                    DifferentBalancedBinaryTree binaryTreeIncoming(this->reverseTopologicalOrder);
                    #ifndef BENCHMARK
                    end = std::chrono::high_resolution_clock::now();
@@ -164,6 +176,7 @@
                    this->latestTimes.topologicalOrderTime += elapsed.count();
                    #endif
                    
+                   }
                    g->strategy->newu = false;
                }    
                else {
@@ -336,6 +349,11 @@
                 this->edgeTypes.currentcase5 =1;
                 start = std::chrono::high_resolution_clock::now();
                 #endif
+                if(g->strategy->artificialParentRemoved) {
+                    // v's only parent was 0: move v's subtree under u
+                    this->rebuildFromStaticDFS(g);
+                }
+                else {
                 this->maxObst[u].addNode(v,0);
                 this->maxO[u] = (this->maxObst[u].findMax());
                 #ifndef BENCHMARK
@@ -354,6 +372,7 @@
                 this->latestTimes.currentminITime += elapsed.count();
                 this->latestTimes.minITime += elapsed.count();
                 #endif
+                }
             }    
         }
         
@@ -546,6 +565,70 @@
                 #endif
             }
         }
+    }
+
+    /*
+      Recomputes the whole order with the static DFS (BaseDFS::dfs) on the
+      current graph, then all minI and maxO trees and minI/maxO from it. Used in cases 1 and 5 when the
+      inserted edge removed v's artificial edge 0->v (see insert).
+    */
+    void IncrementalDFSTREE::rebuildFromStaticDFS(GraphContext *g) {
+        #ifndef BENCHMARK
+        auto start = std::chrono::high_resolution_clock::now();
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
+        start = std::chrono::high_resolution_clock::now();
+        #endif
+        std::fill(this->visit.begin(), this->visit.end(), 0);
+        this->postorderNumber = 0;
+        this->dfs(g);
+        #ifndef BENCHMARK
+        end = std::chrono::high_resolution_clock::now();
+        elapsed = end - start;
+        this->latestTimes.currentdfsTime += elapsed.count();
+        this->latestTimes.dfsTime += elapsed.count();
+        start = std::chrono::high_resolution_clock::now();
+        #endif
+        // the trees are ordered by the old order: rebuilt from the real edges
+        // (the artificial vertices 0 and 1 are never stored in them)
+        for(int i = 2; i < this->n; i++) {
+            DifferentBalancedBinaryTree incoming(this->reverseTopologicalOrder);
+            for(int p : g->displayIncomingNeighbours(i)) {
+                if(p != 0) {
+                    incoming.addNode(p,0);
+                }
+            }
+            this->minIbst[i] = incoming;
+            this->minI[i] = this->minIbst[i].findMin();     // 0 if no real parent
+        }
+        #ifndef BENCHMARK
+        end = std::chrono::high_resolution_clock::now();
+        elapsed = end - start;
+        this->latestTimes.currentminITime += elapsed.count();
+        this->latestTimes.minITime += elapsed.count();
+        start = std::chrono::high_resolution_clock::now();
+        #endif
+        for(int i = 2; i < this->n; i++) {
+            DifferentBalancedBinaryTree outgoing(this->reverseTopologicalOrder);
+            for(int c : g->displayOutgoingNeighbours(i)) {
+                if(c != 1) {
+                    outgoing.addNode(c,0);
+                }
+            }
+            this->maxObst[i] = outgoing;
+            this->maxO[i] = this->maxObst[i].findMax();     // 1 if no real child
+        }
+        #ifndef BENCHMARK
+        end = std::chrono::high_resolution_clock::now();
+        elapsed = end - start;
+        this->latestTimes.currentmaxOTime += elapsed.count();
+        this->latestTimes.maxOTime += elapsed.count();
+        #endif
+        this->reset();
+        this->staticRebuilds++;
+        #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1`
+        std::cout << "v's only parent was 0: order recomputed with the static DFS" << std::endl;
+        #endif
     }
 
     void IncrementalDFSTREE::reset() {
