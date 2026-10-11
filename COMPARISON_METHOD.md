@@ -167,6 +167,7 @@ not be mixed with later ones. All dates 2026.
 | 10.10, 22951e3 | `AlgorithmTime` = mean of 10 runs | before, one run |
 | 10.10, 9482bb7 | graph defined by the walks: links no walk uses dropped, backward link traversals fixed | before, base graphs of human chromosomes contained links of no genome (chromosome 21: 979) |
 | 10.10, 17895c1 | each element is added with the first genome that uses it | before, with the last one: a different update sequence (same final graph) |
+| 11.10, a39591f / 12b65cc / a8fa60d | edge 0->v deleted when v gets its first real parent; incremental algorithms recompute the order with the static DFS when that happens in case 1 or 5 | before, superbubbles were missed after many updates (E. coli perEdge: static wrong on 971, incremental on 707 of 2,236; final graphs were right); incremental algorithms about 10% slower now (chromosome 21 perEdge) |
 
 All results in `output/` produced before 10.10.2026 (including the April
 human results and `scripts/ecoli_perEdge.csv`) are affected by several of
