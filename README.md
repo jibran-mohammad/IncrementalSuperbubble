@@ -250,17 +250,16 @@ python3 scripts/superbubbleRunner.py -d Human -m perBatch -a static incRecompute
 
 (Leave out `-a ...` in perBatch once `incBSTBatch` compiles.)
 
-**3. BubbleGun** (`superbubbleComparator.py`, one chromosome per call):
+**3. BubbleGun** (`superbubbleComparator.py`):
 
 ```Bash
-python3 scripts/superbubbleComparator.py -d Ecoli -m perEdge
-python3 scripts/superbubbleComparator.py -d Ecoli -m perBatch
-for c in $(ls input/Human | sed -n 's/^chromosome_//p'); do
-    [ -f input/Human/chromosome_$c/Graphs/reduced_graph.gfa ] || continue
-    python3 scripts/superbubbleComparator.py -d Human -c $c -m perEdge
-    python3 scripts/superbubbleComparator.py -d Human -c $c -m perBatch
-done
+python3 scripts/superbubbleComparator.py -d all -m perEdge  2>&1 | tee bubblegun_perEdge.log
+python3 scripts/superbubbleComparator.py -d all -m perBatch 2>&1 | tee bubblegun_perBatch.log
 ```
+
+`-d all` runs E. coli and every preprocessed human chromosome one after
+the other and ends with a SUMMARY (`-d Human -c 14 X` for single
+chromosomes).
 
 **Rough times** (measured on chromosome 21: 64 genomes, 6,863 edge
 updates; larger chromosomes take longer): step 1 about 1 minute per

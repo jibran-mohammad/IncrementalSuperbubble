@@ -23,22 +23,31 @@ must exist first (scripts/graphRunner.py).
     # one run per haplotype
     python3 scripts/superbubbleComparator.py -d Ecoli -m perBatch
 
-    # human chromosome 14 (one chromosome per call: 14 or chromosome_14)
-    python3 scripts/superbubbleComparator.py -d Human -c 14 -m perEdge
+    # human chromosomes 14 and X
+    python3 scripts/superbubbleComparator.py -d Human -c 14 X -m perEdge
+
+    # every human chromosome that has been preprocessed
+    python3 scripts/superbubbleComparator.py -d Human -m perEdge
+
+    # E. coli and every human chromosome, one after the other
+    python3 scripts/superbubbleComparator.py -d all -m perEdge
 
     # another tool, once it is added (see below)
     python3 scripts/superbubbleComparator.py -d Ecoli -m perEdge -t bubblefinder
 
 Options:
 
-    -d           Ecoli | Human                                   (required)
-    -c           Human only: ONE chromosome, 14 or chromosome_14 (required for Human)
+    -d           Ecoli | Human | all (= Ecoli + Human)           (required)
+    -c           Human only: chromosomes, e.g. 14 X or chromosome_14
+                 (default: every chromosome with a reduced_graph.gfa)
     -m           perEdge | perBatch                              (required)
     -t / --tool  tool to run, by its name                        (default: bubblegun)
 
-The script stops with an error if the tool reports a warning (for
+A dataset stops with an error if the tool reports a warning (for
 BubbleGun e.g. a link to a segment that is not in the GFA), so wrong
-input does not go unnoticed.
+input does not go unnoticed; the other datasets still run, and a SUMMARY
+at the end lists every dataset as ok or FAILED (exit code 1 if any
+failed).
 
 =====================================================================
 INPUT
@@ -330,68 +339,10 @@ def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile):
 
 #######################################################
 
-if __name__=="__main__":
-
-    parser=argparse.ArgumentParser(
-        description="Run a superbubble tool after every update of a dataset; "
-                    "see the guide at the top of this file.")
-
-    parser.add_argument(
-        "-d",
-        choices=["Ecoli","Human"],
-        required=True,
-        help="Dataset"
-    )
-
-    parser.add_argument("-c",
-        help="Human only: one chromosome, e.g. 14 or chromosome_14")
-
-    parser.add_argument("-m",
-        choices=["perEdge","perBatch"],
-        required=True,
-        help="perEdge: one tool run per edge; perBatch: one per haplotype"
-    )
-
-    parser.add_argument(
-        "-t",
-        "--tool",
-        choices=sorted(TOOLS),
-        default="bubblegun",
-        help="Superbubble tool to run; also names the output directory"
-    )
-
-    args=parser.parse_args()
-
-
-    ###################################################
-
-    repo = REPO_ROOT_PATH
-
-
-    ###################################################
-
-    if args.d == "Ecoli":
-
-        dataset_path = pathlib.Path("Ecoli")
-
-    elif args.d == "Human":
-
-        if args.c is None:
-
-            print("❌ Error: Human dataset requires chromosome argument.")
-            print("Example:")
-            print("python scripts/superbubbleComparator.py -d Human -c chromosome_14 -m perEdge")
-
-            sys.exit(1)
-
-        args.c = f"chromosome_{args.c}" if not args.c.startswith("chromosome_") else args.c    
-
-        dataset_path = pathlib.Path("Human") / args.c
+def run_dataset(repo, dataset_path, mode, tool_name):
+    """Run the tool after every update of one dataset; write its two output files."""
 
     graph_dir = repo / "input" / dataset_path / "Graphs"
-
-
-    ###################################################
 
     base_gfa=graph_dir/"reduced_graph.gfa"
 
@@ -407,9 +358,9 @@ if __name__=="__main__":
 
     updater=GraphUpdater(base_gfa)
 
-    tool=TOOLS[args.tool]()
+    tool=TOOLS[tool_name]()
 
-    out_dir = repo / "output" / dataset_path / tool.name / MODE_DIRS[args.m]
+    out_dir = repo / "output" / dataset_path / tool.name / MODE_DIRS[mode]
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -422,7 +373,7 @@ if __name__=="__main__":
         with open(time_path,"w") as timefile, open(sb_path,"w") as sbfile:
 
             run_updates(
-                args.m,
+                mode,
                 updater,
                 hap_order,
                 hap_edges,
@@ -440,3 +391,94 @@ if __name__=="__main__":
     print("Times written to:",time_path)
 
     print("Superbubbles written to:",sb_path)
+
+
+def datasets_to_run(repo, d, chromosomes):
+    """Dataset paths (relative to input/) for -d and -c; Human without -c = every prepared chromosome."""
+
+    paths = []
+
+    if d in ("Ecoli", "all"):
+        paths.append(pathlib.Path("Ecoli"))
+
+    if d in ("Human", "all"):
+        if chromosomes:
+            names = [c if c.startswith("chromosome_") else f"chromosome_{c}" for c in chromosomes]
+        else:
+            names = sorted(p.name for p in (repo / "input" / "Human").glob("chromosome_*") if p.is_dir())
+        skipped = []
+        for name in names:
+            path = pathlib.Path("Human") / name
+            if (repo / "input" / path / "Graphs" / "reduced_graph.gfa").exists():
+                paths.append(path)
+            else:
+                skipped.append(name)
+        if skipped:
+            print(f"[!] skipped, no reduced_graph.gfa (not preprocessed): {' '.join(skipped)}")
+
+    return paths
+
+
+#######################################################
+
+if __name__=="__main__":
+
+    parser=argparse.ArgumentParser(
+        description="Run a superbubble tool after every update of a dataset; "
+                    "see the guide at the top of this file.")
+
+    parser.add_argument(
+        "-d",
+        choices=["Ecoli","Human","all"],
+        required=True,
+        help="Dataset: Ecoli, Human, or all (= Ecoli + every human chromosome)"
+    )
+
+    parser.add_argument("-c",
+        nargs="+",
+        help="Human only: chromosomes, e.g. 14 X or chromosome_14 "
+             "(default: every chromosome that has been preprocessed)")
+
+    parser.add_argument("-m",
+        choices=["perEdge","perBatch"],
+        required=True,
+        help="perEdge: one tool run per edge; perBatch: one per haplotype"
+    )
+
+    parser.add_argument(
+        "-t",
+        "--tool",
+        choices=sorted(TOOLS),
+        default="bubblegun",
+        help="Superbubble tool to run; also names the output directory"
+    )
+
+    args=parser.parse_args()
+
+    repo = REPO_ROOT_PATH
+
+    datasets = datasets_to_run(repo, args.d, args.c)
+
+    # One dataset after the other; a dataset that fails (e.g. the tool
+    # reports a warning) is reported and the others still run.
+    status = {}
+
+    for dataset_path in datasets:
+
+        print(f"\n========== {dataset_path} ({args.m}) ==========", flush=True)
+
+        start = time.time()
+
+        try:
+            run_dataset(repo, dataset_path, args.m, args.tool)
+            status[dataset_path] = f"ok ({time.time() - start:.0f} s)"
+        except (Exception, SystemExit) as e:
+            status[dataset_path] = f"FAILED: {e}"
+            print(f"[!] {dataset_path} FAILED: {e}", flush=True)
+
+    print("\n===================\nSUMMARY\n===================")
+
+    for dataset_path, st in status.items():
+        print(f"{str(dataset_path):22s} {st}")
+
+    sys.exit(1 if any(st.startswith("FAILED") for st in status.values()) else 0)
