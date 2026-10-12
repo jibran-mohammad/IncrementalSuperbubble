@@ -668,9 +668,10 @@ def main():
     )
     parser.add_argument(
         "-d", "--dataset",
-        choices=["ecoli", "human", "all"],
+        choices=["ecoli", "human", "hprc", "all"],
         required=True,
-        help="The dataset to process. 'ecoli', 'human', or 'all'."
+        help="The dataset to process. 'ecoli', 'human', 'hprc' (Minigraph-Cactus, "
+             "experimental), or 'all' (= ecoli + human)."
     )
     parser.add_argument("-c", "--chromosome",
         nargs='+', 
@@ -727,10 +728,12 @@ def main():
         process_time_directory(ecoli_time_dir)
     """
     # --- 2. Process Human Dataset ---
-    if args.dataset in ["human", "all"]:
-        human_output_dir = OUTPUT_DIR / "Human"
+    # (HPRC: Minigraph-Cactus chromosomes, same layout as Human)
+    groups = (["Human"] if args.dataset in ["human", "all"] else []) + (["HPRC"] if args.dataset == "hprc" else [])
+    for group in groups:
+        human_output_dir = OUTPUT_DIR / group
         if not human_output_dir.is_dir():
-            print(f"\nℹ️ 'Human' directory not found at {human_output_dir}, skipping.")
+            print(f"\nℹ️ '{group}' directory not found at {human_output_dir}, skipping.")
         else:
             print(f"\nScanning {human_output_dir} for chromosome directories...")
             # Find all directories starting with "chromosome_"

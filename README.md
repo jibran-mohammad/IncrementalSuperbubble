@@ -283,6 +283,47 @@ reports give the graph sizes for the paper.)
 (`parse_to_csv.py -d all`, `plotcsv.py`, `csvToLatex.py`) and Step 3c
 (`toolComparisonToLatex.py -d Ecoli Human`).
 
+## 🧬 HPRC Minigraph-Cactus Graphs (experimental)
+
+Larger graphs from the Human Pangenome Reference Consortium (Minigraph-Cactus,
+bidirected and possibly cyclic) form a separate dataset **`HPRC`**, with the
+same folder layout as `Human`: `input/HPRC/chromosome_<X>/Graphs/` and
+`output/HPRC/chromosome_<X>/`. Their preprocessing is
+`Preprocessing/mcToDag.py`: it orients the nodes (reference orientation,
+otherwise the majority of the walks), drops inversion links and self-loops,
+breaks cycles by removing only DFS back edges, and writes the same pipeline
+files as the other datasets (`numeric_edgelist.txt`, `reduced_graph.gfa`,
+`unique_elements.txt`, `ordered_haplotypes.txt`,
+`haplotype_removal_report.txt`), plus `<name>.stats.json` with everything
+that was removed. Check that file first: the share of removed links and of
+broken walk transitions says how faithful the DAG is.
+
+```Bash
+# 1. graph: e.g. HPRC chromosome 22 (.vg; list the bucket for the exact name)
+aws s3 ls --no-sign-request s3://human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/hprc-v1.1-mc-grch38/
+mkdir -p input/HPRC/chromosome_22/Graphs
+vg convert -f chr22.vg > input/HPRC/chromosome_22/Graphs/chromosome_22.gfa   # vg: github.com/vgteam/vg/releases
+grep "^W" input/HPRC/chromosome_22/Graphs/chromosome_22.gfa | cut -f2 | sort -u | head   # reference sample name
+
+# 2. preprocessing (mcToDag.py) + time of the best algorithm
+python3 scripts/pipelineRunner.py -d HPRC -c c22 --ref GRCh38 --preprocess-only
+python3 scripts/pipelineRunner.py -d HPRC -c c22 --ref GRCh38 -m perBatch
+
+# 3. all algorithms, BubbleGun, correctness, tables
+python3 scripts/superbubbleRunner.py -d HPRC -c chromosome_22 -m perBatch -a static incRecompute incBST incMinIBST
+python3 scripts/superbubbleComparator.py -d HPRC -c 22 -m perBatch
+python3 Preprocessing/checkSuperbubbles.py --edgelist input/HPRC/chromosome_22/Graphs/numeric_edgelist.txt \
+    -m perBatch --time output/HPRC/chromosome_22/timeFile/perbatch/incMinIBST_time.txt
+python3 Preprocessing/toolComparisonToLatex.py -d HPRC -m perBatch
+python3 Preprocessing/parse_to_csv.py -d hprc -m perbatch
+```
+
+Use **perBatch** for these graphs: a chromosome has on the order of a
+million edge updates, and every algorithm (and BubbleGun) recomputes all
+superbubbles after each update, so perEdge would take days. `-d all` does
+not include `HPRC`. The script is pure Python; `pypy3
+Preprocessing/mcToDag.py ...` is several times faster on large graphs.
+
 ## 🧪 Test Run Instructions (Quick Start Example)
 
 To verify the installation and test the pipeline end-to-end, use five sample E. coli genomes. Genome files are not tracked in git, so download them from NCBI RefSeq and place the `.fna` files in **input/Ecoli/coli3682_dataset/**:

@@ -327,10 +327,11 @@ def comparable(pairs, out):
 ############################################################
 
 def dataset_label(dataset_path):
-    """Ecoli -> Ecoli, Human/chromosome_11 -> chr11"""
+    """Ecoli -> Ecoli, Human/chromosome_11 -> chr11, HPRC/chromosome_22 -> HPRC chr22"""
 
     name = dataset_path.name
-    return "chr" + name.split("_", 1)[1] if name.startswith("chromosome_") else name
+    label = "chr" + name.split("_", 1)[1] if name.startswith("chromosome_") else name
+    return f"HPRC {label}" if dataset_path.parts[0] == "HPRC" else label
 
 
 def performance_rows(datasets, mode, algorithm, tool):
@@ -446,8 +447,9 @@ def discover_datasets(names, chromosomes, tool):
 
     for name in names:
 
-        # Ecoli (or any other non-human dataset): one folder output/<name>/.
-        if name != "Human":
+        # Ecoli (or any other dataset without chromosomes): one folder output/<name>/.
+        # Human and HPRC (Minigraph-Cactus, experimental): one per chromosome.
+        if name not in ("Human", "HPRC"):
             datasets.append(pathlib.Path(name))
             continue
 
@@ -456,10 +458,10 @@ def discover_datasets(names, chromosomes, tool):
         if chromosomes:
             chrs = [c if c.startswith("chromosome_") else f"chromosome_{c}" for c in chromosomes]
         else:
-            human = REPO_ROOT / "output" / "Human"
+            human = REPO_ROOT / "output" / name
             chrs = sorted(d.name for d in human.glob("chromosome_*") if (d / tool).is_dir())
 
-        datasets += [pathlib.Path("Human") / c for c in chrs]
+        datasets += [pathlib.Path(name) / c for c in chrs]
 
     return datasets
 

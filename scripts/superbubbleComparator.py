@@ -37,7 +37,9 @@ must exist first (scripts/graphRunner.py).
 
 Options:
 
-    -d           Ecoli | Human | all (= Ecoli + Human)           (required)
+    -d           Ecoli | Human | HPRC | all (= Ecoli + Human)    (required;
+                 HPRC: Minigraph-Cactus graphs prepared by
+                 Preprocessing/mcToDag.py, experimental)
     -c           Human only: chromosomes, e.g. 14 X or chromosome_14
                  (default: every chromosome with a reduced_graph.gfa)
     -m           perEdge | perBatch                              (required)
@@ -401,14 +403,16 @@ def datasets_to_run(repo, d, chromosomes):
     if d in ("Ecoli", "all"):
         paths.append(pathlib.Path("Ecoli"))
 
-    if d in ("Human", "all"):
+    # Human and HPRC (Minigraph-Cactus graphs prepared by mcToDag.py): one
+    # folder per chromosome; "all" = Ecoli + Human (HPRC is run on its own)
+    for group in (["Human"] if d == "all" else [d] if d in ("Human", "HPRC") else []):
         if chromosomes:
             names = [c if c.startswith("chromosome_") else f"chromosome_{c}" for c in chromosomes]
         else:
-            names = sorted(p.name for p in (repo / "input" / "Human").glob("chromosome_*") if p.is_dir())
+            names = sorted(p.name for p in (repo / "input" / group).glob("chromosome_*") if p.is_dir())
         skipped = []
         for name in names:
-            path = pathlib.Path("Human") / name
+            path = pathlib.Path(group) / name
             if (repo / "input" / path / "Graphs" / "reduced_graph.gfa").exists():
                 paths.append(path)
             else:
@@ -429,9 +433,10 @@ if __name__=="__main__":
 
     parser.add_argument(
         "-d",
-        choices=["Ecoli","Human","all"],
+        choices=["Ecoli","Human","HPRC","all"],
         required=True,
-        help="Dataset: Ecoli, Human, or all (= Ecoli + every human chromosome)"
+        help="Dataset: Ecoli, Human, HPRC (Minigraph-Cactus, experimental), "
+             "or all (= Ecoli + every human chromosome)"
     )
 
     parser.add_argument("-c",
