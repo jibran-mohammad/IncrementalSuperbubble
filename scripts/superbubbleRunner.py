@@ -82,6 +82,7 @@ Next step: python3 Preprocessing/parse_to_csv.py --dataset ecoli -m peredge
 """
 
 import os
+import resource
 import subprocess
 import sys
 import shutil
@@ -250,6 +251,19 @@ def compile_target_with_make(cpp_dir, target):
         print("-------------------------", file=sys.stderr)
         return None
 
+def raise_stack_limit():
+    """
+    Runs in the child process before the C++ program starts: raises its
+    stack limit to the largest the system allows (usually unlimited). The
+    DFS of the algorithms is recursive, one level per vertex on a path, and
+    the default 8 MB stack overflows on very large graphs (segmentation
+    fault, e.g. HPRC chromosome 22 with a 740,000-vertex reference path).
+    """
+    soft, hard = resource.getrlimit(resource.RLIMIT_STACK)
+    if soft != hard:
+        resource.setrlimit(resource.RLIMIT_STACK, (hard, hard))
+
+
 def run_cpp_program(executable_path, input_path,full_output_path, mode):
     """Runs a compiled C++ program, redirecting the input file to its stdin."""
     print(f"-> Running {os.path.basename(executable_path)} with input {os.path.basename(input_path)}...in {mode} mode...")
@@ -263,7 +277,8 @@ def run_cpp_program(executable_path, input_path,full_output_path, mode):
                 run_command,
                 stdin=input_file_handle,
                 check=True,
-                cwd=PROJECT_ROOT
+                cwd=PROJECT_ROOT,
+                preexec_fn=raise_stack_limit
             )
         print(f"   ...Finished successfully.")
         return True
