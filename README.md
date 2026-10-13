@@ -256,12 +256,22 @@ python3 scripts/superbubbleRunner.py -d Human -m perBatch -a static incRecompute
 
 (Leave out `-a ...` in perBatch once `incBSTBatch` compiles.)
 
-**3. BubbleGun** (`superbubbleComparator.py`):
+**3. BubbleGun and BubbleFinder** (`superbubbleComparator.py`, `-t bubblegun` is the default):
 
 ```Bash
 python3 scripts/superbubbleComparator.py -d all -m perEdge  2>&1 | tee bubblegun_perEdge.log
 python3 scripts/superbubbleComparator.py -d all -m perBatch 2>&1 | tee bubblegun_perBatch.log
+
+# BubbleFinder: install the binary once (see Preprocessing/superbubbleTools/bubblefinderTool.py)
+mkdir -p ~/tools/bubblefinder-1.0.5 && cd ~/tools/bubblefinder-1.0.5 \
+  && wget https://github.com/algbio/BubbleFinder/releases/download/v1.0.5/BubbleFinder-linux-x86_64.tar.gz \
+  && tar xzf BubbleFinder-linux-x86_64.tar.gz && ./BubbleFinder --version && cd -
+python3 scripts/superbubbleComparator.py -d all -m perEdge  -t bubblefinder 2>&1 | tee bubblefinder_perEdge.log
+python3 scripts/superbubbleComparator.py -d all -m perBatch -t bubblefinder 2>&1 | tee bubblefinder_perBatch.log
 ```
+
+Tables for BubbleFinder: `toolComparisonToLatex.py -d Ecoli Human -t bubblefinder`
+(output in `output/toolComparison/bubblefinder/`).
 
 `-d all` runs E. coli and every preprocessed human chromosome one after
 the other and ends with a SUMMARY (`-d Human -c 14 X` for single

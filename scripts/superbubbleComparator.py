@@ -1,7 +1,7 @@
 """
 superbubbleComparator.py
 
-Runs an external superbubble tool (BubbleGun, later e.g. BubbleFinder) on
+Runs an external superbubble tool (BubbleGun or BubbleFinder) on
 the same sequence of graph updates that the C++ algorithms process: after
 every update (an edge in perEdge mode, a haplotype in perBatch mode) the
 tool computes all bubbles of the whole graph from scratch. Records the
@@ -41,7 +41,9 @@ Options:
     -c           Human only: chromosomes, e.g. 14 X or chromosome_14
                  (default: every chromosome with a reduced_graph.gfa)
     -m           perEdge | perBatch                              (required)
-    -t / --tool  tool to run, by its name                        (default: bubblegun)
+    -t / --tool  bubblegun | bubblefinder                        (default: bubblegun;
+                 bubblefinder needs the BubbleFinder binary, see
+                 Preprocessing/superbubbleTools/bubblefinderTool.py)
 
 A dataset stops with an error if the tool reports a warning (for
 BubbleGun e.g. a link to a segment that is not in the GFA), so wrong
@@ -96,17 +98,17 @@ OUTPUT (folder named after the tool)
                              graph
 
 =====================================================================
-ADDING ANOTHER TOOL (e.g. BubbleFinder)
+ADDING ANOTHER TOOL
 =====================================================================
 
-  1. Write Preprocessing/superbubbleTools/bubblefinderTool.py with a class
-     like BubbleGunTool (Preprocessing/superbubbleTools/bubblegunTool.py):
-     name = "bubblefinder", run(gfa_file, keep_bubbles) and optionally
-     memory(gfa_file); the expected return values are described in
+  1. Write Preprocessing/superbubbleTools/<name>Tool.py with a class like
+     BubbleGunTool (a Python library, bubblegunTool.py) or BubbleFinderTool
+     (a separate program, bubblefinderTool.py): name = "<name>",
+     run(gfa_file, keep_bubbles) and optionally memory(gfa_file); the
+     expected return values are described in
      Preprocessing/superbubbleTools/toolInterface.py.
   2. Import it below and add it to TOOLS.
-  3. Run this script with -t bubblefinder; results go to
-     output/<dataset>/bubblefinder/.
+  3. Run this script with -t <name>; results go to output/<dataset>/<name>/.
 """
 
 import sys
@@ -174,10 +176,11 @@ sys.path.insert(0, str(REPO_ROOT_PATH))
 from Preprocessing.haplotypeParser import *
 from Preprocessing.graphUpdater import *
 from Preprocessing.superbubbleTools.bubblegunTool import BubbleGunTool
+from Preprocessing.superbubbleTools.bubblefinderTool import BubbleFinderTool
 
 
 # Tools selectable with -t; the key is the tool's own name.
-TOOLS = {tool.name: tool for tool in (BubbleGunTool,)}
+TOOLS = {tool.name: tool for tool in (BubbleGunTool, BubbleFinderTool)}
 
 # Same mode directory names as superbubbleRunner.py
 MODE_DIRS = {"perEdge": "perEdge", "perBatch": "perbatch"}

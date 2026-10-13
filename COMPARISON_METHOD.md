@@ -69,6 +69,24 @@ and only processes the change.
   includes its base graph). One run, no repetition; it is the sum of
   thousands of runs in perEdge mode.
 
+### Tool: BubbleFinder (`Preprocessing/superbubbleTools/bubblefinderTool.py`)
+
+- **How it runs:** BubbleFinder (C++/Rust, linear-time superbubbles via
+  SPQR trees; Sena, Politov et al., arXiv:2511.21919; release 1.0.5) is a
+  separate program, run once per update on the **same temporary GFA** as
+  BubbleGun: `BubbleFinder superbubbles --directed --gfa-directed -j 1`.
+  One thread, like our algorithms and BubbleGun.
+- **What is timed, per update:** BubbleFinder's own timers
+  (`--report-json`): reading the GFA (`io/read_graph`) + all phases of
+  finding the superbubbles (`sb/...`). The same work as for BubbleGun;
+  program start-up (about 10 ms) and writing the output file are **not**
+  included. `TotalTime` as for BubbleGun.
+- **Checked before use:** on the worked example (6 graphs: nesting of
+  depth 2, separate components, superbubbles disappearing and
+  reappearing) BubbleFinder finds exactly the reference superbubbles, and
+  on chromosome 21's final graph the same 9,998 superbubbles as
+  Inc-MinI-BST (2,573 nontrivial, as BubbleGun).
+
 ### Not included on either side
 
 **Preprocessing** (GFA -> edge list / reduced GFA, `PreprocessingTime`)
@@ -86,8 +104,8 @@ mode (`performance_<mode>.tex` of `Preprocessing/toolComparisonToLatex.py`).
 | | Algorithm | Tool |
 |---|---|---|
 | Value | `PeakMemory(KB)` in `<ID>_time.txt` (`superbubbleRunner.py`, normal build, mean of 100 runs) | `PeakMemory(KB)` in `<tool>_time.txt` |
-| Measured | peak resident memory of the program over the whole run (`VmHWM` in `/proc/self/status`, read just before exit) | peak resident memory of a fresh Python process that reads the graph and finds the bubbles, at the base graph and after each genome; the largest value |
-| Includes | the C++ runtime | the Python interpreter + BubbleGun (`BaselineMemory(KB)`, about 14 MB, measured before the graph is read) |
+| Measured | peak resident memory of the program over the whole run (`VmHWM` in `/proc/self/status`, read just before exit) | BubbleGun: peak resident memory of a fresh Python process that reads the graph and finds the bubbles; BubbleFinder: peak resident memory of its process (from its `--report-json`); in a separate run at the base graph and after each genome, the largest value |
+| Includes | the C++ runtime | BubbleGun: the Python interpreter + BubbleGun (`BaselineMemory(KB)`, about 14 MB, measured before the graph is read); BubbleFinder: the program and its libraries (`BaselineMemory(KB)` = its peak on a graph with one edge) |
 
 Both are whole-process peaks, measured the same way (`VmHWM`). The
 tool's memory is measured in separate, untimed runs, so measuring it does
