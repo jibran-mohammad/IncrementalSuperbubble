@@ -15,17 +15,18 @@ Run from the repository root, with the virtual environment active
     # E. coli, per-edge results, logarithmic y-axis
     python3 Preprocessing/plotcsv.py \
         --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv \
-        --out plots/ecoli_perEdge --mode peredge --dataset Ecoli --scale log
+        --out output/plots/perEdge/Ecoli --mode peredge --dataset Ecoli --scale log
 
     # chromosome 11, per-haplotype results, linear y-axis
     python3 Preprocessing/plotcsv.py \
         --csv output/Human/chromosome_11/timeFile/perbatch/haplotype_build_comparison.csv \
-        --out plots/chr11_perbatch --mode perbatch --dataset chr11
+        --out output/plots/perBatch/chromosome_11 --mode perbatch --dataset chromosome_11
 
 Options:
 
     --csv       haplotype_build_comparison.csv of one dataset and mode   (required)
-    --out       folder for the PNG files (created if missing)            (required)
+    --out       folder for the PNG files (created if missing); by
+                convention output/plots/<perEdge|perBatch>/<dataset>     (required)
     --mode      peredge | perbatch, must match the CSV                    (required)
     --dataset   name used in titles and file names, e.g. Ecoli, chr11     (required)
     --scale     linear | log y-axis                                       (default: linear)

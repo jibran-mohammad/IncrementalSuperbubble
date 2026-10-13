@@ -151,19 +151,25 @@ python3 Preprocessing/parse_to_csv.py --dataset human -m peredge
 python3 Preprocessing/parse_to_csv.py --dataset human -m perbatch 
 ```
 #### Step 3b: Generate Plots (plotcsv.py)
-This script reads the CSV generated in 3a and produces performance charts (PNG files). You must specify the path to the CSV and the desired output directory for the plots.
+This script reads the CSV generated in 3a and produces performance charts (PNG files). You must specify the path to the CSV and the desired output directory for the plots: by convention `output/plots/<perEdge|perBatch>/<dataset>/`, next to the tables in `output/`.
 
 ```Bash
 
-# Example: Generate plots for the E. coli data and save them in a new 'plots/ecoli_charts/' directory in edge mode with Ecoli data set in log scale
-python3 Preprocessing/plotcsv.py --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv --out plots/ecoli_charts/ --mode peredge --dataset Ecoli --scale log
+# Example: plots for the E. coli data in edge mode, log scale, into output/plots/perEdge/Ecoli/
+python3 Preprocessing/plotcsv.py --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv --out output/plots/perEdge/Ecoli/ --mode peredge --dataset Ecoli --scale log
 
-# Example: Generate plots for the E. coli data and save them in a new 'plots/ecoli_charts/' directory in edge mode with Ecoli data set in linear scale
-python3 Preprocessing/plotcsv.py --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv --out plots/ecoli_charts/ --mode peredge --dataset Ecoli --scale linear
+# Example: the same in linear scale
+python3 Preprocessing/plotcsv.py --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv --out output/plots/perEdge/Ecoli/ --mode peredge --dataset Ecoli --scale linear
 
 
-# Example: Generate plots for chromosome_11 data in log scale in batch mode.
-python3 Preprocessing/plotcsv.py --csv output/Human/chromosome_11/timeFile/perbatch/haplotype_build_comparison.csv --out plots/chr11_charts/ --mode perbatch --dataset GRCh38_chr11 --scale log
+# Example: plots for chromosome_11 in batch mode, log scale, into output/plots/perBatch/chromosome_11/
+python3 Preprocessing/plotcsv.py --csv output/Human/chromosome_11/timeFile/perbatch/haplotype_build_comparison.csv --out output/plots/perBatch/chromosome_11/ --mode perbatch --dataset chromosome_11 --scale log
+
+# Example: plots for E. coli and every chromosome with a perEdge CSV
+for f in output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv output/Human/chromosome_*/timeFile/perEdge/haplotype_build_comparison.csv; do
+    d=$(echo $f | sed -E 's#output/(Human/)?##; s#/timeFile.*##')
+    python3 Preprocessing/plotcsv.py --csv $f --out output/plots/perEdge/$d/ --mode peredge --dataset $d --scale log
+done
 ```
 
 #### Step 3b2: Check the superbubbles after every update (checkSuperbubbles.py)
@@ -376,7 +382,7 @@ python3 Preprocessing/parse_to_csv.py --dataset ecoli -m peredge
 ```
 **Step 5** — Produce Performance Plots
 ```Bash
-python3 Preprocessing/plotcsv.py --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv --out output/Ecoli/timeFile --mode peredge --dataset Ecoli --scale log
+python3 Preprocessing/plotcsv.py --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv --out output/plots/perEdge/Ecoli/ --mode peredge --dataset Ecoli --scale log
 ```
 ## 📦 Expected Output
 
@@ -386,6 +392,6 @@ Location	Contents
 -**input/Ecoli/Graphs/	numeric_edgelist.txt**.  
 -**output/Ecoli/timeFile	Algorithm results and timing logs**.  
 -**output/Ecoli/timeFile/	Raw timing files + .csv**.  
--**output/Ecoli/timeFile/	Performance comparison graphs (PNG)**.  
+-**output/plots/perEdge/Ecoli/	Performance comparison graphs (PNG)**.  
  
 If everything runs successfully, you have verified the pipeline setup and the algorithms.
