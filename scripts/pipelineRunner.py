@@ -241,6 +241,7 @@ def run_superbubble(dataset,algorithm,mode,chromosomes,repeat):
     cmd = [
 
         "python3",
+        "-u",               # unbuffered: its messages appear in the log in order
         SUPERBUBBLE_RUNNER,
         "-d",dataset,
         "-m",mode,
