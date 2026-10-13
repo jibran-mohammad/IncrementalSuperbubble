@@ -437,6 +437,12 @@ clean:
 	 $(INCRECOMPUTE_EXEC) $(INCRECOMPUTE_OBJS) $(INCDFSSMM_OBJS) \
 	 $(INCBSTBATCH_OBJS) $(INCBSTBATCH_EXEC) $(INCMINIBST_OBJS) \
 	 $(INCMINIBST_EXEC)
+	# every object file of the algorithms and libraries, also those without
+	# an *_OBJS variable above (e.g. lib/DFS/incrementalDFSAVLTreeH4.o of
+	# incMinIBST): a stale object from a BENCHMARK=1 build would otherwise be
+	# linked into the next normal build (its per-step timers and case
+	# counters are off there), or the other way round
+	find algorithms lib -name '*.o' -delete
 	unset TARGET
 # Phony target to avoid conflicts with files named "clean"
 .PHONY: clean
