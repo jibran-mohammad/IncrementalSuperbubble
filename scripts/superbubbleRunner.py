@@ -83,6 +83,7 @@ Next step: python3 Preprocessing/parse_to_csv.py --dataset ecoli -m peredge
 
 import os
 import resource
+import signal
 import subprocess
 import sys
 import shutil
@@ -283,10 +284,25 @@ def run_cpp_program(executable_path, input_path,full_output_path, mode):
         print(f"   ...Finished successfully.")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"   [!] Execution FAILED for {os.path.basename(executable_path)}.", file=sys.stderr)
-        print("--- Program error output ---", file=sys.stderr)
-        print(e.stderr, file=sys.stderr)
-        print("----------------------------", file=sys.stderr)
+        # Why it ended: a negative return code means the program was killed
+        # by a signal (it prints nothing itself then, e.g. on a segmentation
+        # fault); otherwise its exit code. Its own error messages (stderr)
+        # are already in the log above, they are not captured here.
+        if e.returncode < 0:
+            sig = -e.returncode
+            try:
+                name = signal.Signals(sig).name
+            except ValueError:
+                name = "unknown signal"
+            hints = {"SIGSEGV": "segmentation fault, e.g. a stack overflow or an invalid memory access",
+                     "SIGKILL": "killed, e.g. by the system when it ran out of memory (see dmesg)",
+                     "SIGABRT": "aborted, e.g. a failed assertion or std::bad_alloc (out of memory)",
+                     "SIGBUS": "bus error (invalid memory access)"}
+            reason = f"killed by signal {sig} ({name}" + (f": {hints[name]}" if name in hints else "") + ")"
+        else:
+            reason = f"exit code {e.returncode}"
+        print(f"   [!] Execution FAILED for {os.path.basename(executable_path)}: {reason}", flush=True)
+        print(f"   [!] Execution FAILED for {os.path.basename(executable_path)}: {reason}", file=sys.stderr, flush=True)
         return False
 
 
