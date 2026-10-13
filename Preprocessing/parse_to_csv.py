@@ -221,10 +221,13 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
         data.append(base_entry)
 
         try:
+            # The column header follows the BaseGraph_Build line: skip it
+            # (and blank lines), but nothing more. (It used to read one more
+            # line whenever the header was not a number, i.e. always, and
+            # dropped the first update: the first edge in perEdge mode, the
+            # first genome in perBatch mode.)
             header_line = next(line_iter).strip()
-            # If the line looks like a header (contains text), skip it.
-            # If it's empty, skip and get the next one.
-            if not header_line or not header_line[0].isdigit():
+            while not header_line:
                 header_line = next(line_iter).strip()
         except StopIteration:
             pass
@@ -252,7 +255,11 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
 
             stats_parts = stats_line.split()
 
-            if(mode == "perbatch"):
+            # Both modes: the file has the update rows of a genome first and
+            # then its "Edges Nodes" line, so perBatch is read like perEdge
+            # (the old perBatch branch below expected "Edges Nodes" before the
+            # row and is no longer used).
+            if False and mode == "perbatch":
 
                 # stats_line MUST be "Edges Nodes"
                 if not (len(stats_parts) == 2 and stats_parts[0].isdigit() and stats_parts[1].isdigit()):
@@ -379,7 +386,9 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
                 # edge number in the file (YOU WANT THIS EXACTLY)
                 local_edge_no = int(build_parts[0])
                 global_step += 1
-                step = global_step
+                # perEdge: running number over all edges; perBatch: the
+                # update (genome) number written by the algorithm
+                step = local_edge_no if mode == "perbatch" else global_step
                 haplotype_name = build_parts[1]
 
                 # Parse metrics
@@ -482,11 +491,14 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
     }
 
     all_data = []
-    
-    for filepath, time_col in files_to_parse.items():
-        df, _peak_mem = parse_file(filepath, time_col, mode)
+    peak_memory_kb = {}        # algorithm ID -> PeakMemory(KB) of its time file
+
+    for (prefix, _fname), (filepath, time_col) in zip(ALGORITHMS.items(), files_to_parse.items()):
+        df, peak_mem = parse_file(filepath, time_col, mode)
         if not df.empty:
             all_data.append(df)
+            if peak_mem:
+                peak_memory_kb[prefix] = peak_mem
 
     if not all_data:
         print("  No data was parsed. No CSV will be generated.")
@@ -649,6 +661,14 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         # --- Save to CSV ---
         output_filename = time_dir_path / "haplotype_build_comparison.csv"
         merged_df.to_csv(output_filename, index=False)
+
+        # Peak memory per algorithm (PeakMemory(KB) line of each time file),
+        # next to the CSV; read by csvToLatex.py (table_PeakMemory.tex)
+        memory_filename = time_dir_path / "peak_memory.csv"
+        with open(memory_filename, "w") as mf:
+            mf.write("Algorithm,PeakMemoryKB\n")
+            for algo_id, kb in peak_memory_kb.items():
+                mf.write(f"{algo_id},{kb}\n")
         
         print(f"  ✅ Successfully saved data to: {output_filename}")
 

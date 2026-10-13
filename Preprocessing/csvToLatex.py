@@ -367,6 +367,30 @@ def build_total_time_table(csv_paths: list, mode: str):
 
     return pd.DataFrame(rows)
 
+def build_memory_table(csv_paths: list):
+    """
+    Dataset | <algorithm> (MB) ... : peak memory of every algorithm, from
+    peak_memory.csv next to each CSV (written by parse_to_csv.py from the
+    PeakMemory(KB) line of each <ID>_time.txt)
+    """
+    rows = []
+    for path in csv_paths:
+        name = infer_dataset_name_from_path(path)
+        mem_path = os.path.join(os.path.dirname(path), "peak_memory.csv")
+        row = {"Dataset": name}
+        memory = {}
+        if os.path.exists(mem_path):
+            mem = pd.read_csv(mem_path)
+            memory = dict(zip(mem["Algorithm"], mem["PeakMemoryKB"]))
+        else:
+            print(f"  [!] {name}: no peak_memory.csv (run parse_to_csv.py again)")
+        for algo in ALGORITHMS.values():
+            kb = memory.get(algo)
+            row[algo] = format_float(kb / 1024, precision=1) if kb else "-"
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
 def build_size_haplotype_table(csv_paths: list):
     """
     Dataset | Haplotypes | TotalNodes | TotalEdges
@@ -610,15 +634,26 @@ def main():
         out_tex=out_tex
     )
 
+    # -------- peak memory per algorithm --------
+    memory_df = build_memory_table(csv_paths)
+    generate_latex_table(
+        memory_df,
+        columns=["Dataset"] + list(ALGORITHMS.values()),
+        caption="Peak memory (MB) of each algorithm (peak resident memory of the whole program, "
+                "VmHWM, mean over the runs of superbubbleRunner.py)",
+        label="tab:peak_memory",
+        out_tex=os.path.join(args.outdir, "table_PeakMemory.tex")
+    )
+
     total_df = build_total_time_table(csv_paths, mode)
     out_tex = os.path.join(args.outdir, "table_TotalTime.tex")
     if mode == "time":
-        columns = ["Dataset", "static", "incRecompute", "incBST", "incMinIBST", "incRecompute_Speedup", "incBST_Speedup", "incMinIBST_Speedup", "PeakMemory"] 
-        caption = "Total time comparison across datasets (with peak memory)"
+        columns = ["Dataset", "static", "incRecompute", "incBST", "incMinIBST", "incRecompute_Speedup", "incBST_Speedup", "incMinIBST_Speedup"]
+        caption = "Total time comparison across datasets (sum of the per-update times; peak memory: table_PeakMemory)"
         label = "tab:totaltime_summary_time"
     else:
-        columns = ["Dataset", "incRecompute_Imp(%)", "incBST_Imp(%)", "incMinIBST_Imp(%)", "PeakMemory"]
-        caption = "Total time percentage improvement across datasets (with peak memory)"
+        columns = ["Dataset", "incRecompute_Imp(%)", "incBST_Imp(%)", "incMinIBST_Imp(%)"]
+        caption = "Total time percentage improvement across datasets"
         label = "tab:totaltime_summary_percent"
     generate_latex_table(
         total_df,
