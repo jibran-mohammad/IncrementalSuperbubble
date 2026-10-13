@@ -42,7 +42,9 @@ WHAT IT DOES
 
   1. Orient every node. Reference nodes take the orientation the reference
      walk uses; other nodes take the majority orientation over all haplotype
-     walks (ties -> forward).
+     walks (ties -> forward), each walk counted in the reference's
+     direction: a walk that uses the reference nodes mostly in the opposite
+     orientation (a reverse-complemented contig) votes reversed.
   2. Convert each bidirected link to a directed edge under that orientation.
      Links that would need one endpoint reversed (inversion links) cannot be
      represented in a directed graph and are dropped. Self-loops are dropped.
@@ -292,6 +294,7 @@ def main():
     ksum = array('d', bytes(8 * n))
     kcnt = array('i', bytes(4 * n))
     n_walks = 0
+    n_walks_reversed = n_walks_without_ref = 0
     with opener(args.gfa) as fh:
         for line in fh:
             if line[0] not in 'WP':
@@ -302,11 +305,28 @@ def main():
                 continue
             n_walks += 1
             st = [(ids[nm], rv) for nm, rv in steps if nm in ids]
+            # Direction of the walk: many assembly contigs are stored reverse-
+            # complemented and walk the graph backwards (<6<5<4 ...). On the
+            # reference nodes such a walk mostly uses the opposite orientation
+            # of the reference; its votes are then counted reversed, so that
+            # every walk votes in the reference's direction. (Without this, a
+            # node passed backwards by more reversed contigs than forward ones
+            # was flipped, and its links were dropped as inversions.)
+            same = opposite = 0
+            for x, rv in st:
+                if x in ref_rank:
+                    if rv == ref_rev[x]:
+                        same += 1
+                    else:
+                        opposite += 1
+            walk_rev = opposite > same
+            n_walks_reversed += walk_rev
+            n_walks_without_ref += (same + opposite == 0)
             L = len(st)
             lc, li = [None] * L, [0] * L
             last_c, last_i = None, 0
             for i, (x, rv) in enumerate(st):
-                if rv:
+                if rv != walk_rev:
                     minus[x] += 1
                 else:
                     plus[x] += 1
@@ -577,7 +597,9 @@ def main():
     stats = {
         'input': {'nodes': n, 'links': m_in, 'bp': bp_total,
                   'haplotype_walks': n_walks, 'reference_paths': n_ref_paths},
-        'orientation': {'nodes_flipped': sum(flip), 'pct_nodes_flipped': pct(sum(flip), n)},
+        'orientation': {'nodes_flipped': sum(flip), 'pct_nodes_flipped': pct(sum(flip), n),
+                        'walks_reversed': n_walks_reversed,
+                        'walks_without_reference_node': n_walks_without_ref},
         'links_removed': {
             'inversion_links': n_inv, 'pct_inversion': pct(n_inv, m_in),
             'self_loops': n_self, 'pct_self_loops': pct(n_self, m_in),
@@ -612,6 +634,7 @@ def main():
     w = stats['walks']
     print(f"""
 Input:   {n:,} nodes, {m_in:,} links, {bp_total:,} bp, {n_walks} haplotype walks
+Walks running against the reference (reverse-complemented contigs): {n_walks_reversed}; without any reference node: {n_walks_without_ref}
 Links removed: {m_in - m_out:,} ({lr['pct_total_removed']}%)
   inversion links     {n_inv:,} ({lr['pct_inversion']}%)
   self-loops          {n_self:,} ({lr['pct_self_loops']}%)
