@@ -316,15 +316,14 @@ paper are in [COMPARISON_METHOD.md](COMPARISON_METHOD.md), section 7.
 For one mode (`perEdge` / `perEdge` dir, or `perBatch` / `perbatch` dir):
 
 ```Bash
-# a. time of incMinIBST (BENCHMARK build, 1 run; perEdge: ~1 day)
-python3 scripts/pipelineRunner.py -d HPRC -c c22 --ref GRCh38 -m perEdge --repeat 1
-
-# b. memory, superbubble list and per-update counts of incMinIBST (normal build,
-#    1 run; can run at the same time as a., with its own copy of the binary)
-make clean && make TARGET=incMinIBST && cp test/incMinIBST test/incMinIBST_normal
-mkdir -p output/HPRC/chromosome_22/timeFile/perEdge
-./test/incMinIBST_normal output/HPRC/chromosome_22/timeFile/perEdge/incMinIBST_time.txt perEdge \
-    < input/HPRC/chromosome_22/Graphs/numeric_edgelist.txt > /dev/null
+# a + b. incMinIBST, one run each, one after the other (perEdge: ~1 day each):
+#   b. superbubbleRunner: memory, superbubble list, per-update counts (normal build)
+#   a. pipelineRunner:    AlgorithmTime for the speedup (BENCHMARK build)
+nohup bash -c 'python3 -u scripts/superbubbleRunner.py -d HPRC -c chromosome_22 -m perEdge -a incMinIBST --runs 1;
+               python3 -u scripts/pipelineRunner.py -d HPRC -c c22 --ref GRCh38 -m perEdge --repeat 1' \
+    > hprc22_perEdge.log 2>&1 &
+#   progress: genomes finished (of 89) during b, and the current step
+grep -c '#[0-9]*$' hprc22_perEdge.log; tail -2 hprc22_perEdge.log
 
 # c. BubbleGun: perEdge sampled (every 10,000th edge, ~100 samples), perBatch complete
 python3 scripts/superbubbleComparator.py -d HPRC -c 22 -m perEdge --every 10000

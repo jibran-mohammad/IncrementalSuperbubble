@@ -34,6 +34,8 @@ Run from the repository root, with the virtual environment active
 
 Options:
 
+    --runs N             runs per algorithm, averaged             (default: 100;
+                         1 for very large graphs such as HPRC chromosomes)
     -d / --dataset       Ecoli | Human | HPRC                     (default: Ecoli;
                          HPRC: Minigraph-Cactus graphs prepared by
                          Preprocessing/mcToDag.py, experimental)
@@ -320,7 +322,20 @@ def main():
         help="Specify processing mode. 'perBatch' (after haplotype) or 'perEdge' (after every edge)."
     )
     
+    parser.add_argument(
+        '--runs',
+        type=int,
+        default=None,
+        help="Runs per algorithm, averaged (default: 100). Use 1 for very large graphs "
+             "(e.g. HPRC chromosomes), where one run takes hours."
+    )
     args = parser.parse_args()
+
+    # --runs overrides the number of runs (not in pipeline mode, where
+    # pipelineRunner.py sets it with --repeat)
+    global NUM_RUNS
+    if args.runs is not None and not PIPELINE_MODE:
+        NUM_RUNS = args.runs
 
     mode_dir_map = {
         "perBatch": "perbatch",
