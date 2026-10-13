@@ -209,6 +209,10 @@ def read_tool_time(path):
     # CSV written by superbubbleComparator.py: one row per update whose
     # first field is the step number, a "Base" row, and summary lines
     # "TotalTime,<s>" and "PeakMemory(KB),<KB>" at the end.
+    # With sampling (superbubbleComparator.py --every N) only the sampled
+    # updates have a row; "Updates,<n>" gives the number of updates and
+    # "TotalTimeEstimated,..." marks TotalTime as an estimate (mean time per
+    # sampled update x number of updates).
     for line in open(path):
         fields = line.strip().split(",")
         if fields[0].isdigit():
@@ -217,8 +221,14 @@ def read_tool_time(path):
             values["TotalTime"] = float(fields[1])
         elif fields[0] == "PeakMemory(KB)":
             values["PeakMemory"] = int(fields[1])
+        elif fields[0] == "Updates":
+            values["UpdatesLine"] = int(fields[1])
+        elif fields[0] == "SampledUpdates":
+            values["SampledUpdates"] = int(fields[1])
+        elif fields[0] == "TotalTimeEstimated":
+            values["Estimated"] = True
 
-    values["Updates"] = updates
+    values["Updates"] = values.pop("UpdatesLine", updates)
 
     return values
 
@@ -365,16 +375,21 @@ def performance_rows(datasets, mode, algorithm, tool):
         t_ours = ours.get("AlgorithmTime")
         t_theirs = theirs.get("TotalTime")
 
+        # "$\approx$" (LaTeX for the approximately-equal sign; "~" in the
+        # CSV): the tool's total is estimated from sampled updates
+        est = "$\\approx$" if theirs.get("Estimated") else ""
+
         # Times in seconds, memory converted from KB to MB; "-" if missing.
         rows.append({
             "Dataset": dataset_label(ds),
             "Updates": theirs.get("Updates", "-"),
             "AlgoTime": format_float(t_ours) if t_ours is not None else "-",
-            "ToolTime": format_float(t_theirs) if t_theirs is not None else "-",
-            "Speedup": format_float(t_theirs / t_ours, precision=1) if t_ours and t_theirs else "-",
+            "ToolTime": est + format_float(t_theirs) if t_theirs is not None else "-",
+            "Speedup": est + format_float(t_theirs / t_ours, precision=1) if t_ours and t_theirs else "-",
             "AlgoMem": format_float(ours_memory / 1024, precision=1) if ours_memory else "-",
             "ToolMem": format_float(theirs["PeakMemory"] / 1024, precision=1) if "PeakMemory" in theirs else "-",
             "Preprocessing": format_float(ours["PreprocessingTime"]) if "PreprocessingTime" in ours else "-",
+            "Sampled": theirs.get("SampledUpdates", "") if est else "",
         })
 
     return rows
@@ -524,6 +539,14 @@ def main():
 
         df = pd.DataFrame(rows)
 
+        # Tool times estimated from sampled updates (marked "~"): a note in
+        # the caption; the number of sampled updates stays in the CSV only.
+        estimated = [f"{r['Dataset']} ({r['Sampled']} of {r['Updates']} updates)" for r in rows if r["Sampled"]]
+        sampled_note = (f" $\\approx$: {tool_label} time estimated as its mean time per update on "
+                        f"evenly spaced sampled updates $\\times$ the number of updates, for "
+                        + ", ".join(estimated) + "."
+                        if estimated else "")
+
         # Internal row keys -> column headers of the table.
         columns = {
             "Dataset": "Dataset",
@@ -536,17 +559,18 @@ def main():
             "Preprocessing": "Preprocessing (s)",
         }
 
-        df = df.rename(columns=columns)
+        df = df.rename(columns=columns).rename(columns={"Sampled": "Sampled updates (tool)"})
 
         # Same table as CSV (easy to check or to use elsewhere) and as LaTeX.
-        df.to_csv(outdir / f"performance_{mode}.csv", index=False)
+        df.replace(r"\$\\approx\$", "~", regex=True).to_csv(outdir / f"performance_{mode}.csv", index=False)
 
         generate_latex_table(
             df, list(columns.values()),
             caption=(f"{algo_label} vs {tool_label} ({mode}): total time over all updates "
                      f"(both read their input and process every update), speedup = "
                      f"{tool_label} time / {algo_label} time, and peak memory. "
-                     f"Preprocessing produces the input of both and is not included in either time."),
+                     f"Preprocessing produces the input of both and is not included in either time."
+                     + sampled_note),
             label=f"tab:{args.tool}_performance_{mode}",
             out_tex=str(outdir / f"performance_{mode}.tex"),
         )

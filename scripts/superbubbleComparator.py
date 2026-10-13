@@ -44,6 +44,21 @@ Options:
                  (default: every chromosome with a reduced_graph.gfa)
     -m           perEdge | perBatch                              (required)
     -t / --tool  tool to run, by its name                        (default: bubblegun)
+    --every N    perEdge only: SAMPLING for graphs too large to run the
+                 tool after every edge (e.g. HPRC chr22, ~1 million edges).
+                 The tool runs on the graph after every N-th edge and after
+                 the last edge of every haplotype; the total time is
+                 estimated as the mean time of the every-N-th-edge samples
+                 x number of updates and marked as estimated
+                 (TotalTimeEstimated line). The runs after a haplotype's
+                 last edge are not in the mean (they also list all
+                 bubbles and are slower).
+                 Memory and the bubble lists (after every haplotype) are
+                 complete.                                        (default: 1)
+
+    # HPRC chromosome 22 (Minigraph-Cactus, ~1 million edge updates):
+    # about 100 sampled graphs plus one per haplotype
+    python3 scripts/superbubbleComparator.py -d HPRC -c 22 -m perEdge --every 10000
 
 A dataset stops with an error if the tool reports a warning (for
 BubbleGun e.g. a link to a segment that is not in the GFA), so wrong
@@ -229,7 +244,18 @@ def write_superbubbles(sbfile,title,result):
     sbfile.write("\n")
 
 
-def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile):
+def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile,every=1):
+    """
+    Runs the tool on the base graph and after every update. perEdge with
+    every > 1 (sampling, for graphs too large to run the tool after every
+    edge): the tool runs only on the graph after every <every>-th edge and
+    after the last edge of every haplotype; the other edges are only added.
+    The total is estimated as (mean time of the EVENLY SPACED samples, every
+    <every>-th edge) x (number of updates) and marked as estimated in the
+    time file. The runs after a haplotype's last edge are not used for the
+    mean: they also list all bubbles (keep_bubbles), which makes them
+    slower (chr21: +13%); they give the bubble lists and memory only.
+    """
 
     ################################################
     # Base graph
@@ -267,6 +293,10 @@ def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile):
 
     step = 0
 
+    sampled = 0            # updates on which the tool was run
+    even_time = 0.0        # time of the evenly spaced samples (every <every>-th edge)
+    even_count = 0
+
     for h, hap in enumerate(hap_order, 1):
 
         edges = hap_edges[hap]
@@ -281,11 +311,21 @@ def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile):
 
                 last = (e == len(edges))
 
+                # sampling: only every <every>-th edge and the haplotype's last edge
+                if every > 1 and step % every != 0 and not last:
+                    continue
+
+                sampled += 1
+
                 gfa = updater.write_temp_gfa()
 
                 result = tool.run(gfa, keep_bubbles=last)
 
                 update_time += result["time"]
+
+                if every > 1 and step % every == 0:
+                    even_time += result["time"]
+                    even_count += 1
 
                 memory = measure_memory(tool,gfa,memories) if last else None
 
@@ -297,6 +337,8 @@ def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile):
                 updater.add_edge(edge)
 
             step += 1
+
+            sampled += 1
 
             gfa = updater.write_temp_gfa()
 
@@ -321,11 +363,33 @@ def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile):
 
     timefile.write("\n")
 
-    timefile.write(f"TotalUpdateTime,{update_time}\n")
+    timefile.write(f"Updates,{step}\n")
 
-    timefile.write(f"TotalTime,{base_time + update_time}\n")
+    if every > 1 and mode == "perEdge":
 
-    print(f"Total {tool.name} time:", base_time + update_time)
+        # Estimated from the evenly spaced samples: their mean time per
+        # update x number of updates (+ the base graph, always measured)
+        mean = even_time / even_count if even_count else 0.0
+        estimate = mean * step
+
+        timefile.write(f"SampledUpdates,{even_count}\n")
+        timefile.write(f"RunsAfterLastEdgeOfHaplotype,{sampled - even_count}\n")
+        timefile.write(f"MeanUpdateTime,{mean}\n")
+        timefile.write(f"TotalUpdateTime,{estimate}\n")
+        timefile.write(f"TotalTime,{base_time + estimate}\n")
+        timefile.write(f"TotalTimeEstimated,mean of the {even_count} updates after every {every}-th edge "
+                       f"(of {step} updates) x {step}; TotalUpdateTime = MeanUpdateTime x Updates\n")
+
+        print(f"{tool.name}: {even_count} evenly spaced samples of {step} updates, mean {mean:.4f} s "
+              f"per update, estimated total {base_time + estimate:.1f} s")
+
+    else:
+
+        timefile.write(f"TotalUpdateTime,{update_time}\n")
+
+        timefile.write(f"TotalTime,{base_time + update_time}\n")
+
+        print(f"Total {tool.name} time:", base_time + update_time)
 
     # Largest measured peak, comparable with PeakMemory(KB) of the C++ algorithms
     if memories:
@@ -341,7 +405,7 @@ def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile):
 
 #######################################################
 
-def run_dataset(repo, dataset_path, mode, tool_name):
+def run_dataset(repo, dataset_path, mode, tool_name, every=1):
     """Run the tool after every update of one dataset; write its two output files."""
 
     graph_dir = repo / "input" / dataset_path / "Graphs"
@@ -381,7 +445,8 @@ def run_dataset(repo, dataset_path, mode, tool_name):
                 hap_edges,
                 tool,
                 timefile,
-                sbfile
+                sbfile,
+                every
             )
 
     finally:
@@ -458,7 +523,20 @@ if __name__=="__main__":
         help="Superbubble tool to run; also names the output directory"
     )
 
+    parser.add_argument(
+        "--every",
+        type=int,
+        default=1,
+        help="perEdge only: run the tool only after every N-th edge (and after the last "
+             "edge of every haplotype) and estimate the total; for graphs too large to "
+             "run the tool after every edge (default: 1 = every edge)"
+    )
+
     args=parser.parse_args()
+
+    if args.every > 1 and args.m != "perEdge":
+        print("[!] --every is only used in perEdge mode; ignored")
+        args.every = 1
 
     repo = REPO_ROOT_PATH
 
@@ -475,7 +553,7 @@ if __name__=="__main__":
         start = time.time()
 
         try:
-            run_dataset(repo, dataset_path, args.m, args.tool)
+            run_dataset(repo, dataset_path, args.m, args.tool, args.every)
             status[dataset_path] = f"ok ({time.time() - start:.0f} s)"
         except (Exception, SystemExit) as e:
             status[dataset_path] = f"FAILED: {e}"

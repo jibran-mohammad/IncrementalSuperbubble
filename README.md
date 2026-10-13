@@ -305,23 +305,42 @@ mkdir -p input/HPRC/chromosome_22/Graphs
 vg convert -f chr22.vg > input/HPRC/chromosome_22/Graphs/chromosome_22.gfa   # vg: github.com/vgteam/vg/releases
 grep "^W" input/HPRC/chromosome_22/Graphs/chromosome_22.gfa | cut -f2 | sort -u | head   # reference sample name
 
-# 2. preprocessing (mcToDag.py) + time of the best algorithm
+# 2. preprocessing (mcToDag.py, ~2 min); look at chromosome_22.stats.json
 python3 scripts/pipelineRunner.py -d HPRC -c c22 --ref GRCh38 --preprocess-only
-python3 scripts/pipelineRunner.py -d HPRC -c c22 --ref GRCh38 -m perBatch
-
-# 3. all algorithms, BubbleGun, correctness, tables
-python3 scripts/superbubbleRunner.py -d HPRC -c chromosome_22 -m perBatch -a static incRecompute incBST incMinIBST
-python3 scripts/superbubbleComparator.py -d HPRC -c 22 -m perBatch
-python3 Preprocessing/checkSuperbubbles.py --edgelist input/HPRC/chromosome_22/Graphs/numeric_edgelist.txt \
-    -m perBatch --time output/HPRC/chromosome_22/timeFile/perbatch/incMinIBST_time.txt
-python3 Preprocessing/toolComparisonToLatex.py -d HPRC -m perBatch
-python3 Preprocessing/parse_to_csv.py -d hprc -m perbatch
 ```
 
-Use **perBatch** for these graphs: a chromosome has on the order of a
-million edge updates, and every algorithm (and BubbleGun) recomputes all
-superbubbles after each update, so perEdge would take days. `-d all` does
-not include `HPRC`. The script is pure Python; `pypy3
+On a graph of this size only the **best algorithm** is compared with
+BubbleGun, with **one run** each, and BubbleGun perEdge is **sampled**
+(`--every`): the method, its validation and suggested wording for the
+paper are in [COMPARISON_METHOD.md](COMPARISON_METHOD.md), section 7.
+For one mode (`perEdge` / `perEdge` dir, or `perBatch` / `perbatch` dir):
+
+```Bash
+# a. time of incMinIBST (BENCHMARK build, 1 run; perEdge: ~1 day)
+python3 scripts/pipelineRunner.py -d HPRC -c c22 --ref GRCh38 -m perEdge --repeat 1
+
+# b. memory, superbubble list and per-update counts of incMinIBST (normal build,
+#    1 run; can run at the same time as a., with its own copy of the binary)
+make clean && make TARGET=incMinIBST && cp test/incMinIBST test/incMinIBST_normal
+mkdir -p output/HPRC/chromosome_22/timeFile/perEdge
+./test/incMinIBST_normal output/HPRC/chromosome_22/timeFile/perEdge/incMinIBST_time.txt perEdge \
+    < input/HPRC/chromosome_22/Graphs/numeric_edgelist.txt > /dev/null
+
+# c. BubbleGun: perEdge sampled (every 10,000th edge, ~100 samples), perBatch complete
+python3 scripts/superbubbleComparator.py -d HPRC -c 22 -m perEdge --every 10000
+python3 scripts/superbubbleComparator.py -d HPRC -c 22 -m perBatch
+
+# d. correctness (sampled: the Python reference is slow on 1.3 million nodes)
+python3 Preprocessing/checkSuperbubbles.py --edgelist input/HPRC/chromosome_22/Graphs/numeric_edgelist.txt \
+    -m perEdge --every 20000 --time output/HPRC/chromosome_22/timeFile/perEdge/incMinIBST_time.txt
+
+# e. tables (estimated BubbleGun times marked with $\approx$)
+python3 Preprocessing/toolComparisonToLatex.py -d HPRC -m perEdge perBatch
+```
+
+BubbleGun after every edge would take months on chr22 (one run ~12 s, ~1
+million edges), hence the sampling; perBatch needs none. `-d all` does
+not include `HPRC`. The normalization script is pure Python; `pypy3
 Preprocessing/mcToDag.py ...` is several times faster on large graphs.
 
 ## 🧪 Test Run Instructions (Quick Start Example)
