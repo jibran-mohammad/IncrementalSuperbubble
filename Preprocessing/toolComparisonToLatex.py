@@ -84,6 +84,12 @@ OUTPUT (in output/toolComparison/<tool>/)
         Speedup                  tool time / algorithm time
         <algorithm> memory (MB)  PeakMemory(KB) of superbubbleRunner.py
         <tool> memory (MB)       largest PeakMemory(KB) of the tool
+        <tool> baseline (MB)     BaselineMemory(KB) of the tool: its memory
+                                 without the graph (BubbleGun: Python +
+                                 BubbleGun before reading the graph;
+                                 BubbleFinder: its peak on a graph with one
+                                 edge); memory - baseline is what the graph
+                                 costs
         Preprocessing (s)        GFA -> input of both (edge list, reduced
                                  GFA); shared by both, so not added to either
 
@@ -221,6 +227,8 @@ def read_tool_time(path):
             values["TotalTime"] = float(fields[1])
         elif fields[0] == "PeakMemory(KB)":
             values["PeakMemory"] = int(fields[1])
+        elif fields[0] == "BaselineMemory(KB)":
+            values["BaselineMemory"] = int(fields[1])
         elif fields[0] == "Updates":
             values["UpdatesLine"] = int(fields[1])
         elif fields[0] == "SampledUpdates":
@@ -388,6 +396,7 @@ def performance_rows(datasets, mode, algorithm, tool):
             "Speedup": est + format_float(t_theirs / t_ours, precision=1) if t_ours and t_theirs else "-",
             "AlgoMem": format_float(ours_memory / 1024, precision=1) if ours_memory else "-",
             "ToolMem": format_float(theirs["PeakMemory"] / 1024, precision=1) if "PeakMemory" in theirs else "-",
+            "ToolBaseline": format_float(theirs["BaselineMemory"] / 1024, precision=1) if "BaselineMemory" in theirs else "-",
             "Preprocessing": format_float(ours["PreprocessingTime"]) if "PreprocessingTime" in ours else "-",
             "Sampled": theirs.get("SampledUpdates", "") if est else "",
         })
@@ -556,6 +565,7 @@ def main():
             "Speedup": "Speedup",
             "AlgoMem": f"{algo_label} memory (MB)",
             "ToolMem": f"{tool_label} memory (MB)",
+            "ToolBaseline": f"{tool_label} baseline (MB)",
             "Preprocessing": "Preprocessing (s)",
         }
 
@@ -568,7 +578,8 @@ def main():
             df, list(columns.values()),
             caption=(f"{algo_label} vs {tool_label} ({mode}): total time over all updates "
                      f"(both read their input and process every update), speedup = "
-                     f"{tool_label} time / {algo_label} time, and peak memory. "
+                     f"{tool_label} time / {algo_label} time, and peak memory "
+                     f"({tool_label} baseline: its memory without the graph). "
                      f"Preprocessing produces the input of both and is not included in either time."
                      + sampled_note),
             label=f"tab:{args.tool}_performance_{mode}",
