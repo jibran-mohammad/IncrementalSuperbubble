@@ -158,7 +158,19 @@
                    this->latestTimes.minITime+= elapsed.count();
                    #endif
 
+                   // timed as in case 4: deleteReachableFromBST, update and
+                   // insertReachableIntoBST add their own times, so they stay
+                   // outside these timers (else they are counted twice)
+                   #ifndef BENCHMARK
+                   start = std::chrono::high_resolution_clock::now();
+                   #endif
                    this->partialDFS(g,u,v);
+                   #ifndef BENCHMARK
+                   end = std::chrono::high_resolution_clock::now();
+                   elapsed = end - start;
+                   this->latestTimes.currentdfsTime += elapsed.count();
+                   this->latestTimes.dfsTime += elapsed.count();
+                   #endif
                    //std::cout << "partial DFS done in case where u is new node" << std::endl;
                    this->deleteReachableFromBST(g);
 
@@ -166,9 +178,10 @@
 
                     this->insertReachableIntoBST(g);
 
+                   #ifndef BENCHMARK
+                   start = std::chrono::high_resolution_clock::now();
+                   #endif
                    this->reset();
-
-
                    #ifndef BENCHMARK
                    end = std::chrono::high_resolution_clock::now();
                    elapsed = end - start;
