@@ -110,9 +110,20 @@
                    this->reverseTopologicalOrder[u] = this->n-1;
                    this->topOrd[u] = this->n - 1;
 
+                   // timed as in case 4: update adds its own time, so it
+                   // stays outside these timers (else it is counted twice)
                    this->partialDFS(g,u,v);
+                   #ifndef BENCHMARK
+                   end = std::chrono::high_resolution_clock::now();
+                   elapsed = end - start;
+                   this->latestTimes.currentdfsTime += elapsed.count();
+                   this->latestTimes.dfsTime += elapsed.count();
+                   #endif
                    //std::cout << "partial DFS done in case where u is new node" << std::endl;
                    this->update(g);
+                   #ifndef BENCHMARK
+                   start = std::chrono::high_resolution_clock::now();
+                   #endif
                    this->reset();
                    }
 
