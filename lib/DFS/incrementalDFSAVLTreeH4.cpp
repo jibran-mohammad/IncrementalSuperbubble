@@ -11,7 +11,13 @@
       5) edge (u,v) inserted, both nodes exist, edge is from right to left in the DFS tree
          (u before v in the topological order: the order stays valid, nothing is reordered).
 
-      Cases 1 and 5 when v's only parent was the artificial source 0: the graph
+      Case 1: u is placed as the rightmost child of 0 (directly after 0 in
+      the topological order), so (u,v) is a right-to-left edge and nothing is
+      reordered: all other positions move up by one (O(n)), no partialDFS,
+      the minI trees only get u in v's tree. If v's only parent was 0, u
+      takes v's place instead (directly before v), again without a rebuild.
+
+      Case 5 when v's only parent was the artificial source 0: the graph
       deletes the edge 0->v (g->strategy->artificialParentRemoved), but in the
       DFS tree v and its subtree are still children of 0, so they are not placed
       under u: superbubbles that now contain v are not contiguous in the order
@@ -100,36 +106,34 @@
                    //std::cout << "case 1" << std::endl;
                    start = std::chrono::high_resolution_clock::now();
                    #endif
-                   if(g->strategy->artificialParentRemoved) {
-                       // v's only parent was 0: move v's subtree under u
-                       this->rebuildFromStaticDFS(g);
+                   {
+                   // v has another parent: u becomes the rightmost child of 0
+                   // in the DFS tree (visited last), so it comes directly after
+                   // 0 in the topological order and (u,v) is a right-to-left
+                   // edge: nothing else is reordered, no partialDFS.
+                   // v's only parent was 0 (the edge 0->v is deleted): u takes
+                   // v's place as a child of 0, i.e. directly before v; v's
+                   // subtree is visited from u at the same point as before
+                   // from 0, so it stays the same and no rebuild is needed.
+                   // Every vertex from that position on moves one position
+                   // later; their relative order is unchanged, so the minI
+                   // trees (ordered by the current positions) stay valid.
+                   int pos = g->strategy->artificialParentRemoved ? this->reverseTopologicalOrder[v] : 1;
+                   for(int i = this->n - 2; i >= pos; i--) {
+                       this->topOrd[i + 1] = this->topOrd[i];
+                       this->reverseTopologicalOrder[this->topOrd[i + 1]] = i + 1;
                    }
-                   else {
-                   DifferentBalancedBinaryTree binaryTreeIncoming(this->reverseTopologicalOrder);
+                   this->reverseTopologicalOrder[u] = pos;
+                   this->topOrd[pos] = u;
                    #ifndef BENCHMARK
                    end = std::chrono::high_resolution_clock::now();
                    elapsed = end - start;
-                   this->latestTimes.currentminITime += elapsed.count();
-                   this->latestTimes.minITime += elapsed.count();
+                   this->latestTimes.currenttopologicalOrderTime += elapsed.count();
+                   this->latestTimes.topologicalOrderTime += elapsed.count();
 
                    start = std::chrono::high_resolution_clock::now();
                    #endif
-                   DifferentBalancedBinaryTree binaryTreeOutgoing(this->reverseTopologicalOrder);
-                   #ifndef BENCHMARK
-                   end = std::chrono::high_resolution_clock::now();
-                   elapsed = end - start;
-                   this->latestTimes.currentmaxOTime += elapsed.count();
-                   this->latestTimes.maxOTime += elapsed.count();
-
-                   start = std::chrono::high_resolution_clock::now();
-                   #endif
-                   
-                   this->reverseTopologicalOrder[u] = this->n-1;
-                   this->topOrd[u] = this->n - 1;
-                   
-                   this->maxO[u] = v ;                    
-                   
-                   
+                   this->maxO[u] = v;
                    #ifndef BENCHMARK
                    end = std::chrono::high_resolution_clock::now();
                    elapsed = end - start;
@@ -138,47 +142,18 @@
 
                    start = std::chrono::high_resolution_clock::now();
                    #endif
-                   this->minIbst[u]= binaryTreeIncoming;
+                   // u has no parent but 0 (minI[u] = 0); v gets the parent u,
+                   // which is now its earliest parent
+                   this->minI[u] = 0;
+                   this->minIbst[u] = DifferentBalancedBinaryTree(this->reverseTopologicalOrder);
                    this->minIbst[v].addNode(u,0);
                    this->minI[v] = this->minIbst[v].findMin();
                    #ifndef BENCHMARK
                    end = std::chrono::high_resolution_clock::now();
                    elapsed = end - start;
                    this->latestTimes.currentminITime += elapsed.count();
-                   this->latestTimes.minITime+= elapsed.count();
+                   this->latestTimes.minITime += elapsed.count();
                    #endif
-
-                   // timed as in case 4: deleteReachableFromBST, update and
-                   // insertReachableIntoBST add their own times, so they stay
-                   // outside these timers (else they are counted twice)
-                   #ifndef BENCHMARK
-                   start = std::chrono::high_resolution_clock::now();
-                   #endif
-                   this->partialDFS(g,u,v);
-                   #ifndef BENCHMARK
-                   end = std::chrono::high_resolution_clock::now();
-                   elapsed = end - start;
-                   this->latestTimes.currentdfsTime += elapsed.count();
-                   this->latestTimes.dfsTime += elapsed.count();
-                   #endif
-                   //std::cout << "partial DFS done in case where u is new node" << std::endl;
-                   this->deleteReachableFromBST(g);
-
-                    this->update(g);
-
-                    this->insertReachableIntoBST(g);
-
-                   #ifndef BENCHMARK
-                   start = std::chrono::high_resolution_clock::now();
-                   #endif
-                   this->reset();
-                   #ifndef BENCHMARK
-                   end = std::chrono::high_resolution_clock::now();
-                   elapsed = end - start;
-                   this->latestTimes.currenttopologicalOrderTime += elapsed.count();
-                   this->latestTimes.topologicalOrderTime += elapsed.count();
-                   #endif
-
                    }
                    g->strategy->newu = false;
 
@@ -406,6 +381,7 @@
             //std::cout << z << std::endl;
             this->marked[z] =1;
             this->reachable[z] = 1;
+            this->reachList.push_back(z);
             #ifndef BENCHMARK
             this->vertexCount.currentTotalExploredEdges += g->getOutDegree(z);
             #endif
@@ -438,6 +414,7 @@
             this->vertexCount.currentcountAffectedVertices ++;
             #endif
             index = this->topOrd[i];
+            this->windowList.push_back(index);
             
             if(this->marked[index]==1) {
                 this->intermediatepostorder[index] = this->reverseTopologicalOrder[this->u] - this->postorderChanged[index] + 1;
@@ -462,9 +439,9 @@
 
         start = std::chrono::high_resolution_clock::now(); 
         #endif
-        for(int i=0; i<this->n; i++) {
+        // only the vertices of the window rto[v] .. rto[u] got a new position
+        for(int i : this->windowList) {
             if(this->intermediatepostorder[i]!=0) {
-                //std::cout << "i = " << i << std::endl;
                 if(i == 0) {
                     continue;
                 }       
@@ -489,7 +466,7 @@
         auto end = std::chrono::high_resolution_clock::now();   
         std::chrono::duration<double> elapsed = end - start;
         #endif
-        for(int i=0; i<this->n; i++) {
+        for(int i : this->reachList) {
             if(this->reachable[i]!=0) {
                 if(i == 0 || i == 1) {
                     continue;
@@ -551,7 +528,7 @@
         this->latestTimes.currentmaxOTime += elapsed.count();
         this->latestTimes.maxOTime += elapsed.count();       
         #endif
-        for(int i=0; i<this->n; i++) {
+        for(int i : this->reachList) {
             if(this->reachable[i]!=0) {  
                 if(i == 0 || i == 1) {
                     continue;
@@ -662,10 +639,18 @@
     }
 
     void IncrementalDFSTREEH4::reset() {
-        std::fill(this->marked.begin(), this->marked.end(), 0);
-        std::fill(this->postorderChanged.begin(), this->postorderChanged.end(), 0);
-        std::fill(this->intermediatepostorder.begin(), this->intermediatepostorder.end(), 0);
-        std::fill(this->reachable.begin(), this->reachable.end(), 0);
+        // only the entries set by partialDFS (reachList) and update()
+        // (windowList) are non-zero, so only these are cleared
+        for(int i : this->reachList) {
+            this->marked[i] = 0;
+            this->postorderChanged[i] = 0;
+            this->reachable[i] = 0;
+        }
+        for(int i : this->windowList) {
+            this->intermediatepostorder[i] = 0;
+        }
+        this->reachList.clear();
+        this->windowList.clear();
         this->m=0;
     }
 
