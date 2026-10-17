@@ -55,6 +55,10 @@ public:
     std::vector<int> postorderChanged;
     std::vector<int> intermediatepostorder;
     std::vector<int> reachable;
+    // vertices marked by partialDFS, and vertices of the window rto[v]..rto[u]
+    // in update(): the loops and reset() go over these instead of all n
+    std::vector<int> reachList;
+    std::vector<int> windowList;
     std::vector<DifferentBalancedBinaryTree> minIbst;
     int m,u,v;    
     // number of updates after which the whole order was recomputed with the
