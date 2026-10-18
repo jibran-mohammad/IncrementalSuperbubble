@@ -86,10 +86,9 @@ OUTPUT (in output/toolComparison/<tool>/)
         <tool> memory (MB)       largest PeakMemory(KB) of the tool
         <tool> baseline (MB)     BaselineMemory(KB) of the tool: its memory
                                  without the graph (BubbleGun: Python +
-                                 BubbleGun before reading the graph;
-                                 BubbleFinder: its peak on a graph with one
-                                 edge); memory - baseline is what the graph
-                                 costs
+                                 BubbleGun before reading the graph);
+                                 memory - baseline is what the graph costs.
+                                 Not shown for tools in NO_BASELINE.
         Preprocessing (s)        GFA -> input of both (edge list, reduced
                                  GFA); shared by both, so not added to either
 
@@ -159,6 +158,11 @@ TOOL_LABELS = {
     "bubblegun": "BubbleGun",
     "bubblefinder": "BubbleFinder",
 }
+
+# Tools without a baseline column: BubbleFinder's baseline (its peak on a
+# graph with one edge) is not stable, the same graph gave 58, 162 and
+# 726 MB in different runs, so it does not show its memory without a graph.
+NO_BASELINE = {"bubblefinder"}
 
 
 ############################################################
@@ -568,6 +572,10 @@ def main():
             "ToolBaseline": f"{tool_label} baseline (MB)",
             "Preprocessing": "Preprocessing (s)",
         }
+        show_baseline = args.tool not in NO_BASELINE
+        if not show_baseline:
+            df = df.drop(columns=["ToolBaseline"])
+            del columns["ToolBaseline"]
 
         df = df.rename(columns=columns).rename(columns={"Sampled": "Sampled updates (tool)"})
 
@@ -578,8 +586,9 @@ def main():
             df, list(columns.values()),
             caption=(f"{algo_label} vs {tool_label} ({mode}): total time over all updates "
                      f"(both read their input and process every update), speedup = "
-                     f"{tool_label} time / {algo_label} time, and peak memory "
-                     f"({tool_label} baseline: its memory without the graph). "
+                     f"{tool_label} time / {algo_label} time, and peak memory"
+                     + (f" ({tool_label} baseline: its memory without the graph)" if show_baseline else "")
+                     + ". "
                      f"Preprocessing produces the input of both and is not included in either time."
                      + sampled_note),
             label=f"tab:{args.tool}_performance_{mode}",
