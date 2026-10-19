@@ -139,9 +139,9 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     # incremental algorithms write case columns, and some also explored counts.
     algorithm_id = filename.name[:-len("_time.txt")]
 
-    is_incremental_file = algorithm_id in {"incRecompute", "incBST", "incMinIBST", "incBSTBatch"}
+    is_incremental_file = algorithm_id in {"incRecompute", "incBST", "incMinIBST", "incMinIBSTH1", "incBSTBatch"}
 
-    has_explored = algorithm_id in {"incBST", "incMinIBST", "incBSTBatch"}
+    has_explored = algorithm_id in {"incBST", "incMinIBST", "incMinIBSTH1", "incBSTBatch"}
     if is_incremental_file:
         CASE_COLUMNS = ['Case1', 'Case2', 'Case3', 'Case4', 'Case5']
         if has_explored:
@@ -181,6 +181,9 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     elif filename.name == "incMinIBST_time.txt":
         source_time_metric = 'DFS_Time'   
         prefix = 'incMinIBST_'       
+    elif filename.name == "incMinIBSTH1_time.txt":
+        source_time_metric = 'DFS_Time'
+        prefix = 'incMinIBSTH1_'
 
     current_haplotype_edges = 0
     current_haplotype_nodes = 0
@@ -453,7 +456,8 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
                 "incRecompute_time.txt", 
                 "incBST_time.txt",
                 "incBSTBatch_time.txt",
-                "incMinIBST_time.txt"]
+                "incMinIBST_time.txt",
+                "incMinIBSTH1_time.txt"]
     
     dir_name = time_dir_path.name.lower()
 
@@ -482,7 +486,8 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         "incRecompute": "incRecompute_time.txt",
         "incBST": "incBST_time.txt",
         "incBSTBatch": "incBSTBatch_time.txt",
-        "incMinIBST": "incMinIBST_time.txt"
+        "incMinIBST": "incMinIBST_time.txt",
+        "incMinIBSTH1": "incMinIBSTH1_time.txt"
     }
 
     files_to_parse = {
@@ -512,7 +517,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         # 1. Define time metric structures for use in merging and filtering (FIX: SCOPE)
         BASE_TIME_METRICS = ['Insert_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time']
         BASE_VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
-        PREFIXES = ['static_', 'incRecompute_', 'incBST_','incBSTBatch_','incMinIBST_']
+        PREFIXES = ['static_', 'incRecompute_', 'incBST_','incBSTBatch_','incMinIBST_','incMinIBSTH1_']
         
         # 2. Perform the full merge
         merge_keys = ['Step']
@@ -596,7 +601,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
                 prefix = name.split('_')[0]
                 return prefix + 'TimeS'
 
-            if name.startswith(('static_', 'incRecompute_', 'incBST_', 'incBSTBatch_', 'incMinIBST_')):
+            if name.startswith(('static_', 'incRecompute_', 'incBST_', 'incBSTBatch_', 'incMinIBST_', 'incMinIBSTH1_')):
                 parts = name.split('_')
                 # Keep inner parts exactly (no .capitalize()), just glue them:
                 # 'static_DFS_Time' -> ['static','DFS','Time'] -> 'static' + 'DFS' + 'Time' -> 'staticDFSTime'
@@ -613,7 +618,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         TIME_METRICS = ['InsertTime', 'DFSTime', 'TopologicalOrderTime', 'MinITime', 'MaxOTime', 'SBComputeTime', 'TotalTime']
         VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
         GRAPH_METRICS = ['TotalVertices', 'TotalEdges']
-        PREFIXES = ['static', 'incRecompute', 'incBST', 'incBSTBatch','incMinIBST']
+        PREFIXES = ['static', 'incRecompute', 'incBST', 'incBSTBatch','incMinIBST','incMinIBSTH1']
 
         final_order = BASE_COLS + ['SuperbubbleCount']
 
