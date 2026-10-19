@@ -158,6 +158,14 @@ ALGORITHMS = [
         "target": "incMinIBST",
         "output_filename": "incMinIBST_time.txt"
     },
+
+    {
+        # incMinIBST + superbubble heuristic: superbubbles updated locally
+        # where possible (lib/findSuperbubble/superbubbleh1.cpp)
+        "name": "incMinIBSTH1",
+        "target": "incMinIBSTH1",
+        "output_filename": "incMinIBSTH1_time.txt"
+    },
      
     #{
     #    "name": "SimpleSuperbubbleH1",

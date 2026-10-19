@@ -22,8 +22,9 @@
   *_time.txt (e.g. /dev/null). Called after all updates, outside the timed
   sections, in normal (non-BENCHMARK) builds only.
 */
+template <class SuperbubbleClass>   // SuperbubbleCalculation or SuperbubbleCalculationH1
 inline void writeFinalSuperbubbles(const std::string &timePath,
-                                   SuperbubbleCalculation &superbubble,
+                                   SuperbubbleClass &superbubble,
                                    GraphContext &g) {
     const std::string suffix = "_time.txt";
     if (timePath.size() < suffix.size() ||
@@ -36,7 +37,7 @@ inline void writeFinalSuperbubbles(const std::string &timePath,
         std::cerr << "Error opening superbubble file " << listPath << std::endl;
         return;
     }
-    out << "# Final graph | total=" << superbubble.SB.size() << "\n";
+    out << "# Final graph | total=" << superbubble.numberOfSuperbubbles() << "\n";
     superbubble.writeSuperbubbles(&g, out);
 }
 
