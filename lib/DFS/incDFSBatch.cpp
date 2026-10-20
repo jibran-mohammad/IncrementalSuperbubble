@@ -32,7 +32,14 @@
             this->stampEarlier.resize(n, 0);
             this->stampIn.resize(n, 0);
             this->stampOut.resize(n, 0);
+            this->stampNew.resize(n, 0);
         }
+#ifndef BATCH_MINI_SCAN
+        if ((int)this->minIbst.size() < n) {
+            // empty trees ordered by the positions of this algorithm
+            this->minIbst.resize(n, DifferentBalancedBinaryTree(this->reverseTopologicalOrder));
+        }
+#endif
     }
 
 
@@ -72,7 +79,18 @@
     void IncrementalDFSTREEBatch::calculateMinI(GraphContext *g) {
         this->minI[0] = INT_MAX;
         this->minI[1] = 0;
+#ifndef BATCH_MINI_SCAN
+        // trees of the base graph: every vertex gets its real parents
+        for (int i = 2; i < this->n; i++) {
+            this->minIbst[i] = DifferentBalancedBinaryTree(this->reverseTopologicalOrder);
+            for (int u : g->displayIncomingNeighbours(i)) {
+                if (u != 0) this->minIbst[i].addNode(u, 0);
+            }
+            this->minI[i] = (g->strategy->incoming[i] == 2) ? 0 : this->minIbst[i].findMin();
+        }
+#else
         for (int i = 2; i < this->n; i++) this->minIOf(g, i);
+#endif
     }
 
 
@@ -153,6 +171,9 @@
         this->latestTimes.currentinsertTime -= this->latestTimes.currentdfsTime;
 
         // ---- step 3 and 4
+#ifndef BATCH_MINI_SCAN
+        this->detachMovedFromTrees(g);
+#endif
         this->copyOrder();
         this->updateMinIMaxO(g);
 
@@ -260,6 +281,10 @@
         }
         // every position from pos on shifted by one
         this->markDirty(pos, this->topo.size() - 1);
+        // new vertices are in no tree yet (and have no position in
+        // reverseTopologicalOrder before step 3)
+        if (caseNo != 2) this->stampNew[ru] = this->stamp;
+        if (caseNo != 1) this->stampNew[rv] = this->stamp;
     }
 
 
@@ -370,6 +395,13 @@
       a rescanned vertex is final, it already sees all new edges).
     */
     void IncrementalDFSTREEBatch::updateMinIMaxO(GraphContext *g) {
+#ifndef BATCH_MINI_SCAN
+        {   // ---- minI (trees, as in incMinIBST)
+        BATCH_TIMER_START
+        this->attachMovedToTrees(g);
+        BATCH_TIMER_ADD(this->latestTimes.currentminITime)
+        }
+#else
         {   // ---- minI
         BATCH_TIMER_START
         for (int x : this->movedLater) {
@@ -397,6 +429,7 @@
         }
         BATCH_TIMER_ADD(this->latestTimes.currentminITime)
         }
+#endif
         {   // ---- maxO
         BATCH_TIMER_START
         for (int w : this->movedEarlier) {
@@ -425,6 +458,55 @@
         BATCH_TIMER_ADD(this->latestTimes.currentmaxOTime)
         }
     }
+
+
+#ifndef BATCH_MINI_SCAN
+    /*
+      minI trees (as in incMinIBST's deleteReachableFromBST /
+      insertReachableIntoBST). A tree compares its vertices by
+      reverseTopologicalOrder; the vertices whose relative order changes are
+      the moved ones (movedLater, movedEarlier), so they are removed from
+      their children's trees while reverseTopologicalOrder still has the old
+      positions (before step 3), and put back afterwards. New vertices are in
+      no tree yet. Then the batch's new edges go into the trees, and minI is
+      the minimum of every tree that changed.
+    */
+    void IncrementalDFSTREEBatch::detachMovedFromTrees(GraphContext *g) {
+        BATCH_TIMER_START
+        const std::vector<int> *lists[2] = { &this->movedLater, &this->movedEarlier };
+        for (const std::vector<int> *list : lists) {
+            for (int x : *list) {
+                if (this->stampNew[x] == this->stamp) continue;
+                for (int c : g->displayOutgoingNeighbours(x)) {
+                    if (c != 1) this->minIbst[c].deleteNode(x);
+                }
+            }
+        }
+        BATCH_TIMER_ADD(this->latestTimes.currentminITime)
+    }
+
+
+    void IncrementalDFSTREEBatch::attachMovedToTrees(GraphContext *g) {
+        std::vector<int> changed;
+        const std::vector<int> *lists[2] = { &this->movedLater, &this->movedEarlier };
+        for (const std::vector<int> *list : lists) {
+            for (int x : *list) {
+                for (int c : g->displayOutgoingNeighbours(x)) {
+                    if (c == 1) continue;
+                    this->minIbst[c].addNode(x, 0);
+                    if (this->stampIn[c] != this->stamp) { this->stampIn[c] = this->stamp; changed.push_back(c); }
+                }
+            }
+        }
+        for (const std::pair<int,int> &e : this->realEdges) {
+            this->minIbst[e.second].addNode(e.first, 0);
+            if (this->stampIn[e.second] != this->stamp) { this->stampIn[e.second] = this->stamp; changed.push_back(e.second); }
+        }
+        for (int c : changed) {
+            this->minI[c] = (g->strategy->incoming[c] == 2) ? 0 : this->minIbst[c].findMin();
+        }
+    }
+#endif
 
 
     // =======================================================================

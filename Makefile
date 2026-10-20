@@ -26,6 +26,13 @@ ifeq ($(VERIFY),1)
 CFLAGS += -DVERIFY_SB
 endif
 
+# incBSTBatch only: minI without trees (scan a child's parents only when its
+# earliest parent moved); default is trees as in incMinIBST:
+#   make clean && make TARGET=incBSTBatch MINI_SCAN=1
+ifeq ($(MINI_SCAN),1)
+CFLAGS += -DBATCH_MINI_SCAN
+endif
+
 # Objects without an explicit rule are built by make's implicit C++ rule,
 # which uses CXXFLAGS; give it the same flags (-O3, -DBENCHMARK, ...)
 CXXFLAGS = $(CFLAGS)

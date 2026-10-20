@@ -3,6 +3,7 @@
 #include "baseDFS.h"
 #include "minImaxOdatastructure.h"
 #include "incremental_topo.hpp"
+#include "../tree/differentAVLTree.h"
 #include <climits>
 #include <chrono>
 #include <vector>
@@ -56,6 +57,17 @@
     3. copy the changed positions into topOrd / reverseTopologicalOrder
     4. minI / maxO of the vertices whose relative order changed (see
        updateMinIMaxO)
+
+  minI is kept as in incMinIBST: every vertex c has a balanced search tree
+  (minIbst[c]) of its real parents, ordered by position, and minI[c] is its
+  minimum. A tree is ordered by reverseTopologicalOrder, which is only
+  updated in step 3, so the vertices that change their relative order (moved
+  by a reorder or an adoption) are taken out of their children's trees
+  before step 3 and put back after it. maxO is kept without a tree, by
+  comparisons (as in incMinIBST).
+  Compile switch: with -DBATCH_MINI_SCAN (make ... MINI_SCAN=1) minI is kept
+  without trees instead: a child's parents are scanned only when its
+  earliest parent moved later or a parent moved earlier.
   ===========================================================================
 */
 class IncrementalDFSTREEBatch : public BaseDFS, public IDatastructure {
@@ -96,6 +108,10 @@ public:
     long long repairedEdges = 0;      // backward edges collected by adoptions
 
     inctopo::IncrementalTopoOrder topo;
+#ifndef BATCH_MINI_SCAN
+    // minIbst[c]: the real parents of c, ordered by position (minI[c] = minimum)
+    std::vector<DifferentBalancedBinaryTree> minIbst;
+#endif
 
 public:
     IncrementalDFSTREEBatch(GraphContext *g) : BaseDFS(g) {
@@ -131,7 +147,7 @@ private:
     int dirtyLo, dirtyHi;                       // positions that changed (step 3)
 
     // stamps: set membership per batch without clearing
-    std::vector<unsigned> stampLater, stampEarlier, stampIn, stampOut;
+    std::vector<unsigned> stampLater, stampEarlier, stampIn, stampOut, stampNew;
     unsigned stamp = 0;
 
     void fitSize(int n);
@@ -142,6 +158,10 @@ private:
     void markDirty(int lo, int hi);
     void copyOrder();
     void updateMinIMaxO(GraphContext *g);
+#ifndef BATCH_MINI_SCAN
+    void detachMovedFromTrees(GraphContext *g);   // before step 3
+    void attachMovedToTrees(GraphContext *g);     // after step 3
+#endif
     void minIOf(GraphContext *g, int x);
     void maxOOf(GraphContext *g, int x);
 };
