@@ -86,10 +86,9 @@ OUTPUT (in output/toolComparison/<tool>/)
         <tool> memory (MB)       largest PeakMemory(KB) of the tool
         <tool> baseline (MB)     BaselineMemory(KB) of the tool: its memory
                                  without the graph (BubbleGun: Python +
-                                 BubbleGun before reading the graph;
-                                 BubbleFinder: its peak on a graph with one
-                                 edge); memory - baseline is what the graph
-                                 costs
+                                 BubbleGun before reading the graph);
+                                 memory - baseline is what the graph costs.
+                                 Not shown for tools in NO_BASELINE.
         Preprocessing (s)        GFA -> input of both (edge list, reduced
                                  GFA); shared by both, so not added to either
 
@@ -160,6 +159,11 @@ TOOL_LABELS = {
     "bubblefinder": "BubbleFinder",
 }
 
+# Tools without a baseline column: BubbleFinder's baseline (its peak on a
+# graph with one edge) is not stable, the same graph gave 58, 162 and
+# 726 MB in different runs, so it does not show its memory without a graph.
+NO_BASELINE = {"bubblefinder"}
+
 
 ############################################################
 # Reading result files
@@ -215,6 +219,10 @@ def read_tool_time(path):
     # CSV written by superbubbleComparator.py: one row per update whose
     # first field is the step number, a "Base" row, and summary lines
     # "TotalTime,<s>" and "PeakMemory(KB),<KB>" at the end.
+    # With sampling (superbubbleComparator.py --every N) only the sampled
+    # updates have a row; "Updates,<n>" gives the number of updates and
+    # "TotalTimeEstimated,..." marks TotalTime as an estimate (mean time per
+    # sampled update x number of updates).
     for line in open(path):
         fields = line.strip().split(",")
         if fields[0].isdigit():
@@ -225,8 +233,14 @@ def read_tool_time(path):
             values["PeakMemory"] = int(fields[1])
         elif fields[0] == "BaselineMemory(KB)":
             values["BaselineMemory"] = int(fields[1])
+        elif fields[0] == "Updates":
+            values["UpdatesLine"] = int(fields[1])
+        elif fields[0] == "SampledUpdates":
+            values["SampledUpdates"] = int(fields[1])
+        elif fields[0] == "TotalTimeEstimated":
+            values["Estimated"] = True
 
-    values["Updates"] = updates
+    values["Updates"] = values.pop("UpdatesLine", updates)
 
     return values
 
@@ -335,10 +349,11 @@ def comparable(pairs, out):
 ############################################################
 
 def dataset_label(dataset_path):
-    """Ecoli -> Ecoli, Human/chromosome_11 -> chr11"""
+    """Ecoli -> Ecoli, Human/chromosome_11 -> chr11, HPRC/chromosome_22 -> HPRC chr22"""
 
     name = dataset_path.name
-    return "chr" + name.split("_", 1)[1] if name.startswith("chromosome_") else name
+    label = "chr" + name.split("_", 1)[1] if name.startswith("chromosome_") else name
+    return f"HPRC {label}" if dataset_path.parts[0] == "HPRC" else label
 
 
 def performance_rows(datasets, mode, algorithm, tool):
@@ -372,17 +387,22 @@ def performance_rows(datasets, mode, algorithm, tool):
         t_ours = ours.get("AlgorithmTime")
         t_theirs = theirs.get("TotalTime")
 
+        # "$\approx$" (LaTeX for the approximately-equal sign; "~" in the
+        # CSV): the tool's total is estimated from sampled updates
+        est = "$\\approx$" if theirs.get("Estimated") else ""
+
         # Times in seconds, memory converted from KB to MB; "-" if missing.
         rows.append({
             "Dataset": dataset_label(ds),
             "Updates": theirs.get("Updates", "-"),
             "AlgoTime": format_float(t_ours) if t_ours is not None else "-",
-            "ToolTime": format_float(t_theirs) if t_theirs is not None else "-",
-            "Speedup": format_float(t_theirs / t_ours, precision=1) if t_ours and t_theirs else "-",
+            "ToolTime": est + format_float(t_theirs) if t_theirs is not None else "-",
+            "Speedup": est + format_float(t_theirs / t_ours, precision=1) if t_ours and t_theirs else "-",
             "AlgoMem": format_float(ours_memory / 1024, precision=1) if ours_memory else "-",
             "ToolMem": format_float(theirs["PeakMemory"] / 1024, precision=1) if "PeakMemory" in theirs else "-",
             "ToolBaseline": format_float(theirs["BaselineMemory"] / 1024, precision=1) if "BaselineMemory" in theirs else "-",
             "Preprocessing": format_float(ours["PreprocessingTime"]) if "PreprocessingTime" in ours else "-",
+            "Sampled": theirs.get("SampledUpdates", "") if est else "",
         })
 
     return rows
@@ -455,8 +475,9 @@ def discover_datasets(names, chromosomes, tool):
 
     for name in names:
 
-        # Ecoli (or any other non-human dataset): one folder output/<name>/.
-        if name != "Human":
+        # Ecoli (or any other dataset without chromosomes): one folder output/<name>/.
+        # Human and HPRC (Minigraph-Cactus, experimental): one per chromosome.
+        if name not in ("Human", "HPRC"):
             datasets.append(pathlib.Path(name))
             continue
 
@@ -465,10 +486,10 @@ def discover_datasets(names, chromosomes, tool):
         if chromosomes:
             chrs = [c if c.startswith("chromosome_") else f"chromosome_{c}" for c in chromosomes]
         else:
-            human = REPO_ROOT / "output" / "Human"
+            human = REPO_ROOT / "output" / name
             chrs = sorted(d.name for d in human.glob("chromosome_*") if (d / tool).is_dir())
 
-        datasets += [pathlib.Path("Human") / c for c in chrs]
+        datasets += [pathlib.Path(name) / c for c in chrs]
 
     return datasets
 
@@ -531,6 +552,14 @@ def main():
 
         df = pd.DataFrame(rows)
 
+        # Tool times estimated from sampled updates (marked "~"): a note in
+        # the caption; the number of sampled updates stays in the CSV only.
+        estimated = [f"{r['Dataset']} ({r['Sampled']} of {r['Updates']} updates)" for r in rows if r["Sampled"]]
+        sampled_note = (f" $\\approx$: {tool_label} time estimated as its mean time per update on "
+                        f"evenly spaced sampled updates $\\times$ the number of updates, for "
+                        + ", ".join(estimated) + "."
+                        if estimated else "")
+
         # Internal row keys -> column headers of the table.
         columns = {
             "Dataset": "Dataset",
@@ -543,19 +572,25 @@ def main():
             "ToolBaseline": f"{tool_label} baseline (MB)",
             "Preprocessing": "Preprocessing (s)",
         }
+        show_baseline = args.tool not in NO_BASELINE
+        if not show_baseline:
+            df = df.drop(columns=["ToolBaseline"])
+            del columns["ToolBaseline"]
 
-        df = df.rename(columns=columns)
+        df = df.rename(columns=columns).rename(columns={"Sampled": "Sampled updates (tool)"})
 
         # Same table as CSV (easy to check or to use elsewhere) and as LaTeX.
-        df.to_csv(outdir / f"performance_{mode}.csv", index=False)
+        df.replace(r"\$\\approx\$", "~", regex=True).to_csv(outdir / f"performance_{mode}.csv", index=False)
 
         generate_latex_table(
             df, list(columns.values()),
             caption=(f"{algo_label} vs {tool_label} ({mode}): total time over all updates "
                      f"(both read their input and process every update), speedup = "
-                     f"{tool_label} time / {algo_label} time, and peak memory "
-                     f"({tool_label} baseline: its memory without the graph). "
-                     f"Preprocessing produces the input of both and is not included in either time."),
+                     f"{tool_label} time / {algo_label} time, and peak memory"
+                     + (f" ({tool_label} baseline: its memory without the graph)" if show_baseline else "")
+                     + ". "
+                     f"Preprocessing produces the input of both and is not included in either time."
+                     + sampled_note),
             label=f"tab:{args.tool}_performance_{mode}",
             out_tex=str(outdir / f"performance_{mode}.tex"),
         )

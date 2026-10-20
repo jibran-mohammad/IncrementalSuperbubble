@@ -256,12 +256,22 @@ python3 scripts/superbubbleRunner.py -d Human -m perBatch -a static incRecompute
 
 (Leave out `-a ...` in perBatch once `incBSTBatch` compiles.)
 
-**3. BubbleGun** (`superbubbleComparator.py`):
+**3. BubbleGun and BubbleFinder** (`superbubbleComparator.py`, `-t bubblegun` is the default):
 
 ```Bash
 python3 scripts/superbubbleComparator.py -d all -m perEdge  2>&1 | tee bubblegun_perEdge.log
 python3 scripts/superbubbleComparator.py -d all -m perBatch 2>&1 | tee bubblegun_perBatch.log
+
+# BubbleFinder: install the binary once (see Preprocessing/superbubbleTools/bubblefinderTool.py)
+mkdir -p ~/tools/bubblefinder-1.0.5 && cd ~/tools/bubblefinder-1.0.5 \
+  && wget https://github.com/algbio/BubbleFinder/releases/download/v1.0.5/BubbleFinder-linux-x86_64.tar.gz \
+  && tar xzf BubbleFinder-linux-x86_64.tar.gz && ./BubbleFinder --version && cd -
+python3 scripts/superbubbleComparator.py -d all -m perEdge  -t bubblefinder 2>&1 | tee bubblefinder_perEdge.log
+python3 scripts/superbubbleComparator.py -d all -m perBatch -t bubblefinder 2>&1 | tee bubblefinder_perBatch.log
 ```
+
+Tables for BubbleFinder: `toolComparisonToLatex.py -d Ecoli Human -t bubblefinder`
+(output in `output/toolComparison/bubblefinder/`).
 
 `-d all` runs E. coli and every preprocessed human chromosome one after
 the other and ends with a SUMMARY (`-d Human -c 14 X` for single
@@ -288,6 +298,65 @@ reports give the graph sizes for the paper.)
 **5. Tables and plots** (locally): Phase 3 above
 (`parse_to_csv.py -d all`, `plotcsv.py`, `csvToLatex.py`) and Step 3c
 (`toolComparisonToLatex.py -d Ecoli Human`).
+
+## 🧬 HPRC Minigraph-Cactus Graphs (experimental)
+
+Larger graphs from the Human Pangenome Reference Consortium (Minigraph-Cactus,
+bidirected and possibly cyclic) form a separate dataset **`HPRC`**, with the
+same folder layout as `Human`: `input/HPRC/chromosome_<X>/Graphs/` and
+`output/HPRC/chromosome_<X>/`. Their preprocessing is
+`Preprocessing/mcToDag.py`: it orients the nodes (reference orientation,
+otherwise the majority of the walks), drops inversion links and self-loops,
+breaks cycles by removing only DFS back edges, and writes the same pipeline
+files as the other datasets (`numeric_edgelist.txt`, `reduced_graph.gfa`,
+`unique_elements.txt`, `ordered_haplotypes.txt`,
+`haplotype_removal_report.txt`), plus `<name>.stats.json` with everything
+that was removed. Check that file first: the share of removed links and of
+broken walk transitions says how faithful the DAG is.
+
+```Bash
+# 1. graph: e.g. HPRC chromosome 22 (.vg; list the bucket for the exact name)
+aws s3 ls --no-sign-request s3://human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/hprc-v1.1-mc-grch38/
+mkdir -p input/HPRC/chromosome_22/Graphs
+vg convert -f chr22.vg > input/HPRC/chromosome_22/Graphs/chromosome_22.gfa   # vg: github.com/vgteam/vg/releases
+grep "^W" input/HPRC/chromosome_22/Graphs/chromosome_22.gfa | cut -f2 | sort -u | head   # reference sample name
+
+# 2. preprocessing (mcToDag.py, ~2 min); look at chromosome_22.stats.json
+python3 scripts/pipelineRunner.py -d HPRC -c c22 --ref GRCh38 --preprocess-only
+```
+
+On a graph of this size only the **best algorithm** is compared with
+BubbleGun, with **one run** each, and BubbleGun perEdge is **sampled**
+(`--every`): the method, its validation and suggested wording for the
+paper are in [COMPARISON_METHOD.md](COMPARISON_METHOD.md), section 7.
+For one mode (`perEdge` / `perEdge` dir, or `perBatch` / `perbatch` dir):
+
+```Bash
+# a + b. incMinIBST, one run each, one after the other (perEdge: ~1 day each):
+#   b. superbubbleRunner: memory, superbubble list, per-update counts (normal build)
+#   a. pipelineRunner:    AlgorithmTime for the speedup (BENCHMARK build)
+nohup bash -c 'python3 -u scripts/superbubbleRunner.py -d HPRC -c chromosome_22 -m perEdge -a incMinIBST --runs 1;
+               python3 -u scripts/pipelineRunner.py -d HPRC -c c22 --ref GRCh38 -m perEdge --repeat 1' \
+    > hprc22_perEdge.log 2>&1 &
+#   progress: genomes finished (of 89) during b, and the current step
+grep -c '#[0-9]*$' hprc22_perEdge.log; tail -2 hprc22_perEdge.log
+
+# c. BubbleGun: perEdge sampled (every 10,000th edge, ~100 samples), perBatch complete
+python3 scripts/superbubbleComparator.py -d HPRC -c 22 -m perEdge --every 10000
+python3 scripts/superbubbleComparator.py -d HPRC -c 22 -m perBatch
+
+# d. correctness (sampled: the Python reference is slow on 1.3 million nodes)
+python3 Preprocessing/checkSuperbubbles.py --edgelist input/HPRC/chromosome_22/Graphs/numeric_edgelist.txt \
+    -m perEdge --every 20000 --time output/HPRC/chromosome_22/timeFile/perEdge/incMinIBST_time.txt
+
+# e. tables (estimated BubbleGun times marked with $\approx$)
+python3 Preprocessing/toolComparisonToLatex.py -d HPRC -m perEdge perBatch
+```
+
+BubbleGun after every edge would take months on chr22 (one run ~12 s, ~1
+million edges), hence the sampling; perBatch needs none. `-d all` does
+not include `HPRC`. The normalization script is pure Python; `pypy3
+Preprocessing/mcToDag.py ...` is several times faster on large graphs.
 
 ## 🧪 Test Run Instructions (Quick Start Example)
 

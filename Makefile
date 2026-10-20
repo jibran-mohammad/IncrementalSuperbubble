@@ -18,6 +18,14 @@ ifeq ($(DEBUG),1)
 CFLAGS += -DDEBUG_OUTPUT
 endif
 
+# incMinIBSTH1 only: after every perEdge update, compare the superbubbles
+# (with their nesting tree) with a full recomputation and report differences.
+# Slow (a full recomputation per update), for testing the heuristic:
+#   make clean && make TARGET=incMinIBSTH1 VERIFY=1
+ifeq ($(VERIFY),1)
+CFLAGS += -DVERIFY_SB
+endif
+
 # Objects without an explicit rule are built by make's implicit C++ rule,
 # which uses CXXFLAGS; give it the same flags (-O3, -DBENCHMARK, ...)
 CXXFLAGS = $(CFLAGS)
@@ -81,6 +89,7 @@ INCSUPERBUBBLE_OBJS = $(ALGORITHM_DIR)/superbubbleIncdfs.o
 INCRECOMPUTE_OBJS = $(ALGORITHM_DIR)/incRecompute.o
 INCBSTBATCH_OBJS = $(ALGORITHM_DIR)/incBSTBatch.o
 INCMINIBST_OBJS = $(ALGORITHM_DIR)/incMinIBST.o
+INCMINIBSTH1_OBJS = $(ALGORITHM_DIR)/incMinIBSTH1.o
 INCBST_OBJS = $(ALGORITHM_DIR)/incBST.o
 H1SUPERBUBBLE_OBJS = $(ALGORITHM_DIR)/mnlognH1.o
 TESTDFSALLFILES_OBJS = $(TEST_DIR)/testSIIAVLTree.o
@@ -111,6 +120,7 @@ INCBST_SRCS = $(ALGORITHM_DIR)/incBST.cpp
 INCRECOMPUTE_SRCS = $(ALGORITHM_DIR)/incRecompute.cpp
 INCBSTBATCH_SRCS = $(ALGORITHM_DIR)/incBSTBatch.cpp
 INCMINIBST_SRCS = $(ALGORITHM_DIR)/incMinIBST.cpp
+INCMINIBSTH1_SRCS = $(ALGORITHM_DIR)/incMinIBSTH1.cpp
 H1SUPERBUBBLE_SRCS = $(ALGORITHM_DIR)/mnlognH1.cpp
 TESTDFSALLFILES_SRCS = $(TEST_DIR)/testSIIAVLTree.cpp
 TESTALLFILESSUPERBUBBLE_SRCS = $(TEST_DIR)/testAllSuperbubble.cpp
@@ -138,6 +148,7 @@ INCSUPERBUBBLE_EXEC = $(TEST_DIR)/superbubbleIncdfs
 INCRECOMPUTE_EXEC = $(TEST_DIR)/incRecompute
 INCBSTBATCH_EXEC = $(TEST_DIR)/incBSTBatch
 INCMINIBST_EXEC = $(TEST_DIR)/incMinIBST
+INCMINIBSTH1_EXEC = $(TEST_DIR)/incMinIBSTH1
 INCBST_EXEC = $(TEST_DIR)/incBST
 H1SUPERBUBBLE_EXEC = $(TEST_DIR)/h1Superbubble
 TESTDFSALLFILES_EXEC = $(TEST_DIR)/testAllFilesDfs
@@ -269,6 +280,19 @@ else ifeq ($(TARGET),incMinIBST)
 	              $(GRAPH_DIR)/adjacencyListGraph.o \
 	              $(GRAPH_DIR)/contextGraph.o \
 	              $(TREE_DIR)/differentAVLTree.o	              
+else ifeq ($(TARGET),incMinIBSTH1)
+	# incMinIBST's incremental DFS, minI and maxO + the superbubble heuristic
+	TARGET_EXEC = $(INCMINIBSTH1_EXEC)
+	TARGET_DEPS = $(INCMINIBSTH1_OBJS) \
+	              $(SUPERBUBBLE_DIR)/superbubbleh1.o \
+	              $(SUPERBUBBLE_DIR)/superbubbleTree.o \
+	              $(SUPERBUBBLE_DIR)/superbubble.o \
+	              $(DFS_DIR)/incrementalDFSAVLTreeH4.o \
+	              $(DFS_DIR)/contextdfs.o \
+	              $(DFS_DIR)/baseDFS.o \
+	              $(GRAPH_DIR)/adjacencyListGraph.o \
+	              $(GRAPH_DIR)/contextGraph.o \
+	              $(TREE_DIR)/differentAVLTree.o
 endif
 
 
@@ -290,6 +314,9 @@ $(ALGORITHM_DIR)/incBST.o: $(INCBST_SRCS)
 
 $(ALGORITHM_DIR)/incMinIBST.o: $(INCMINIBST_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@	
+
+$(ALGORITHM_DIR)/incMinIBSTH1.o: $(INCMINIBSTH1_SRCS)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(ALGORITHM_DIR)/incRecompute.o: $(INCRECOMPUTE_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@

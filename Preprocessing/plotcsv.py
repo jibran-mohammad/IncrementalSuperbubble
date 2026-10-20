@@ -61,7 +61,7 @@ import argparse
 
 # Define the components and their corresponding column names
 
-ALGORITHMS = ["static", "incRecompute", "incBST", "incMinIBST"]
+ALGORITHMS = ["static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1"]
 
 # Names shown in legends (IDs and meanings: see ALGORITHMS.md)
 DISPLAY_NAMES = {
@@ -69,17 +69,18 @@ DISPLAY_NAMES = {
     "incRecompute": "Inc-Recompute",
     "incBST": "Inc-BST",
     "incMinIBST": "Inc-MinI-BST",
+    "incMinIBSTH1": "Inc-MinI-BST-H1",
     "incBSTBatch": "Inc-BST-Batch",
 }
 
 TIME_COMPONENTS = {
-    'Insert':          ['staticInsertTime',          'incRecomputeInsertTime',          'incBSTInsertTime',          'incMinIBSTInsertTime'],
-    'DFS':             ['staticDFSTime',             'incRecomputeDFSTime',             'incBSTDFSTime',             'incMinIBSTDFSTime'],
-    'TopologicalOrder':['staticTopologicalOrderTime','incRecomputeTopologicalOrderTime','incBSTTopologicalOrderTime','incMinIBSTTopologicalOrderTime'],
-    'MinI':            ['staticMinITime',            'incRecomputeMinITime',            'incBSTMinITime',            'incMinIBSTMinITime'],
-    'MaxO':            ['staticMaxOTime',            'incRecomputeMaxOTime',            'incBSTMaxOTime',            'incMinIBSTMaxOTime'],
-    'SBCompute':       ['staticSBComputeTime',       'incRecomputeSBComputeTime',       'incBSTSBComputeTime',       'incMinIBSTSBComputeTime'],
-    'Total':           ['staticTotalTime',           'incRecomputeTotalTime',           'incBSTTotalTime',           'incMinIBSTTotalTime'],
+    'Insert':          ['staticInsertTime',          'incRecomputeInsertTime',          'incBSTInsertTime',          'incMinIBSTInsertTime', 'incMinIBSTH1InsertTime'],
+    'DFS':             ['staticDFSTime',             'incRecomputeDFSTime',             'incBSTDFSTime',             'incMinIBSTDFSTime', 'incMinIBSTH1DFSTime'],
+    'TopologicalOrder':['staticTopologicalOrderTime','incRecomputeTopologicalOrderTime','incBSTTopologicalOrderTime','incMinIBSTTopologicalOrderTime', 'incMinIBSTH1TopologicalOrderTime'],
+    'MinI':            ['staticMinITime',            'incRecomputeMinITime',            'incBSTMinITime',            'incMinIBSTMinITime', 'incMinIBSTH1MinITime'],
+    'MaxO':            ['staticMaxOTime',            'incRecomputeMaxOTime',            'incBSTMaxOTime',            'incMinIBSTMaxOTime', 'incMinIBSTH1MaxOTime'],
+    'SBCompute':       ['staticSBComputeTime',       'incRecomputeSBComputeTime',       'incBSTSBComputeTime',       'incMinIBSTSBComputeTime', 'incMinIBSTH1SBComputeTime'],
+    'Total':           ['staticTotalTime',           'incRecomputeTotalTime',           'incBSTTotalTime',           'incMinIBSTTotalTime', 'incMinIBSTH1TotalTime'],
 }
 
 # Define color palette for the stacked bar chart components
@@ -99,6 +100,7 @@ VERSION_STYLES = {
     'incRecompute':     {'color': 'blue',   'marker': 's', 'linestyle': '--',  'linewidth': 0.7, 'markersize': 2},
     'incBST':     {'color': 'green',  'marker': '^', 'linestyle': '-.',  'linewidth': 0.7, 'markersize': 2},
     'incMinIBST':{'color': 'orange', 'marker': 'D', 'linestyle': ':',   'linewidth': 0.7, 'markersize': 2},
+    'incMinIBSTH1':{'color': 'purple', 'marker': 'v', 'linestyle': '-',   'linewidth': 0.7, 'markersize': 2},
 }
 
 def build_plot_filename(dataset, mode, scale, plot_type):
@@ -174,9 +176,12 @@ def plot_total_time_bar(df, output_dir, dataset_name, mode, scale):
             raise KeyError(f"Missing column: {col}")
         totals.append(df_plot[col].sum())
 
-    fig, ax = plt.subplots(figsize=(6, 5))
+    fig, ax = plt.subplots(figsize=(7, 5))
 
-    bars = ax.bar(versions, totals, color=["red", "blue", "green", "orange"], edgecolor="black", linewidth=0.6)
+    # one colour per algorithm, as in the line plots; display names, slanted
+    labels = [DISPLAY_NAMES.get(v, v) for v in versions]
+    bars = ax.bar(labels, totals, color=[VERSION_STYLES[v]['color'] for v in versions], edgecolor="black", linewidth=0.6)
+    plt.setp(ax.get_xticklabels(), rotation=20, ha="right")
 
     ax.set_ylabel("Total Time (ms)")
     ax.set_title(f"Total Time Comparison — {dataset_name}")
@@ -597,7 +602,7 @@ def plot_aggregated_version_bars(df, output_dir, dataset_name, mode, scale):
         bottom += values
 
     ax.set_xticks(x)
-    ax.set_xticklabels(ALGORITHMS)
+    ax.set_xticklabels([DISPLAY_NAMES.get(a, a) for a in ALGORITHMS], rotation=20, ha="right")
     ax.set_ylabel('Time (ms) — summed across steps')
     ax.set_title(f'Aggregated Total Time Breakdown by Version --{dataset_name}')
     ax.legend(title='Component', loc='upper right')
@@ -810,7 +815,7 @@ def plot_chromosome_comparison(csv_files, labels, output_dir):
             totals[alg].append(df[col].sum())
 
     x = np.arange(len(labels))
-    width = 0.2
+    width = 0.8 / len(ALGORITHMS)
 
     fig, ax = plt.subplots(figsize=(10,6))
 
@@ -820,10 +825,11 @@ def plot_chromosome_comparison(csv_files, labels, output_dir):
             x + i*width,
             totals[alg],
             width,
-            label=alg
+            label=DISPLAY_NAMES.get(alg, alg),
+            color=VERSION_STYLES[alg]['color']
         )
 
-    ax.set_xticks(x + width)
+    ax.set_xticks(x + width * (len(ALGORITHMS) - 1) / 2)
     ax.set_xticklabels(labels)
 
     ax.set_ylabel("Total Time (ms)")

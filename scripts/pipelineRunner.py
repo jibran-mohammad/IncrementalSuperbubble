@@ -34,9 +34,15 @@ Run from the repository root, with the virtual environment active
     # chromosome with a graph) and run the preprocessing checks; no timing
     python3 scripts/pipelineRunner.py -d all --preprocess-only
 
+    # HPRC Minigraph-Cactus chromosomes (experimental): GFA in
+    # input/HPRC/chromosome_<X>/Graphs/chromosome_<X>.gfa[.gz]; the
+    # preprocessing is Preprocessing/mcToDag.py (--ref = reference sample)
+    python3 scripts/pipelineRunner.py -d HPRC -c c22 -m perBatch --ref GRCh38
+
 Options:
 
-    -d           Ecoli | Human | all (= Ecoli + Human)           (default: Ecoli)
+    -d           Ecoli | Human | HPRC | all (= Ecoli + Human)    (default: Ecoli)
+    --ref        HPRC only: reference sample name in the GFA     (default: GRCh38)
     -a           algorithm IDs, see ALGORITHMS.md        (default: BEST_ALGORITHM)
     -c           Human only: c1 ... c22, cX, cY, cM      (default: all chromosome_*
                                                          folders in input/Human/;
@@ -173,7 +179,17 @@ def detect_reference_fasta(dataset):
         "Reference FASTA not found in " + str(fasta_dir)
     )
 
-def run_preprocessing(gfa_file, dataset):
+def run_preprocessing(gfa_file, dataset, ref="GRCh38"):
+
+    # HPRC (Minigraph-Cactus, experimental): one script normalizes the graph
+    # to a DAG and writes the same pipeline files into the GFA's folder
+    if dataset == "HPRC":
+        gfa_dir = pathlib.Path(gfa_file).parent
+        cmd = ["python3", PREPROCESS_DIR / "mcToDag.py", gfa_file, "--ref", ref,
+               "--pipeline-dir", gfa_dir, "--name", gfa_dir.parent.name]
+        print("Running:", " ".join(map(str, cmd)))
+        subprocess.run(cmd, check=True)
+        return
 
     normalize = PREPROCESS_DIR / "normalizeOrientations.py"
     remove = PREPROCESS_DIR / "haplotypeRemoval.py"
@@ -309,9 +325,9 @@ def discover_gfa_files(dataset, chromosomes):
 
                 gfas.append((gfa_dir / f, None))
 
-    elif dataset == "Human":
+    elif dataset in ("Human", "HPRC"):
 
-        base_dir = INPUT_DIR / "Human"
+        base_dir = INPUT_DIR / dataset
 
         if chromosomes:
             chrs = chromosomes
@@ -327,6 +343,8 @@ def discover_gfa_files(dataset, chromosomes):
             gfa_dir = base_dir / c / "Graphs"
             expected = f"{c}.gfa"
             gfa_file = gfa_dir / expected
+            if dataset == "HPRC" and not gfa_file.exists() and (gfa_dir / f"{c}.gfa.gz").exists():
+                gfa_file = gfa_dir / f"{c}.gfa.gz"
 
             # Chromosomes without a graph are skipped (like graphRunner.py and
             # superbubbleRunner.py do), so one missing folder does not stop
@@ -414,8 +432,12 @@ def main():
         description="End-to-end time of the best algorithm: GFA -> preprocessing -> "
                     "superbubbles. See the guide at the top of this file.")
 
-    parser.add_argument("-d",default="Ecoli",choices=["Ecoli","Human","all"],
-                        help="Dataset; all = Ecoli and every human chromosome (default: Ecoli)")
+    parser.add_argument("-d",default="Ecoli",choices=["Ecoli","Human","HPRC","all"],
+                        help="Dataset; all = Ecoli and every human chromosome; HPRC = "
+                             "Minigraph-Cactus chromosomes (experimental) (default: Ecoli)")
+
+    parser.add_argument("--ref", default="GRCh38",
+                        help="HPRC only: reference sample name in the GFA (default: GRCh38)")
 
     parser.add_argument("-a", nargs="+",
                         help=f"Algorithms to run (default: {BEST_ALGORITHM})")
@@ -464,7 +486,7 @@ def main():
     jobs = []
     for dataset in datasets:
         try:
-            gfas = discover_gfa_files(dataset, chromosomes if dataset == "Human" else None)
+            gfas = discover_gfa_files(dataset, chromosomes if dataset in ("Human", "HPRC") else None)
         except RuntimeError as e:
             print(f"[!] {dataset}: {e}", file=sys.stderr)
             continue
@@ -486,7 +508,7 @@ def main():
         start = time.time()
 
         try:
-            run_preprocessing(str(gfa), dataset)
+            run_preprocessing(str(gfa), dataset, args.ref)
         except subprocess.CalledProcessError as e:
             step = os.path.basename(str(e.cmd[1])) if len(e.cmd) > 1 else str(e.cmd)
             print(f"[!] {label}: preprocessing failed in {step}, skipping it", file=sys.stderr)

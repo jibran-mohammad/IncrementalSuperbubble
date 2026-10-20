@@ -34,7 +34,11 @@ Run from the repository root, with the virtual environment active
 
 Options:
 
-    -d / --dataset       Ecoli | Human                            (default: Ecoli)
+    --runs N             runs per algorithm, averaged             (default: 100;
+                         1 for very large graphs such as HPRC chromosomes)
+    -d / --dataset       Ecoli | Human | HPRC                     (default: Ecoli;
+                         HPRC: Minigraph-Cactus graphs prepared by
+                         Preprocessing/mcToDag.py, experimental)
     -a / --algorithms    algorithm IDs: static incRecompute incBST incMinIBST
                          incBSTBatch                              (default: all)
     -c / --chromosomes   Human only: chromosome_1 chromosome_X ... (default: all)
@@ -153,6 +157,14 @@ ALGORITHMS = [
         "name": "incMinIBST",
         "target": "incMinIBST",
         "output_filename": "incMinIBST_time.txt"
+    },
+
+    {
+        # incMinIBST + superbubble heuristic: superbubbles updated locally
+        # where possible (lib/findSuperbubble/superbubbleh1.cpp)
+        "name": "incMinIBSTH1",
+        "target": "incMinIBSTH1",
+        "output_filename": "incMinIBSTH1_time.txt"
     },
      
     #{
@@ -328,8 +340,8 @@ def main():
         '-d', '--dataset',
         type=str,
         default='Ecoli',
-        choices=['Ecoli', 'Human'], # Added choices for clarity
-        help="Specify which dataset to run (e.g., 'Ecoli', 'Human'). Default: Ecoli"
+        choices=['Ecoli', 'Human', 'HPRC'], # Added choices for clarity
+        help="Specify which dataset to run (e.g., 'Ecoli', 'Human', 'HPRC'). Default: Ecoli"
     )
     
     # Add a new argument for specifying chromosomes
@@ -349,7 +361,20 @@ def main():
         help="Specify processing mode. 'perBatch' (after haplotype) or 'perEdge' (after every edge)."
     )
     
+    parser.add_argument(
+        '--runs',
+        type=int,
+        default=None,
+        help="Runs per algorithm, averaged (default: 100). Use 1 for very large graphs "
+             "(e.g. HPRC chromosomes), where one run takes hours."
+    )
     args = parser.parse_args()
+
+    # --runs overrides the number of runs (not in pipeline mode, where
+    # pipelineRunner.py sets it with --repeat)
+    global NUM_RUNS
+    if args.runs is not None and not PIPELINE_MODE:
+        NUM_RUNS = args.runs
 
     mode_dir_map = {
         "perBatch": "perbatch",
@@ -414,8 +439,10 @@ def main():
                 "job_name": f"{algo['name']} on Ecoli" # Added job_name
             })
             
-    elif args.dataset == 'Human':
-        # --- HUMAN DATASET ---
+    elif args.dataset in ('Human', 'HPRC'):
+        # --- HUMAN / HPRC DATASET (one folder per chromosome) ---
+        # HPRC = Minigraph-Cactus graphs prepared by Preprocessing/mcToDag.py
+        # (experimental), input/HPRC/chromosome_<X>/, same layout as Human
         
         ### MODIFIED ###
         # Define the full list of chromosomes
@@ -439,7 +466,7 @@ def main():
             # This path assumes your Human graphs follow the Ecoli naming convention
             # e.g., .../input/Human/Graphs/chromosome_1_numeric_edgelist.txt
             # e.g., .../input/Human/Graphs/chromosome_X_numeric_edgelist.txt
-            input_path = os.path.join(PROJECT_ROOT, "input", "Human", f"{chr_name}", "Graphs" ,"numeric_edgelist.txt")
+            input_path = os.path.join(PROJECT_ROOT, "input", args.dataset, f"{chr_name}", "Graphs" ,"numeric_edgelist.txt")
             
             if not os.path.exists(input_path):
                 print(f"[!] Warning: Input file not found, skipping: '{input_path}'", file=sys.stderr)
@@ -448,7 +475,7 @@ def main():
             for algo in algorithms_to_run:
                 # This builds the output path exactly as you requested:
                 # .../output/Human/chromosome_1/timeFile/
-                output_dir = os.path.join(PROJECT_ROOT, "output", "Human", chr_name, "timeFile", mode_dir)
+                output_dir = os.path.join(PROJECT_ROOT, "output", args.dataset, chr_name, "timeFile", mode_dir)
                 full_output_path = os.path.join(output_dir, algo['output_filename'])
                 
                 jobs_to_run.append({

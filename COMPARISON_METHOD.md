@@ -69,6 +69,24 @@ and only processes the change.
   includes its base graph). One run, no repetition; it is the sum of
   thousands of runs in perEdge mode.
 
+### Tool: BubbleFinder (`Preprocessing/superbubbleTools/bubblefinderTool.py`)
+
+- **How it runs:** BubbleFinder (C++/Rust, linear-time superbubbles via
+  SPQR trees; Sena, Politov et al., arXiv:2511.21919; release 1.0.5) is a
+  separate program, run once per update on the **same temporary GFA** as
+  BubbleGun: `BubbleFinder superbubbles --directed --gfa-directed -j 1`.
+  One thread, like our algorithms and BubbleGun.
+- **What is timed, per update:** BubbleFinder's own timers
+  (`--report-json`): reading the GFA (`io/read_graph`) + all phases of
+  finding the superbubbles (`sb/...`). The same work as for BubbleGun;
+  program start-up (about 10 ms) and writing the output file are **not**
+  included. `TotalTime` as for BubbleGun.
+- **Checked before use:** on the worked example (6 graphs: nesting of
+  depth 2, separate components, superbubbles disappearing and
+  reappearing) BubbleFinder finds exactly the reference superbubbles, and
+  on chromosome 21's final graph the same 9,998 superbubbles as
+  Inc-MinI-BST (2,573 nontrivial, as BubbleGun).
+
 ### Not included on either side
 
 **Preprocessing** (GFA -> edge list / reduced GFA, `PreprocessingTime`)
@@ -86,8 +104,8 @@ mode (`performance_<mode>.tex` of `Preprocessing/toolComparisonToLatex.py`).
 | | Algorithm | Tool |
 |---|---|---|
 | Value | `PeakMemory(KB)` in `<ID>_time.txt` (`superbubbleRunner.py`, normal build, mean of 100 runs) | `PeakMemory(KB)` in `<tool>_time.txt` |
-| Measured | peak resident memory of the program over the whole run (`VmHWM` in `/proc/self/status`, read just before exit) | peak resident memory of a fresh Python process that reads the graph and finds the bubbles, at the base graph and after each genome; the largest value |
-| Includes | the C++ runtime | the Python interpreter + BubbleGun (`BaselineMemory(KB)`, about 14 MB, measured before the graph is read) |
+| Measured | peak resident memory of the program over the whole run (`VmHWM` in `/proc/self/status`, read just before exit) | BubbleGun: peak resident memory of a fresh Python process that reads the graph and finds the bubbles; BubbleFinder: peak resident memory of its process (from its `--report-json`); in a separate run at the base graph and after each genome, the largest value |
+| Includes | the C++ runtime | BubbleGun: the Python interpreter + BubbleGun (`BaselineMemory(KB)`, about 14 MB, measured before the graph is read); BubbleFinder: the program and its libraries (`BaselineMemory(KB)` = its peak on a graph with one edge) |
 
 Both are whole-process peaks, measured the same way (`VmHWM`). The
 tool's memory is measured in separate, untimed runs, so measuring it does
@@ -174,7 +192,95 @@ human results and `scripts/ecoli_perEdge.csv`) are affected by several of
 these changes and need to be rerun before they are compared.
 
 
-## 7. Producing the comparison
+## 7. Large graphs: HPRC chromosome 22 (experimental, branch `hprc-experiment`)
+
+### 7.1 Data and preparation
+
+- Graph: HPRC release 1.1 Minigraph-Cactus pangenome, GRCh38-based,
+  chromosome 22 (`hprc-v1.1-mc-grch38.chroms/chr22.vg`, the standard
+  clipped graph; not the `.d9` frequency-filtered or the `.full` unclipped
+  version), converted with `vg convert -f`. 1,279,333 nodes, 1,780,739
+  links, 54.0 Mbp; 512 walks: GRCh38 (one walk = the reference), CHM13 and
+  44 HPRC samples x 2 haplotypes, split into contigs.
+- Minigraph-Cactus graphs are bidirected and may contain cycles, the
+  algorithms need a DAG: `Preprocessing/mcToDag.py` orients every node
+  (GRCh38 nodes as on GRCh38, other nodes by the majority of the walks,
+  each walk counted in the reference's direction since half of the
+  contigs are reverse-complemented), drops links that would need one
+  endpoint reversed (inversions) and self-loops, breaks cycles by
+  removing DFS back edges only, and keeps the component of the
+  reference. Everything removed is in `chromosome_22.stats.json`.
+- Result (13.10.2026): 0.68% of the links removed (0.63% inversion links,
+  2 cycle edges), 0.49% of the nodes (0.20% of the bases), 0.064% of all
+  walk transitions broken; DAG with 1,273,074 nodes and 1,768,676 edges,
+  18 sources, 36 sinks. Base graph = GRCh38 walk (740,099 nodes); the
+  other 89 haplotypes add 1,028,578 edges.
+- Updates as for the other datasets: perEdge = one edge at a time, in
+  haplotype order, each haplotype's new edges in walk order; perBatch =
+  one haplotype at a time.
+
+### 7.2 What is measured, and how it differs from the other datasets
+
+- **Only the best algorithm** (incMinIBST) is compared with BubbleGun.
+  The comparison of our algorithms with each other is done on E. coli and
+  the human chromosomes (sections 1-5); on chr22 it would only repeat it
+  at a larger size, for several days of computing.
+- **One run** instead of 10 (`AlgorithmTime`) / 100 (memory): a run takes
+  hours, so repetitions add nothing to the precision.
+- **BubbleGun perEdge is sampled.** One BubbleGun run on the full graph
+  takes about 12 s (estimate), so one run after each of the ~1 million
+  edges would take about 140 days. `superbubbleComparator.py --every N`
+  runs BubbleGun on the graph after every N-th edge (evenly spaced over
+  the whole update sequence) and estimates the total as
+  `mean time of these samples x number of updates`
+  (`TotalTimeEstimated` in `bubblegun_time.txt`). It also runs BubbleGun
+  after the last edge of every haplotype, for the bubble lists and the
+  memory, but these runs are not in the mean: they also list all bubbles
+  and are slower (chr21: +13%). BubbleGun perBatch (89 updates) is not
+  sampled.
+- In the tables (`toolComparisonToLatex.py`) an estimated time and the
+  speedup computed from it are marked with $\approx$, and the caption
+  says how many updates were sampled (`~` in the CSV, which also has the
+  column `Sampled updates (tool)`).
+- **Validation of the sampling** (chromosome 21, where BubbleGun was run
+  after all 6,863 edges): the mean of every N-th update differs from the
+  mean of all updates by +0.1% (N = 50, 137 samples), +1.6% (N = 100),
+  +0.1% (N = 250), +2.5% (N = 500, 13 samples), +1.8% (N = 1000, 6
+  samples). Per-update time changes slowly along the sequence, so evenly
+  spaced samples represent it well. For chr22 with N = 10,000 there are
+  about 100 samples.
+- Correctness of incMinIBST on chr22: `checkSuperbubbles.py --every 20000`
+  (about 50 updates and the last one checked against the reference;
+  checking all ~1 million is too slow for the Python reference).
+
+### 7.3 Suggested wording for the paper
+
+> To evaluate scalability we used the chromosome 22 graph of the HPRC
+> release 1.1 Minigraph-Cactus pangenome (GRCh38-based; 1.28 million
+> nodes, 1.78 million links, 90 haplotypes). Since our algorithms require
+> a DAG, nodes were oriented by the reference and by the majority of the
+> haplotype walks, links requiring an inversion (0.63% of all links) and
+> two cycle-closing links were removed; 0.064% of the walk transitions
+> were affected. The reference path forms the base graph (740,099 nodes)
+> and the remaining 89 haplotypes add 1,028,578 edges. Running BubbleGun
+> after each of these edges was infeasible (an estimated 140 days); we
+> therefore measured it on the graphs after every 10,000th edge (N
+> samples) and report its mean time per update multiplied by the number
+> of updates. On chromosome 21, where BubbleGun could be run after every
+> edge, this estimate deviates from the measured total by at most 2.5%.
+> Inc-MinI-BST was run on all updates.
+
+Fill in N (the `SampledUpdates` line of `bubblegun_time.txt`) and the
+numbers from the tables; state in the table caption that the BubbleGun
+time and the speedup for chr22 perEdge are estimates (the generated
+caption does this).
+
+### 7.4 Commands (on the server, branch `hprc-experiment`)
+
+See the README section "HPRC Minigraph-Cactus Graphs".
+
+
+## 8. Producing the comparison
 
 1. `scripts/pipelineRunner.py` (preprocessing + `AlgorithmTime`),
 2. `scripts/superbubbleRunner.py` (memory, superbubble lists, per-update
