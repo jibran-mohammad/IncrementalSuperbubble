@@ -47,9 +47,8 @@ Options:
 
 Notes:
 
-  - incBSTBatch only runs in perBatch mode (skipped in perEdge). It does
-    not compile at the moment, which stops a perBatch run; until it is
-    fixed, list the other algorithms with -a.
+  - incBSTBatch (the batch algorithm) only runs in perBatch mode (skipped
+    in perEdge): it processes a whole haplotype at once.
   - Every run starts with "make clean" and uses one _tmp_runs/ folder in
     the repository root, so run only one superbubbleRunner.py at a time
     per copy of the repository.

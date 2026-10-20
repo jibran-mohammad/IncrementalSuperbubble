@@ -44,7 +44,9 @@ public:
         // --- Skip initial comment lines ---
         while (std::getline(std::cin, line) && (line.empty() || line[0] == '#')) {
             // This loop reads and discards all comment lines at the top of the file.
+            #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
             std::cout << line << std::endl;
+            #endif
         }
         //std::cout << line << std::endl;
         // --- 1. Process the Base Graph ---
@@ -80,7 +82,7 @@ public:
         #ifndef BENCHMARK
         auto start = std::chrono::high_resolution_clock::now();
         #endif
-        d.performDFS(&g);
+        d.performDFS(&g);   // static DFS of the base graph; the batch order starts from it
         d.createMinI(&g);
         d.createMaxO(&g);
         superbubble.computeSB(&d, &g);
@@ -88,17 +90,19 @@ public:
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         #endif
-        /*
-        outFile << graph_name << "\n";
-        if (outFile.is_open()) {
-            for (const pii& elem : superbubble.SB) {
-                outFile << elem.first << " " << elem.second << "\n";
-            }
-            std::cout << "List written to file successfully at: "<< std::endl;
-        } else {
-            std::cerr << "Error opening file at: " << std::endl; 
-        }
-        */
+
+        //std::cout << "DFS performed successfully" << std::endl;
+        //std::cout << "minI done successfully" << std::endl;
+        //std::cout << "maxO done successfully" << std:: endl;
+        //d.displayTopologicalOrder();
+        //d.displayReverseTopologicalOrder();
+        //d.displayMinI();
+        //d.displayMaxO();
+        #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
+        superbubble.printSuperbubbles(&g);
+        #endif
+        
+
         // Record timing for the entire base graph construction
         #ifndef BENCHMARK
         timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";
@@ -109,7 +113,7 @@ public:
         if(mode == "perEdge") {
             #ifndef BENCHMARK
             timeFile << "Edge_Number Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5 AffectedVertices ExploredVertices TotalVertices TotalEdges TotalAffectedEdges TotalExploredEdges\n";
-             #endif
+            #endif
         }
         else {
             #ifndef BENCHMARK
@@ -178,28 +182,46 @@ public:
             incdfs.vertexCount.totalAffectedEdges = 0;
             #endif
             // Start the timer for this entire haplotype update
-            std::fill(incdfs.globalReachable.begin(), incdfs.globalReachable.end(), 0);
-            incdfs.oldReverseTopologicalOrder = incdfs.reverseTopologicalOrder;
-            incdfs.switchBSTTopo(incdfs.oldReverseTopologicalOrder);
+            
+            
              // BATCH INSERT all edges for this haplotype
             for (int i = 0; i < hap_edge_count; ++i) {
                 std::cin >> x >> y;
-                //superbubble.insertE(&d,&g,x,y);
-                incdfs.EdgeList.push_back({x,y});
-                
+                incdfs.addEdgeToBatch(x, y);
+                //d.displayTopologicalOrder();
+               // d.displayReverseTopologicalOrder();
+                //d.displayMinI();
+                //d.displayMaxO();
+
                 if (mode == "perEdge") {
-                    std::cerr << "Error: This implementation only supports batch updates." << std::endl;
-                    std::cerr << "Please run with mode = perBatch." << std::endl;
-                    exit(EXIT_FAILURE);
+                    // perEdge: every edge is a batch of one
+                    incdfs.insertBatch(&g);
+                    superbubble.SB.clear();
+                    #ifndef BENCHMARK
+                    start = std::chrono::high_resolution_clock::now();
+                    #endif
+                    superbubble.computeSB(&d, &g);
+                    #ifndef BENCHMARK
+                    end = std::chrono::high_resolution_clock::now();
+                    elapsed = end - start;
+                    currentsuperbubbleTime = elapsed.count();
+                    superbubbleTime += elapsed.count();
+                    totalTime = incdfs.latestTimes.currentinsertTime + incdfs.latestTimes.currentdfsTime + incdfs.latestTimes.currenttopologicalOrderTime + incdfs.latestTimes.currentminITime + incdfs.latestTimes.currentmaxOTime + currentsuperbubbleTime;
+                    timeFile << i + 1 << " " << clean_hap_name << " " << incdfs.latestTimes.currentinsertTime << " " << incdfs.latestTimes.currentdfsTime << " " << incdfs.latestTimes.currenttopologicalOrderTime << " " << incdfs.latestTimes.currentminITime << " " << incdfs.latestTimes.currentmaxOTime << " " << currentsuperbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.currentcase1 << " " << incdfs.edgeTypes.currentcase2 << " " << incdfs.edgeTypes.currentcase3 << " " << incdfs.edgeTypes.currentcase4 << " " << incdfs.edgeTypes.currentcase5 << " " << incdfs.vertexCount.currentcountAffectedVertices << " " << incdfs.vertexCount.currentcountExploredVertices << " " << incdfs.n << " " << incdfs.vertexCount.currentTotalEdges << " " << incdfs.vertexCount.currentTotalAffectedEdges << " " << incdfs.vertexCount.currentTotalExploredEdges <<"\n";
+                    currentsuperbubbleTime = 0.0;
+                    #endif
+
+                    #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
+                    superbubble.printSuperbubbles(&g);
+                    #endif
                 } 
                 
             }
             
-            if (mode == "perBatch") { 
-                superbubble.insertE(&d,&g);  
-                incdfs.deleteReachableFromBST(&g);
-                incdfs.switchBSTTopo(incdfs.reverseTopologicalOrder);
-                incdfs.insertReachableIntoBST(&g);
+            if (mode == "perBatch") {
+                // the whole haplotype as one batch
+                incdfs.insertBatch(&g);
+                superbubble.SB.clear();
                 #ifndef BENCHMARK
                 start = std::chrono::high_resolution_clock::now();
                 #endif
@@ -238,6 +260,8 @@ public:
         timeFile.close();
         // superbubbles of the final graph -> <ID>_superbubbles.txt
         writeFinalSuperbubbles(output_path, superbubble, g);
+        std::cout << "batch algorithm: " << incdfs.adoptions << " adoptions (case 5, v a source; "
+                  << incdfs.repairedEdges << " backward edges repaired), " << incdfs.duplicateEdges << " duplicate edges" << std::endl;
         #endif
     }
 

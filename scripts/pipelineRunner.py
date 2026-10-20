@@ -58,7 +58,7 @@ every dataset/chromosome with its status and graph sizes (from
 haplotype_removal_report.txt); the exit code is 1 if any failed.
 
 To change the algorithm that runs by default, edit BEST_ALGORITHM below.
-Algorithms in NOT_READY_ALGORITHMS (incBSTBatch) are never run.
+Algorithms in NOT_READY_ALGORITHMS are never run (currently none).
 
 =====================================================================
 WHAT IT DOES
@@ -140,7 +140,7 @@ TOOL_NAME = "incsuperbubble"
 BEST_ALGORITHM = "incMinIBST"
 
 # Algorithms that are never run by the pipeline (not ready yet).
-NOT_READY_ALGORITHMS = {"incBSTBatch"}
+NOT_READY_ALGORITHMS = set()
 
 # Same mode directory names as superbubbleRunner.py
 MODE_DIRS = {"perEdge": "perEdge", "perBatch": "perbatch"}

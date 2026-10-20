@@ -10,7 +10,7 @@ column or a plot always points to the same code.
 | `incRecompute` | Inc-Recompute | incremental DFS | recomputed from scratch after every update |
 | `incBST` | Inc-BST | incremental DFS | both maintained in balanced binary search trees (AVL) |
 | `incMinIBST` | Inc-MinI-BST | incremental DFS | minI maintained in an AVL tree; maxO updated directly, without a tree |
-| `incBSTBatch` | Inc-BST-Batch | incremental DFS, one batch per haplotype | both maintained in AVL trees (perBatch mode only; **not ready**, does not compile) |
+| `incBSTBatch` | Inc-BST-Batch | batch-incremental order (`lib/DFS/incremental_topo.hpp`), one batch per haplotype; new vertices and adoptions placed as in incMinIBST (`lib/DFS/incDFSBatch.h`) | updated per batch for the vertices whose relative order changed (no trees); superbubbles once per batch |
 
 All algorithms compute the superbubbles themselves with the same code,
 `SuperbubbleCalculation::computeSB` (`lib/findSuperbubble/superbubble.cpp`);
