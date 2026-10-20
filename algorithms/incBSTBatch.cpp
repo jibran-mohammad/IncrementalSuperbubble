@@ -1,5 +1,6 @@
 #include <sys/resource.h>
 #include"superbubbleAlgorithms.h"
+#include"../lib/findSuperbubble/superbubbleHistory.h"
 #include<fstream>
 #include<string>
 #include<chrono>
@@ -26,7 +27,10 @@ public:
         }
         return -1;
     }   
-    void inputAndCompute(std::string output_path, std::string mode) {
+    // history: also write the superbubble history per genome (perBatch only,
+    // normal build): <ID>_history_events.tsv, <ID>_history_summary.tsv next to
+    // the time file (see lib/findSuperbubble/superbubbleHistory.h)
+    void inputAndCompute(std::string output_path, std::string mode, bool history) {
         // --- File path configuration ---
         //std::ofstream outFile("/home/dell/Research/Superbubble/Experiment/IncSuperbubble/output/Human/HaplotypeTestingData/outFile/SuperbubbleIncrementalAVLDFSOutput.txt");
         #ifndef BENCHMARK
@@ -110,6 +114,21 @@ public:
         
         std::cout << "base graph processed" << std::endl;
         #endif
+        #ifndef BENCHMARK
+        SuperbubbleHistory hist;
+        if (history && mode != "perBatch") {
+            std::cerr << "history: only in perBatch mode (one step per genome); not written" << std::endl;
+            history = false;
+        }
+        if (history) {
+            std::string prefix = output_path;
+            const std::string suffix = "_time.txt";
+            if (prefix.size() >= suffix.size() && prefix.compare(prefix.size() - suffix.size(), suffix.size(), suffix) == 0)
+                prefix = prefix.substr(0, prefix.size() - suffix.size());
+            if (!hist.open(prefix)) { std::cerr << "history: cannot write " << prefix << "_history_*.tsv" << std::endl; history = false; }
+            else hist.record(0, "base", d, g, superbubble.SB, 0, num_base_edges, elapsed.count());
+        }
+        #endif
         if(mode == "perEdge") {
             #ifndef BENCHMARK
             timeFile << "Edge_Number Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5 AffectedVertices ExploredVertices TotalVertices TotalEdges TotalAffectedEdges TotalExploredEdges\n";
@@ -152,6 +171,7 @@ public:
                  std::string clean_hap_name = hap_name_header.substr(hap_name_header.find(":") + 2);
                  #ifndef BENCHMARK
                  timeFile << update_counter << " " << clean_hap_name << " " << 0.0 << " " << superbubble.numberOfSuperbubbles() << "\n";
+                 if (history) hist.record(update_counter, clean_hap_name, d, g, superbubble.SB, g.displayNumberVertices(), 0, 0.0);
                  #endif
                  update_counter++;
                  std::string dummy;
@@ -220,6 +240,9 @@ public:
             
             if (mode == "perBatch") {
                 // the whole haplotype as one batch
+                #ifndef BENCHMARK
+                int nBefore = g.displayNumberVertices();     // for the history: new vertices have ids >= nBefore
+                #endif
                 incdfs.insertBatch(&g);
                 superbubble.SB.clear();
                 #ifndef BENCHMARK
@@ -231,6 +254,7 @@ public:
                 superbubbleTime = std::chrono::duration<double>(end - start).count();
                 totalTime = incdfs.latestTimes.insertTime + incdfs.latestTimes.dfsTime + incdfs.latestTimes.topologicalOrderTime + incdfs.latestTimes.minITime + incdfs.latestTimes.maxOTime + superbubbleTime;
                 timeFile << update_counter << " " << clean_hap_name << " " << incdfs.latestTimes.insertTime << " " << incdfs.latestTimes.dfsTime << " " << incdfs.latestTimes.topologicalOrderTime << " " << incdfs.latestTimes.minITime << " " << incdfs.latestTimes.maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.case1 << " " << incdfs.edgeTypes.case2 << " " << incdfs.edgeTypes.case3 << " " << incdfs.edgeTypes.case4 << " " << incdfs.edgeTypes.case5 << " "<< incdfs.vertexCount.countAffectedVertices << " " << incdfs.vertexCount.countExploredVertices << " " << incdfs.n << " " << incdfs.vertexCount.totalEdges << " " << incdfs.vertexCount.totalAffectedEdges << " " << incdfs.vertexCount.totalExploredEdges << "\n";
+                if (history) hist.record(update_counter, clean_hap_name, d, g, superbubble.SB, nBefore, hap_edge_count, totalTime);
                 #endif 
             }
             //std::string clean_hap_name = hap_name_header.substr(hap_name_header.find(":") + 2);
@@ -274,10 +298,11 @@ int main(int argc, char* argv[]){
     if (argc < 3) {
         // Print error to standard error
         std::cerr << "Error: No output file path provided." << std::endl;
-        std::cerr << "Usage: " << argv[0] << " <output_file_path> <perBatch|perEdge>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <output_file_path> <perBatch|perEdge> [history]" << std::endl;
         return 1; // Exit with an error code
     }
 	IncBSTBatchSuperbubble incremental;
-    incremental.inputAndCompute(argv[1], argv[2]);
+    bool history = (argc >= 4 && std::string(argv[3]) == "history");
+    incremental.inputAndCompute(argv[1], argv[2], history);
     return 0;
 }
