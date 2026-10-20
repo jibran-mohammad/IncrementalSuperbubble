@@ -67,7 +67,10 @@ OUTPUT
   Normalization (prefix --out):
     <out>.dag.gfa      S/L lines only, nodes renumbered 0..n-1, all links +/+
     <out>.batches.tsv  one batch per haplotype, reference first ("#" lines)
-    <out>.nodemap.tsv  original node name -> new id, flipped?, length, segment
+    <out>.nodemap.tsv  original node name -> new id, flipped?, length, segment,
+                       reference sequence and 0-based position (reference
+                       nodes: their start; other nodes: the end of the
+                       reference node before them), on the reference?
     <out>.stats.json   all counts and percentages
 
   Pipeline files (--pipeline-dir), the same as Preprocessing/ writes for the
@@ -83,6 +86,7 @@ OUTPUT
                                   pipelineRunner.py)
 """
 import argparse
+import math
 import gzip
 import json
 import re
@@ -110,6 +114,27 @@ def path_steps(fields):
     hap_key = '#'.join(parts[:2]) if len(parts) >= 2 else name
     steps = [(tok[:-1], tok[-1] == '-') for tok in fields[2].split(',') if tok]
     return sample, hap_key, steps
+
+
+def ref_path_origin(fields):
+    """(sequence name, 0-based start) of a reference W or P line: W has them
+    in its seqid / seq_start fields; a P name like GRCh38#0#chr22 or
+    GRCh38#0#chr22[1000-2000] is split at its last '#' (start in brackets)."""
+    if fields[0] == 'W':
+        try:
+            start = int(fields[4])
+        except ValueError:
+            start = 0
+        return fields[3], start
+    name = fields[1].split('#')[-1]
+    start = 0
+    if name.endswith(']') and '[' in name:
+        name, rng = name[:-1].split('[', 1)
+        try:
+            start = int(rng.split('-')[0])
+        except ValueError:
+            start = 0
+    return name, start
 
 
 def log(msg):
@@ -252,6 +277,11 @@ def main():
     ref_rank = {}
     ref_rev = {}
     n_ref_paths = 0
+    # reference coordinates: per rank the sequence name and the 0-based bp
+    # position of the node on it (path start + lengths of the nodes before);
+    # computed after pass 1, when all segment lengths are known
+    ref_paths = []
+    rank_seq, rank_pos, rank_node = [], array('q'), array('i')
 
     with opener(args.gfa) as fh:
         for line in fh:
@@ -275,13 +305,28 @@ def main():
                 if sample != args.ref:
                     continue
                 n_ref_paths += 1
+                seq, start = ref_path_origin(f)
+                path_nodes = array('i')
                 for name, rev in steps:
                     i = nid(name)
+                    path_nodes.append(i)
                     if i not in ref_rank:
                         ref_rank[i] = len(ref_rank)
                         ref_rev[i] = rev
+                ref_paths.append((seq, start, path_nodes))
     n = len(names)
     m_in = len(la)
+    rank_seq = [None] * len(ref_rank)
+    rank_pos = array('q', bytes(8 * len(ref_rank)))
+    rank_node = array('i', bytes(4 * len(ref_rank)))
+    for seq, start, path_nodes in ref_paths:
+        pos = start
+        for i in path_nodes:
+            r = ref_rank[i]
+            if rank_seq[r] is None:          # first occurrence on the reference
+                rank_seq[r], rank_pos[r], rank_node[r] = seq, pos, i
+            pos += length[i]
+    del ref_paths
     if not ref_rank:
         sys.exit(f'error: no W/P line with sample "{args.ref}" found; '
                  'check names with: grep "^W" file.gfa | cut -f2,3,4 | sort -u | head')
@@ -581,10 +626,26 @@ def main():
             for k in unwalked:
                 o.write(f'{new_id[eu[k]]}\t{new_id[ev[k]]}\n')
     with open(f'{args.out}.nodemap.tsv', 'w') as o:
-        o.write('orig\tnew\tflipped\tlength\tsegment\n')
+        o.write('orig\tnew\tflipped\tlength\tsegment\tref_seq\tref_pos\ton_ref\n')
+        last_rank = len(rank_pos) - 1
         for x in range(n):
             seg = f's{new_id[x] + 1}' if new_id[x] >= 0 else '-'
-            o.write(f'{names[x]}\t{new_id[x]}\t{flip[x]}\t{length[x]}\t{seg}\n')
+            # reference coordinate: a reference node its own start; any other
+            # node the end of the reference node before it; '-' if it has no
+            # rank key
+            r = ref_rank.get(x)
+            if r is not None:
+                seq, rpos, on_ref = rank_seq[r], rank_pos[r], 1
+            elif has_key[x] and key[x] <= 0:
+                seq, rpos, on_ref = rank_seq[0], rank_pos[0], 0     # before the reference start
+            elif has_key[x]:
+                # left flank: the largest reference rank strictly below the key
+                # (a key equal to a rank lies parallel to that reference node)
+                r0 = min(math.ceil(key[x]) - 1, last_rank)
+                seq, rpos, on_ref = rank_seq[r0], rank_pos[r0] + length[rank_node[r0]], 0
+            else:
+                seq, rpos, on_ref = '-', '-', 0
+            o.write(f'{names[x]}\t{new_id[x]}\t{flip[x]}\t{length[x]}\t{seg}\t{seq}\t{rpos}\t{on_ref}\n')
 
     bp_total = sum(length)
     removed_nodes = n - N
