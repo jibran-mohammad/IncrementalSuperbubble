@@ -6,7 +6,7 @@
   Batch algorithm: see the description in incDFSBatch.h. Order of this file:
     base graph          insert, dfs, calculateMinI / calculateMaxO
     a batch             insertBatch (steps 1-4) and its helpers in step order:
-                        beginBatch, placeNewVertex, adoptSubtree,
+                        beginBatch, notePlacement / materialize, adoptSubtree,
                         flushReorder, copyOrder, updateMinIMaxO
     minI / maxO of one vertex (rules of SimpleDFS), printing
 */
@@ -33,6 +33,10 @@
             this->stampIn.resize(n, 0);
             this->stampOut.resize(n, 0);
             this->stampNew.resize(n, 0);
+            this->afterList.resize(n);
+            this->beforeList.resize(n);
+            this->pendAnchor.resize(n, -1);
+            this->pendBefore.resize(n, 0);
         }
 #ifndef BATCH_MINI_SCAN
         if ((int)this->minIbst.size() < n) {
@@ -129,7 +133,12 @@
             if (!uExists && !vExists) caseNo = 3;
             else if (!uExists) caseNo = 1;
             else if (!vExists) caseNo = 2;
-            else caseNo = (this->topo.position(iu->second) > this->topo.position(iv->second)) ? 4 : 5;
+            else {
+                // a noted vertex has a virtual position next to its anchor; two
+                // noted vertices are compared after building them in
+                if (this->isPending(iu->second) && this->isPending(iv->second)) this->materialize();
+                caseNo = (this->vkey(iu->second) > this->vkey(iv->second)) ? 4 : 5;
+            }
 
             g->insertEdge(e.first, e.second);
             this->fitSize(g->displayNumberVertices());
@@ -137,9 +146,9 @@
             this->realEdges.push_back(std::make_pair(ru, rv));
 
             switch (caseNo) {
-            case 1: this->edgeTypes.currentcase1++; this->placeNewVertex(1, ru, rv, vWasSource); break;
-            case 2: this->edgeTypes.currentcase2++; this->placeNewVertex(2, ru, rv, false); break;
-            case 3: this->edgeTypes.currentcase3++; this->placeNewVertex(3, ru, rv, false); break;
+            case 1: this->edgeTypes.currentcase1++; this->notePlacement(1, ru, rv, vWasSource); break;
+            case 2: this->edgeTypes.currentcase2++; this->notePlacement(2, ru, rv, false); break;
+            case 3: this->edgeTypes.currentcase3++; this->notePlacement(3, ru, rv, false); break;
             case 4:
                 // points backwards: repaired by the next reorder
                 this->edgeTypes.currentcase4++;
@@ -234,41 +243,41 @@
 
     /*
       Step 1, cases 1-3: a new vertex goes where the DFS would visit it (rules
-      of incMinIBST); inserting it keeps the relative order of all others.
+      of incMinIBST); it is only NOTED here, next to an anchor, and built into
+      the order by materialize() (inserting keeps every relative order):
         case 1  u directly after 0, or directly before v if v's only parent
                 was 0 (u takes v's place, v's subtree hangs under u)
-        case 2  v directly after u
+        case 2  v directly after u (u may itself be a noted vertex)
         case 3  u, v directly before 1
       Its edges (the real one and the artificial 0 -> u / v -> 1 of the graph)
       only go into the adjacency (none points backwards).
     */
-    void IncrementalDFSTREEBatch::placeNewVertex(int caseNo, int ru, int rv, bool vWasSource) {
-        int pos, a, b;
+    void IncrementalDFSTREEBatch::notePlacement(int caseNo, int ru, int rv, bool vWasSource) {
+        // the graph numbers new vertices consecutively; the order must get the same ids
+        int expected = this->topo.size() + this->pendingCount;
         bool ok = true;
         switch (caseNo) {
         case 1:
-            pos = vWasSource ? this->topo.position(rv) : 1;
-            a = this->topo.addVertexAt(pos);
-            ok = (a == ru);
+            ok = (ru == expected);
+            if (vWasSource) this->noteVertex(ru, rv, true);
+            else this->noteVertex(ru, 0, false);
             this->newEdges.push_back(inctopo::Edge(0, ru));
             this->newEdges.push_back(inctopo::Edge(ru, rv));
             this->minI[ru] = 0;            // no real parent
             this->maxO[ru] = 1;            // set to v by updateMinIMaxO
             break;
         case 2:
-            pos = this->topo.position(ru) + 1;
-            b = this->topo.addVertexAt(pos);
-            ok = (b == rv);
+            ok = (rv == expected);
+            this->noteVertex(rv, ru, false);
             this->newEdges.push_back(inctopo::Edge(ru, rv));
             this->newEdges.push_back(inctopo::Edge(rv, 1));
             this->minI[rv] = 0;            // set to u by updateMinIMaxO
             this->maxO[rv] = 1;            // no real child
             break;
         default:
-            pos = this->topo.position(1);
-            a = this->topo.addVertexAt(pos);
-            b = this->topo.addVertexAt(this->topo.position(1));
-            ok = (a == ru && b == rv);
+            ok = (ru == expected && rv == expected + 1);
+            this->noteVertex(ru, 1, true);
+            this->noteVertex(rv, 1, true);
             this->newEdges.push_back(inctopo::Edge(0, ru));
             this->newEdges.push_back(inctopo::Edge(ru, rv));
             this->newEdges.push_back(inctopo::Edge(rv, 1));
@@ -279,12 +288,81 @@
             std::cerr << "incDFSBatch: vertex ids of the graph and the order are out of step" << std::endl;
             std::exit(1);
         }
-        // every position from pos on shifted by one
-        this->markDirty(pos, this->topo.size() - 1);
         // new vertices are in no tree yet (and have no position in
         // reverseTopologicalOrder before step 3)
         if (caseNo != 2) this->stampNew[ru] = this->stamp;
         if (caseNo != 1) this->stampNew[rv] = this->stamp;
+    }
+
+
+    void IncrementalDFSTREEBatch::noteVertex(int x, int anchor, bool before) {
+        std::vector<int> &list = before ? this->beforeList[anchor] : this->afterList[anchor];
+        if (this->afterList[anchor].empty() && this->beforeList[anchor].empty()) this->anchors.push_back(anchor);
+        list.push_back(x);
+        this->pendAnchor[x] = anchor;
+        this->pendBefore[x] = before;
+        this->pendingCount++;
+    }
+
+
+    // virtual position (doubled): a placed vertex 2 * its position; a noted
+    // vertex lies directly after (+1) or before (-1) the placed vertex its
+    // chain of anchors ends at - exact relative to every placed vertex
+    long long IncrementalDFSTREEBatch::vkey(int x) const {
+        int dir = 0;
+        while (this->isPending(x)) {
+            dir = this->pendBefore[x] ? -1 : 1;
+            x = this->pendAnchor[x];
+        }
+        return 2LL * this->topo.position(x) + dir;
+    }
+
+
+    /*
+      Builds all noted vertices into the order in one pass over it: every
+      vertex x is emitted as  (its before-list, in noting order), x, (its
+      after-list, newest first); a listed vertex is emitted the same way
+      (chains of new vertices). This is exactly the order that inserting them
+      one at a time gives. Positions from the first new vertex on change.
+    */
+    void IncrementalDFSTREEBatch::materialize() {
+        if (this->pendingCount == 0) return;
+        BATCH_TIMER_START
+        const std::vector<int32_t> &inv = this->topo.order();
+        int oldN = this->topo.size(), newN = oldN + this->pendingCount;
+        std::vector<inctopo::Vertex> out;
+        out.reserve(newN);
+        int firstNew = newN;
+        struct Frame { int v; int phase; int i; };
+        std::vector<Frame> st;
+        for (int p = 0; p < oldN; p++) {
+            st.push_back({inv[p], 0, 0});
+            while (!st.empty()) {
+                Frame &f = st.back();
+                const std::vector<int> &before = this->beforeList[f.v];
+                const std::vector<int> &after = this->afterList[f.v];
+                if (f.phase == 0) {                                // before-list, in noting order
+                    if (f.i < (int)before.size()) { int c = before[f.i++]; st.push_back({c, 0, 0}); continue; }
+                    if (f.v >= oldN && firstNew == newN) firstNew = (int)out.size();
+                    out.push_back(f.v);                            // the vertex itself
+                    f.phase = 1;
+                    f.i = (int)after.size() - 1;
+                }
+                if (f.i >= 0) { int c = after[f.i--]; st.push_back({c, 0, 0}); continue; }   // after-list, newest first
+                st.pop_back();
+            }
+        }
+        if ((int)out.size() != newN) {
+            std::cerr << "incDFSBatch: building in the new vertices lost some (" << out.size() << " of " << newN << ")" << std::endl;
+            std::exit(1);
+        }
+        this->topo.assignWithNewVertices(out);
+        for (int a : this->anchors) { this->afterList[a].clear(); this->beforeList[a].clear(); }
+        this->anchors.clear();
+        this->pendingCount = 0;
+        this->markDirty(firstNew, newN - 1);
+        this->materializations++;
+        BATCH_TIMER_ADD(this->latestTimes.currentdfsTime)
     }
 
 
@@ -334,12 +412,14 @@
 
 
     /*
-      Step 2 (also before an adoption): one reorder for the pending new edges
+      Step 2 (also before an adoption): build in the noted vertices, then one
+      reorder for the pending new edges
       and the collected backward edges. The vertices it moves (reached by its
       searches) only move later relative to all others; they are recorded for
       minI / maxO.
     */
     void IncrementalDFSTREEBatch::flushReorder() {
+        this->materialize();
         if (this->newEdges.empty() && this->backEdges.empty()) return;
         BATCH_TIMER_START
         inctopo::BatchStats st = this->topo.insertAndRepair(this->newEdges, this->backEdges);

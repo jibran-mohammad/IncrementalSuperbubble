@@ -47,13 +47,27 @@
     backward edge b->x:       reorder moves x behind b -> 0 a u v b x 1
   which is the order a fresh DFS gives (x now belongs to b).
 
+  New vertices are not inserted one by one (each insertion shifts every
+  position behind it, O(n)): step 1 only NOTES where each belongs - after or
+  before an anchor vertex (u, v, 0 or 1; the anchor may itself be a new
+  vertex of the batch) - and materialize() builds them all into the order in
+  one pass over it, O(n + new vertices). The result is the same order as
+  inserting them one at a time: several new vertices after one anchor end up
+  newest first (each was inserted directly after the anchor), several before
+  one anchor in the order they were noted.
+  Until then a noted vertex has a virtual position directly after / before
+  its anchor (vkey), exact relative to every placed vertex; comparing two
+  noted vertices builds them in first.
+
   Steps of insertBatch():
-    1. per edge: classify, add to the graph, place new vertices (cases 1-3);
+    1. per edge: classify, add to the graph, note new vertices (cases 1-3);
        collect the new edges for the reorder; adoptions (case 5, v source)
-       flush the pending reorder first (the block must be read from a DFS
-       order), then move the block and collect the backward edges
-    2. flush: one reorder for all pending new edges and collected backward
-       edges (IncrementalTopoOrder::insertAndRepair)
+       flush first (build in the noted vertices, reorder: the block must be
+       read from a DFS order), then move the block and collect the backward
+       edges
+    2. flush: build in the noted vertices (one pass), then one reorder for
+       all pending new edges and collected backward edges
+       (IncrementalTopoOrder::insertAndRepair)
     3. copy the changed positions into topOrd / reverseTopologicalOrder
     4. minI / maxO of the vertices whose relative order changed (see
        updateMinIMaxO)
@@ -73,8 +87,8 @@
 class IncrementalDFSTREEBatch : public BaseDFS, public IDatastructure {
 public:
     struct IncrementalUpdateTimes {
-        double insertTime = 0.0;            // step 1 without reorders/moves: graph, placing
-        double dfsTime = 0.0;               // reorders and block moves
+        double insertTime = 0.0;            // step 1 without the order work: graph, classifying, noting
+        double dfsTime = 0.0;               // order: building in new vertices, reorders, block moves
         double topologicalOrderTime = 0.0;  // step 3
         double minITime = 0.0;
         double maxOTime = 0.0;
@@ -106,6 +120,7 @@ public:
     long long duplicateEdges = 0;     // edges already in the graph (ignored)
     long long adoptions = 0;          // case 5 with v a source (block moved)
     long long repairedEdges = 0;      // backward edges collected by adoptions
+    long long materializations = 0;   // passes that built noted new vertices into the order
 
     inctopo::IncrementalTopoOrder topo;
 #ifndef BATCH_MINI_SCAN
@@ -146,13 +161,25 @@ private:
     std::vector<int> movedEarlier;              // moved by an adoption (a block, earlier relative to the others)
     int dirtyLo, dirtyHi;                       // positions that changed (step 3)
 
+    // noted new vertices (step 1), built into the order by materialize()
+    std::vector<std::vector<int>> afterList;    // per anchor: new vertices noted after it (in noting order)
+    std::vector<std::vector<int>> beforeList;   // per anchor: new vertices noted before it (in noting order)
+    std::vector<int> anchors;                   // anchors with a non-empty list (to clear them)
+    std::vector<int> pendAnchor;                // per noted vertex: its anchor
+    std::vector<char> pendBefore;               // per noted vertex: 1 before its anchor, 0 after
+    int pendingCount = 0;
+
     // stamps: set membership per batch without clearing
     std::vector<unsigned> stampLater, stampEarlier, stampIn, stampOut, stampNew;
     unsigned stamp = 0;
 
     void fitSize(int n);
     void beginBatch();
-    void placeNewVertex(int caseNo, int ru, int rv, bool vWasSource);
+    void notePlacement(int caseNo, int ru, int rv, bool vWasSource);
+    void noteVertex(int x, int anchor, bool before);
+    void materialize();
+    bool isPending(int x) const { return x >= this->topo.size(); }
+    long long vkey(int x) const;
     void adoptSubtree(GraphContext *g, int u, int v);
     void flushReorder();
     void markDirty(int lo, int hi);

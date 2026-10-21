@@ -28,6 +28,7 @@
 //   assign()             start from a given order (the DFS order of the base
 //                        graph) instead of build()'s Kahn order
 //   addVertexAt()        place a new vertex where a DFS order needs it
+//   assignWithNewVertices()  new order with many new vertices in one pass
 //   moveBlock()          move a contiguous block of positions (a subtree)
 //   insertAndRepair()    reorder for new edges and for edges already in the
 //                        graph that point backwards, in one pass
@@ -134,6 +135,22 @@ public:
         inv_[p] = v;
         ord_[v] = p;
         return v;
+    }
+
+    // [added] Adds the vertices size() .. order.size()-1 (no edges yet) and
+    // takes 'order' as the new order: order[p] = vertex at position p; the old
+    // vertices must keep their relative order. One pass, O(order.size()) -
+    // for placing many new vertices at once instead of one addVertexAt each.
+    void assignWithNewVertices(const std::vector<Vertex>& order) {
+        const Vertex newN = (Vertex)order.size();
+        INCTOPO_ASSERT(newN >= size());
+        adj_.resize(newN);
+        mark_.resize(newN, 0);
+        pendStamp_.resize(newN, 0);
+        pendHead_.resize(newN, -1);
+        ord_.resize(newN);
+        inv_.assign(order.begin(), order.end());
+        for (Vertex p = 0; p < newN; ++p) ord_[inv_[p]] = p;
     }
 
     BatchStats insert(const std::vector<Edge>& batch) { return insert(batch.data(), batch.size()); }
