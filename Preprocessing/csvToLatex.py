@@ -109,7 +109,13 @@ PEAK_MEMORY_CANDIDATES = [
 
 
 def latex_escape(s: str) -> str:
-    return str(s).replace("_", r"\_")
+    """Text for a table cell or header: escapes % & # _ (e.g. "Imp(%)" in the
+    percent tables, where an unescaped % would start a comment and break the
+    table). $ and braces are left alone: values like $\\approx$123 are LaTeX."""
+    s = str(s)
+    for ch in ("%", "&", "#", "_"):
+        s = s.replace(ch, "\\" + ch)
+    return s
 
 
 def infer_dataset_name_from_path(csv_path: str) -> str:
@@ -663,7 +669,7 @@ def main():
     out_tex = os.path.join(args.outdir, "table_TotalTime.tex")
     if mode == "time":
         columns = ["Dataset", "static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1", "incRecompute_Speedup", "incBST_Speedup", "incMinIBST_Speedup", "incMinIBSTH1_Speedup"]
-        caption = "Total time comparison across datasets (sum of the per-update times; peak memory: table_PeakMemory)"
+        caption = "Total time comparison across datasets (sum of the per-update times; peak memory: Table~\\ref{tab:peak_memory})"
         label = "tab:totaltime_summary_time"
     else:
         columns = ["Dataset", "incRecompute_Imp(%)", "incBST_Imp(%)", "incMinIBST_Imp(%)", "incMinIBSTH1_Imp(%)"]
