@@ -36,6 +36,9 @@ Options:
     --ref               reference sample in the walks      (default: GRCh38)
     --vg                vg program                         (default: vg)
     --threads           threads for vg convert             (default: 4)
+    --connections       parallel connections per download  (default: 64;
+                        the HPRC bucket allows about 15 KB/s per connection,
+                        so 64 connections give about 1 MB/s; 1 = one curl)
     --python            interpreter for mcToDag.py         (default: pypy3 if
                         installed, else python3; pypy3 is several times faster)
     --keep-vg           keep the downloaded .vg file (default: deleted after
@@ -48,8 +51,10 @@ Options:
 WHAT IT DOES (per chromosome, in input/HPRC/chromosome_<N>/Graphs/)
 =====================================================================
 
-  1. download   chr<N>.vg with curl (resumable: an interrupted download
-                continues), size checked against the server
+  1. download   chr<N>.vg with curl in --connections byte ranges at once
+                (into chr<N>.vg.parts/, joined at the end; resumable: an
+                interrupted download continues), size checked against the
+                server
   2. convert    vg convert -f -> chromosome_<N>.gfa.gz (written to a .part
                 file first, renamed when complete)
   3. DAG        Preprocessing/mcToDag.py <gfa> --ref GRCh38 --pipeline-dir
@@ -120,7 +125,12 @@ def human(n):
     return f"{n / 1e9:.2f} GB" if n is not None else "?"
 
 
-def download(url, target, size):
+def download(url, target, size, connections=1):
+    """Downloads url to target; with connections > 1 and a known size in that
+    many byte ranges at once (the HPRC bucket limits every connection to
+    about 15 KB/s, the speed grows with the number of connections)."""
+    if connections > 1 and size is not None:
+        return download_parallel(url, target, size, connections)
     part = target.with_name(target.name + ".part")
     for attempt in range(1, 6):
         r = subprocess.run(["curl", "-sS", "-L", "--fail", "--retry", "5", "-C", "-", "-o", str(part), url])
@@ -131,6 +141,77 @@ def download(url, target, size):
         log(f"  download incomplete ({human(have)} of {human(size)}, curl exit {r.returncode}), retry {attempt}")
         time.sleep(10)
     raise RuntimeError(f"download of {url} failed")
+
+
+def download_parallel(url, target, size, connections):
+    """Range i of the file goes to <target>.parts/<i>. Each range is resumable:
+    a curl only fetches what its file still lacks and appends it (a stalled
+    connection, below 1 KB/s for 2 minutes, is ended and started again in the
+    next round). When all ranges are complete they are joined in order into
+    target and the size is checked."""
+    parts_dir = target.with_name(target.name + ".parts")
+    parts_dir.mkdir(exist_ok=True)
+    single = target.with_name(target.name + ".part")
+    if single.exists():                       # left over from a single-connection download
+        single.unlink()
+    chunk = -(-size // connections)
+    ranges = [(i * chunk, min(size, (i + 1) * chunk) - 1) for i in range(connections) if i * chunk < size]
+    files = [parts_dir / f"{i:03d}" for i in range(len(ranges))]
+
+    def have(i):
+        return files[i].stat().st_size if files[i].exists() else 0
+
+    def total():
+        return sum(have(i) for i in range(len(ranges)))
+
+    for round_ in range(1, 31):
+        for i, (lo, hi) in enumerate(ranges):
+            if have(i) > hi - lo + 1:             # should not happen: start the range again
+                files[i].unlink()
+        todo = [i for i, (lo, hi) in enumerate(ranges) if have(i) < hi - lo + 1]
+        if not todo:
+            break
+        log(f"  round {round_}: {len(todo)} of {len(ranges)} ranges to fetch, "
+            f"{human(total())} of {human(size)} done")
+        procs = []
+        for i in todo:
+            lo, hi = ranges[i]
+            out = open(files[i], "ab")
+            p = subprocess.Popen(["curl", "-sS", "-L", "--fail", "--speed-limit", "1024", "--speed-time", "120",
+                                  "-r", f"{lo + have(i)}-{hi}", url], stdout=out)
+            procs.append((p, out))
+        start, start_bytes, last = time.time(), total(), time.time()
+        while any(p.poll() is None for p, _ in procs):
+            time.sleep(5)
+            if time.time() - last >= 300:          # progress every 5 minutes
+                last = time.time()
+                done = total()
+                rate = (done - start_bytes) / max(time.time() - start, 1)
+                eta = (size - done) / rate / 60 if rate > 0 else float("inf")
+                log(f"  {human(done)} of {human(size)} ({100 * done / size:.1f}%), "
+                    f"{rate / 1024:.0f} KB/s, about {eta:.0f} min left")
+        for p, out in procs:
+            out.close()
+        failed = sum(1 for p, _ in procs if p.returncode != 0)
+        if failed:
+            log(f"  {failed} connections ended early (curl errors or stalled), they continue in the next round")
+            time.sleep(10)
+    else:
+        raise RuntimeError(f"download of {url} incomplete after 30 rounds ({human(total())} of {human(size)})")
+
+    # join in order; each range is deleted once appended (little extra disk space)
+    joined = target.with_name(target.name + ".joining")
+    with open(joined, "wb") as out:
+        for f in files:
+            with open(f, "rb") as inp:
+                shutil.copyfileobj(inp, out, 16 * 1024 * 1024)
+            f.unlink()
+    got = joined.stat().st_size
+    if got != size:
+        joined.unlink()
+        raise RuntimeError(f"joined download has {got} bytes, expected {size}")
+    joined.rename(target)
+    parts_dir.rmdir()
 
 
 def convert(vg, vg_file, gfa_gz, threads):
@@ -186,7 +267,7 @@ def prepare(c, args, python):
                 raise RuntimeError(f"not enough disk space for chr{c}: {human(free)} free, "
                                    f"need about {human(4 * size)}")
             log(f"chr{c}: downloading {vg_name} ({human(size)})")
-            download(url, vg_file, size)
+            download(url, vg_file, size, args.connections)
         log(f"chr{c}: converting to GFA")
         convert(args.vg, vg_file, gfa_gz, args.threads)
         if not args.keep_vg:
@@ -278,6 +359,7 @@ def main():
     ap.add_argument("--ref", default="GRCh38")
     ap.add_argument("--vg", default="vg")
     ap.add_argument("--threads", type=int, default=4)
+    ap.add_argument("--connections", type=int, default=64)
     ap.add_argument("--python", default=None)
     ap.add_argument("--keep-vg", action="store_true")
     ap.add_argument("--force", action="store_true")
