@@ -61,7 +61,10 @@ import argparse
 
 # Define the components and their corresponding column names
 
-ALGORITHMS = ["static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1"]
+# all algorithms that can be plotted; each plot shows those present in the CSV
+# (select_algorithms), e.g. incBSTBatch only in perBatch
+ALL_ALGORITHMS = ["static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1", "incBSTBatch"]
+ALGORITHMS = list(ALL_ALGORITHMS)
 
 # Names shown in legends (IDs and meanings: see ALGORITHMS.md)
 DISPLAY_NAMES = {
@@ -73,15 +76,19 @@ DISPLAY_NAMES = {
     "incBSTBatch": "Inc-BST-Batch",
 }
 
-TIME_COMPONENTS = {
-    'Insert':          ['staticInsertTime',          'incRecomputeInsertTime',          'incBSTInsertTime',          'incMinIBSTInsertTime', 'incMinIBSTH1InsertTime'],
-    'DFS':             ['staticDFSTime',             'incRecomputeDFSTime',             'incBSTDFSTime',             'incMinIBSTDFSTime', 'incMinIBSTH1DFSTime'],
-    'TopologicalOrder':['staticTopologicalOrderTime','incRecomputeTopologicalOrderTime','incBSTTopologicalOrderTime','incMinIBSTTopologicalOrderTime', 'incMinIBSTH1TopologicalOrderTime'],
-    'MinI':            ['staticMinITime',            'incRecomputeMinITime',            'incBSTMinITime',            'incMinIBSTMinITime', 'incMinIBSTH1MinITime'],
-    'MaxO':            ['staticMaxOTime',            'incRecomputeMaxOTime',            'incBSTMaxOTime',            'incMinIBSTMaxOTime', 'incMinIBSTH1MaxOTime'],
-    'SBCompute':       ['staticSBComputeTime',       'incRecomputeSBComputeTime',       'incBSTSBComputeTime',       'incMinIBSTSBComputeTime', 'incMinIBSTH1SBComputeTime'],
-    'Total':           ['staticTotalTime',           'incRecomputeTotalTime',           'incBSTTotalTime',           'incMinIBSTTotalTime', 'incMinIBSTH1TotalTime'],
+COMPONENT_SUFFIX = {
+    'Insert': 'InsertTime', 'DFS': 'DFSTime', 'TopologicalOrder': 'TopologicalOrderTime',
+    'MinI': 'MinITime', 'MaxO': 'MaxOTime', 'SBCompute': 'SBComputeTime', 'Total': 'TotalTime',
 }
+# component -> one column per algorithm in ALGORITHMS (same order)
+TIME_COMPONENTS = {comp: [a + suf for a in ALGORITHMS] for comp, suf in COMPONENT_SUFFIX.items()}
+
+
+def select_algorithms(df):
+    """Restrict ALGORITHMS / TIME_COMPONENTS to the algorithms in this CSV."""
+    global ALGORITHMS, TIME_COMPONENTS
+    ALGORITHMS = [a for a in ALL_ALGORITHMS if f"{a}TotalTime" in df.columns]
+    TIME_COMPONENTS = {comp: [a + suf for a in ALGORITHMS] for comp, suf in COMPONENT_SUFFIX.items()}
 
 # Define color palette for the stacked bar chart components
 # --- MODIFIED: 'Insert' color has been removed entirely ---
@@ -101,6 +108,7 @@ VERSION_STYLES = {
     'incBST':     {'color': 'green',  'marker': '^', 'linestyle': '-.',  'linewidth': 0.7, 'markersize': 2},
     'incMinIBST':{'color': 'orange', 'marker': 'D', 'linestyle': ':',   'linewidth': 0.7, 'markersize': 2},
     'incMinIBSTH1':{'color': 'purple', 'marker': 'v', 'linestyle': '-',   'linewidth': 0.7, 'markersize': 2},
+    'incBSTBatch':{'color': 'saddlebrown', 'marker': 'x', 'linestyle': '--',  'linewidth': 0.7, 'markersize': 2},
 }
 
 def build_plot_filename(dataset, mode, scale, plot_type):
@@ -779,6 +787,7 @@ def plot_stacked_bar_breakdown_peredge(df, output_dir, dataset_name, mode, scale
 def run_perbatch(csv_path, output_dir,dataset_name, scale):
     df = pd.read_csv(csv_path)
     df = clean_and_normalize_df(df)
+    select_algorithms(df)
     # convert to ms
     df = convert_seconds_to_ms(df)
 
@@ -847,6 +856,7 @@ def plot_chromosome_comparison(csv_files, labels, output_dir):
 def run_peredge(csv_path, output_dir,dataset_name, scale):
     df = pd.read_csv(csv_path)
     df = clean_and_normalize_df(df)
+    select_algorithms(df)
 
     # remove Base and sort
     df = df[df["Step"] != 0].copy()

@@ -68,7 +68,8 @@ ALGORITHMS = {
     "incRecompute": "incRecompute",
     "incBST": "incBST",
     "incMinIBST": "incMinIBST",
-    "incMinIBSTH1": "incMinIBSTH1"
+    "incMinIBSTH1": "incMinIBSTH1",
+    "incBSTBatch": "incBSTBatch"
 }
 
 # Names shown in table headers (IDs and meanings: see ALGORITHMS.md)
@@ -187,6 +188,11 @@ def generate_latex_table(df: pd.DataFrame, columns: list, caption: str, label: s
     """
     Generates normal LaTeX table (not longtable) because these are summary tables.
     """
+    # leave out columns that are empty for every dataset (an algorithm that
+    # did not run in this mode, e.g. incBSTBatch in perEdge)
+    def empty(c):
+        return c not in df.columns or all(str(v).strip() in ("-", "nan", "NaN", "") for v in df[c])
+    columns = [c for c in columns if c == "Dataset" or not empty(c)]
     num_cols = len(columns)
     colfmt = "|" + "|".join(["c"] * num_cols) + "|"
 
@@ -231,6 +237,7 @@ def build_summary_rows_for_metric(csv_paths: list, metric_name: str, mode: str):
         bst_total      = sum_metric(df, ALGORITHMS["incBST"],      metric_suffix)
         diffmaxo_total = sum_metric(df, ALGORITHMS["incMinIBST"], metric_suffix)
         h1_total = sum_metric(df, ALGORITHMS["incMinIBSTH1"], metric_suffix)
+        batch_total = sum_metric(df, ALGORITHMS["incBSTBatch"], metric_suffix)
 
         inc_speedup      = compute_speedup(simple_total, inc_total)
         bst_speedup      = compute_speedup(simple_total, bst_total)
@@ -248,10 +255,12 @@ def build_summary_rows_for_metric(csv_paths: list, metric_name: str, mode: str):
                 "incBST":              format_float(bst_total),
                 "incMinIBST":         format_float(diffmaxo_total),
                 "incMinIBSTH1": format_float(h1_total),
+                "incBSTBatch": format_float(batch_total),
                 "incRecompute_Speedup":      format_float(inc_speedup,      precision=2),
                 "incBST_Speedup":      format_float(bst_speedup,      precision=2),
                 "incMinIBST_Speedup": format_float(diffmaxo_speedup, precision=2),
                 "incMinIBSTH1_Speedup": format_float(compute_speedup(simple_total, h1_total), precision=2),
+                "incBSTBatch_Speedup": format_float(compute_speedup(simple_total, batch_total), precision=2),
             })
         else:
             rows.append({
@@ -260,6 +269,7 @@ def build_summary_rows_for_metric(csv_paths: list, metric_name: str, mode: str):
                 "incBST_Imp(%)":       format_float(bst_percent,      precision=2),
                 "incMinIBST_Imp(%)":  format_float(diffmaxo_percent, precision=2),
                 "incMinIBSTH1_Imp(%)": format_float(pct_improvement(simple_total, h1_total), precision=2),
+                "incBSTBatch_Imp(%)": format_float(pct_improvement(simple_total, batch_total), precision=2),
             })
 
     return pd.DataFrame(rows)
@@ -347,6 +357,7 @@ def build_total_time_table(csv_paths: list, mode: str):
         bst_total = sum_metric(df, ALGORITHMS["incBST"], "TotalTime")
         diffmaxo_total   = sum_metric(df, ALGORITHMS["incMinIBST"], "TotalTime")
         h1_total = sum_metric(df, ALGORITHMS["incMinIBSTH1"], "TotalTime")
+        batch_total = sum_metric(df, ALGORITHMS["incBSTBatch"], "TotalTime")
         
         diffmaxo_speedup = compute_speedup(simple_total, diffmaxo_total)
         diffmaxo_percent = pct_improvement(simple_total, diffmaxo_total)
@@ -365,10 +376,12 @@ def build_total_time_table(csv_paths: list, mode: str):
                 "incBST": format_float(bst_total),
                 "incMinIBST":format_float(diffmaxo_total),
                 "incMinIBSTH1": format_float(h1_total),
+                "incBSTBatch": format_float(batch_total),
                 "incRecompute_Speedup": format_float(inc_speedup, precision=2),
                 "incBST_Speedup": format_float(bst_speedup, precision=2),
                 "incMinIBST_Speedup": format_float(diffmaxo_speedup, precision=2),
                 "incMinIBSTH1_Speedup": format_float(compute_speedup(simple_total, h1_total), precision=2),
+                "incBSTBatch_Speedup": format_float(compute_speedup(simple_total, batch_total), precision=2),
                 "PeakMemory": format_float(peak_mem, precision=2),
             })
         else:
@@ -378,6 +391,7 @@ def build_total_time_table(csv_paths: list, mode: str):
                 "incBST_Imp(%)": format_float(bst_percent, precision=2),
                 "incMinIBST_Imp(%)":  format_float(diffmaxo_percent, precision=2),
                 "incMinIBSTH1_Imp(%)": format_float(pct_improvement(simple_total, h1_total), precision=2),
+                "incBSTBatch_Imp(%)": format_float(pct_improvement(simple_total, batch_total), precision=2),
                 "PeakMemory": format_float(peak_mem, precision=2),
             })
 
@@ -473,6 +487,7 @@ def build_case_metric_table(csv_paths: list, case_name: str, metric_name: str, m
         bst_total = float(case_df[f"incBST{metric_suffix}"].fillna(0).sum())
         diffmaxo_total   = float(case_df[f"incMinIBST{metric_suffix}"].fillna(0).sum()) if f"incMinIBST{metric_suffix}" in case_df.columns else float("nan")
         h1_total = float(case_df[f"incMinIBSTH1{metric_suffix}"].fillna(0).sum()) if f"incMinIBSTH1{metric_suffix}" in case_df.columns else float("nan")
+        batch_total = float(case_df[f"incBSTBatch{metric_suffix}"].fillna(0).sum()) if f"incBSTBatch{metric_suffix}" in case_df.columns else float("nan")
 
         inc_speedup = compute_speedup(simple_total, inc_total)
         bst_speedup = compute_speedup(simple_total, bst_total)
@@ -490,10 +505,12 @@ def build_case_metric_table(csv_paths: list, case_name: str, metric_name: str, m
                 "incBST": format_float(bst_total),
                 "incMinIBST":format_float(diffmaxo_total),
                 "incMinIBSTH1": format_float(h1_total),
+                "incBSTBatch": format_float(batch_total),
                 "incRecompute_Speedup": format_float(inc_speedup, precision=2),
                 "incBST_Speedup": format_float(bst_speedup, precision=2),
                 "incMinIBST_Speedup": format_float(diffmaxo_speedup, precision=2),
                 "incMinIBSTH1_Speedup": format_float(compute_speedup(simple_total, h1_total), precision=2),
+                "incBSTBatch_Speedup": format_float(compute_speedup(simple_total, batch_total), precision=2),
             }
         else:
             row = {
@@ -502,6 +519,7 @@ def build_case_metric_table(csv_paths: list, case_name: str, metric_name: str, m
                 "incBST_Imp(%)": format_float(bst_percent, precision=2),
                 "incMinIBST_Imp(%)": format_float(diffmaxo_percent, precision=2),
                 "incMinIBSTH1_Imp(%)": format_float(pct_improvement(simple_total, h1_total), precision=2),
+                "incBSTBatch_Imp(%)": format_float(pct_improvement(simple_total, batch_total), precision=2),
             }
 
         rows.append(row)
@@ -638,11 +656,11 @@ def main():
 
         out_tex = os.path.join(args.outdir, f"table_{metric_name}.tex")
         if mode == "time":
-            columns = ["Dataset", "static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1", "incRecompute_Speedup", "incBST_Speedup", "incMinIBST_Speedup", "incMinIBSTH1_Speedup"] 
+            columns = ["Dataset", "static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1", "incBSTBatch", "incRecompute_Speedup", "incBST_Speedup", "incMinIBST_Speedup", "incMinIBSTH1_Speedup", "incBSTBatch_Speedup"] 
             caption = f"{metric_name} total time comparison across datasets"
             label = f"tab:{metric_name.lower()}_summary_time"
         else:
-            columns = ["Dataset", "incRecompute_Imp(%)", "incBST_Imp(%)", "incMinIBST_Imp(%)", "incMinIBSTH1_Imp(%)"] 
+            columns = ["Dataset", "incRecompute_Imp(%)", "incBST_Imp(%)", "incMinIBST_Imp(%)", "incMinIBSTH1_Imp(%)", "incBSTBatch_Imp(%)"] 
             caption = f"{metric_name} percentage improvement across datasets"
             label = f"tab:{metric_name.lower()}_summary_percent"
         generate_latex_table(
@@ -678,11 +696,11 @@ def main():
     total_df = build_total_time_table(csv_paths, mode)
     out_tex = os.path.join(args.outdir, "table_TotalTime.tex")
     if mode == "time":
-        columns = ["Dataset", "static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1", "incRecompute_Speedup", "incBST_Speedup", "incMinIBST_Speedup", "incMinIBSTH1_Speedup"]
+        columns = ["Dataset", "static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1", "incBSTBatch", "incRecompute_Speedup", "incBST_Speedup", "incMinIBST_Speedup", "incMinIBSTH1_Speedup", "incBSTBatch_Speedup"]
         caption = "Total time comparison across datasets (sum of the per-update times; peak memory: Table~\\ref{tab:peak_memory})"
         label = "tab:totaltime_summary_time"
     else:
-        columns = ["Dataset", "incRecompute_Imp(%)", "incBST_Imp(%)", "incMinIBST_Imp(%)", "incMinIBSTH1_Imp(%)"]
+        columns = ["Dataset", "incRecompute_Imp(%)", "incBST_Imp(%)", "incMinIBST_Imp(%)", "incMinIBSTH1_Imp(%)", "incBSTBatch_Imp(%)"]
         caption = "Total time percentage improvement across datasets"
         label = "tab:totaltime_summary_percent"
     generate_latex_table(
@@ -713,11 +731,11 @@ def main():
                 continue
 
             if mode == "time":
-                columns = ["Dataset", "static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1", "incRecompute_Speedup", "incBST_Speedup", "incMinIBST_Speedup", "incMinIBSTH1_Speedup"]
+                columns = ["Dataset", "static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1", "incBSTBatch", "incRecompute_Speedup", "incBST_Speedup", "incMinIBST_Speedup", "incMinIBSTH1_Speedup", "incBSTBatch_Speedup"]
                 caption = f"{metric_name} time comparison for {case_name}"
                 label = f"tab:{case_name.lower()}_{metric_name.lower()}_time"
             else:
-                columns = ["Dataset", "incRecompute_Imp(%)", "incBST_Imp(%)", "incMinIBST_Imp(%)", "incMinIBSTH1_Imp(%)"]
+                columns = ["Dataset", "incRecompute_Imp(%)", "incBST_Imp(%)", "incMinIBST_Imp(%)", "incMinIBSTH1_Imp(%)", "incBSTBatch_Imp(%)"]
                 caption = f"{metric_name} percentage improvement for {case_name}"
                 label = f"tab:{case_name.lower()}_{metric_name.lower()}_percent"
 
