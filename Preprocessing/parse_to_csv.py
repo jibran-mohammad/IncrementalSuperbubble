@@ -124,7 +124,7 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     peak_memory = 0
     if not filename.exists():
         print(f"    Warning: File not found: {os.path.basename(filename)}. Skipping.")
-        return pd.DataFrame(), 0
+        return pd.DataFrame(), 0, {}
 
     print(f"    Parsing {filename.name}...")
     with open(filename, 'r') as f:
@@ -188,12 +188,33 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     current_haplotype_edges = 0
     current_haplotype_nodes = 0
 
+    pending_block_rows = []
+    prev_edges = 0
+    prev_nodes = 0
+    genome_names = {}            # every genome of the file, also those that add nothing
+
+    def flush(after_edges, after_nodes):
+        """The programs write a genome's rows first and then its size line
+        ("Edges Nodes" AFTER the genome), so the rows get the size that
+        follows them. A genome that added nothing has no size line of its
+        own; its rows are flushed with the next genome's and keep the size
+        before (prev_*), since the graph did not change."""
+        if not pending_block_rows:
+            return
+        last = pending_block_rows[-1]['Haplotype_Name']
+        for row in pending_block_rows:
+            own = row['Haplotype_Name'] == last
+            row['Edges'] = after_edges if own else prev_edges
+            row['Nodes'] = after_nodes if own else prev_nodes
+            data.append(row)
+        pending_block_rows.clear()
+
     try:
         # --- Lines 1-3: Initialization and Header Skip ---
         stats_line = next(line_iter).strip()
-        if "PeakMemory" in stats_line: return pd.DataFrame(), 0 
+        if "PeakMemory" in stats_line: return pd.DataFrame(), 0, {}
         stats_parts = stats_line.split()
-        if len(stats_parts) < 2: return pd.DataFrame(), 0
+        if len(stats_parts) < 2: return pd.DataFrame(), 0, {}
         initial_edges = int(stats_parts[0])
         initial_nodes = int(stats_parts[1])
         current_haplotype_edges = initial_edges
@@ -248,9 +269,8 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
         except StopIteration:
             pass
         
-        pending_block_rows = []
         prev_edges = initial_edges
-        prev_nodes = initial_nodes   
+        prev_nodes = initial_nodes
         global_step = 0 
         # --- Data Lines ---
         while True:
@@ -260,12 +280,9 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
             if "PeakMemory" in stats_line:
                 # Extract the peak memory value
                 peak_memory = int(stats_line.split(':')[1].strip())
-                if mode != "perbatch" and pending_block_rows:
-                    for row in pending_block_rows:
-                        row['Edges'] = prev_edges
-                        row['Nodes'] = prev_nodes
-                        data.append(row)
-                    pending_block_rows.clear()
+                # rows left without a size line (genomes that added nothing at
+                # the end): the graph did not change
+                flush(prev_edges, prev_nodes)
                 break
             if not stats_line: continue
 
@@ -359,9 +376,10 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
                 #   ...
                 #   PeakMemory ...
                 #
-                # Important: "Edges Nodes" line ends the PREVIOUS block.
-                # So we keep edge rows in a buffer and flush them when the next
-                # "Edges Nodes" appears (or at PeakMemory/EOF).
+                # Important: an "Edges Nodes" line is the size AFTER the
+                # rows before it (their genome). So we keep the rows in a
+                # buffer and flush them with the next "Edges Nodes" line (or
+                # at PeakMemory/EOF, with the last size).
 
                 # (1) If this is an "Edges Nodes" line
                 if len(stats_parts) == 2 and stats_parts[0].isdigit() and stats_parts[1].isdigit():
@@ -369,14 +387,10 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
                     new_nodes = int(stats_parts[1])
 
                     # Flush the previously collected edge rows (if any)
-                    if pending_block_rows:
-                        # Apply the PREVIOUS block sizes
-                        for row in pending_block_rows:
-                            row['Edges'] = prev_edges
-                            row['Nodes'] = prev_nodes
-                            data.append(row)
-
-                        pending_block_rows.clear()
+                    # the size line belongs to the rows before it (the
+                    # size after their genome); it used to be given to the
+                    # rows after it, one genome late
+                    flush(new_edges, new_nodes)
 
                     # Update the "previous block size" to this new metadata
                     prev_edges = new_edges
@@ -442,10 +456,11 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
                 entry[f'{prefix}Time_s'] = entry[f'{prefix}{source_time_metric}']
 
                 pending_block_rows.append(entry)
+                genome_names[haplotype_name] = True
                     
             
     except StopIteration:
-        pass
+        flush(prev_edges, prev_nodes)
     except Exception as e:
         print(f"    ❌ Error parsing {filename}: {e}", file=sys.stderr)
 
@@ -454,7 +469,36 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
         df['Step'] = df['Step'].astype(object)
         df.loc[df['Step'] == 0, 'Step'] = 'Base'
     
-    return df, peak_memory
+    info = {'genomes': len(genome_names), 'final_edges': prev_edges, 'final_nodes': prev_nodes}
+    return df, peak_memory, info
+
+def real_graph_size(time_dir_path: pathlib.Path):
+    """Vertices and edges of the input graph without the artificial source 0,
+    sink 1 and their edges: the distinct vertices and edges of
+    input/<dataset>/Graphs/numeric_edgelist.txt (the graph after the last
+    genome). None if the edge list is not found."""
+    parts = time_dir_path.resolve().parts
+    if "output" not in parts:
+        return None
+    i = len(parts) - 1 - parts[::-1].index("output")
+    dataset = parts[i + 1:parts.index("timeFile", i)]
+    edge_list = pathlib.Path(*parts[:i]) / "input" / pathlib.Path(*dataset) / "Graphs" / "numeric_edgelist.txt"
+    if not edge_list.exists():
+        print(f"  Warning: {edge_list} not found; no real graph size")
+        return None
+    edges, header = set(), 0
+    with open(edge_list) as f:
+        for line in f:
+            p = line.split()
+            if not p or p[0].startswith("#"):
+                continue
+            header += 1
+            if header <= 2:            # graph name, then "edges nodes" of the base graph
+                continue
+            if len(p) == 2:
+                edges.add((p[0], p[1]))
+    vertices = {v for e in edges for v in e}
+    return len(vertices), len(edges)
 
 # ==============================================================================
 #  New Processing Function
@@ -510,9 +554,12 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
 
     all_data = []
     peak_memory_kb = {}        # algorithm ID -> PeakMemory(KB) of its time file
+    dataset_info = {}          # genomes and final graph size (the same in every time file)
 
     for (prefix, _fname), (filepath, time_col) in zip(ALGORITHMS.items(), files_to_parse.items()):
-        df, peak_mem = parse_file(filepath, time_col, mode)
+        df, peak_mem, info = parse_file(filepath, time_col, mode)
+        if info and not dataset_info:
+            dataset_info = info
         if not df.empty:
             all_data.append(df)
             if peak_mem:
@@ -688,6 +735,19 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
             for algo_id, kb in peak_memory_kb.items():
                 mf.write(f"{algo_id},{kb}\n")
         
+        # Genomes and final graph size, next to the CSV; read by csvToLatex.py
+        # (table_size_haplotypes.tex). Counted from the time file, so genomes
+        # that add nothing (dropped from the CSV: zero time) are included.
+        # Real*: the input graph (edge list) without the artificial source,
+        # sink and their edges; Graph*: the program's graph after the last
+        # genome, with them (the denominators of the ratio tables).
+        if dataset_info:
+            real = real_graph_size(time_dir_path) or ("", "")
+            with open(time_dir_path / "dataset_info.csv", "w") as inf:
+                inf.write("Genomes,RealNodes,RealEdges,GraphNodes,GraphEdges\n")
+                inf.write(f"{dataset_info['genomes']},{real[0]},{real[1]},"
+                          f"{dataset_info['final_nodes']},{dataset_info['final_edges']}\n")
+
         print(f"  ✅ Successfully saved data to: {output_filename}")
 
     except Exception as e:

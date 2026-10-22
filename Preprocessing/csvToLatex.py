@@ -409,23 +409,33 @@ def build_memory_table(csv_paths: list):
 
 def build_size_haplotype_table(csv_paths: list):
     """
-    Dataset | Haplotypes | TotalNodes | TotalEdges
+    Dataset | Haplotypes | TotalNodes | TotalEdges: genomes added to the base
+    graph and the size of the final graph WITHOUT the artificial source, sink
+    and their edges (the input graph), from dataset_info.csv next to each CSV
+    (parse_to_csv.py: genomes from the time files, size from the edge list).
+    Without that file: from the CSV (genomes that add nothing are missing
+    there, and the size includes the artificial vertices and edges).
     """
     rows = []
 
     for path in csv_paths:
-        df = pd.read_csv(path)
         name = infer_dataset_name_from_path(path)
-
-        # haplotypes
-        if "HaplotypeName" in df.columns:
-            hap_count = int(df["HaplotypeName"].nunique()) if "HaplotypeName" in df.columns else len(df)
+        info_path = os.path.join(os.path.dirname(path), "dataset_info.csv")
+        if os.path.exists(info_path):
+            info = pd.read_csv(info_path).iloc[0]
+            hap_count = int(info["Genomes"])
+            if "RealNodes" in info and pd.notna(info["RealNodes"]):
+                total_nodes, total_edges = int(info["RealNodes"]), int(info["RealEdges"])
+            else:
+                print(f"  [!] {name}: no real graph size in dataset_info.csv; with the artificial source/sink")
+                total_nodes, total_edges = int(info["GraphNodes"]), int(info["GraphEdges"])
         else:
-            hap_count = 0
-
-        # graph size (take max because repeated per step)
-        total_nodes = int(df["Nodes"].max()) if "Nodes" in df.columns else 0
-        total_edges = int(df["Edges"].max()) if "Edges" in df.columns else 0
+            print(f"  [!] {name}: no dataset_info.csv (run parse_to_csv.py again); genomes and size from the CSV")
+            df = pd.read_csv(path, low_memory=False)
+            genomes = df.loc[df["Step"].astype(str) != "Base", "HaplotypeName"] if "Step" in df.columns else df["HaplotypeName"]
+            hap_count = int(genomes.nunique())
+            total_nodes = int(df["Nodes"].max()) if "Nodes" in df.columns else 0
+            total_edges = int(df["Edges"].max()) if "Edges" in df.columns else 0
 
         rows.append({
             "Dataset": name,
