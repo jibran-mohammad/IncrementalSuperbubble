@@ -34,7 +34,8 @@ public:
 
 	std::map<int, int> reverseMapping;
 
-	//sizeV is the size of vertices and sizeE is the size of edges.
+	//sizeV is the size of vertices and sizeE is the size of edges: every edge
+	//in the graph, real and artificial (0->x, y->1, 0->1), counted by addEdge.
 
     int sizeE, sizeV;
     bool newu, newv;
@@ -45,7 +46,11 @@ public:
     bool artificialParentRemoved;
     std::vector<int> incoming;
     std::vector<int> outgoing;
-    Graph(int m):sizeE(m),sizeV(0),newu(false),newv(false),artificialParentRemoved(false) {}
+    // m (the number of edges of the input) is not the start value of sizeE:
+    // addEdge counts every edge it adds, also the base graph's. (sizeE used
+    // to start at m and count only the artificial edges; with the base graph
+    // as m, the real edges of all later updates were never counted.)
+    Graph(int m):sizeE(0),sizeV(0),newu(false),newv(false),artificialParentRemoved(false) {}
 
 public:
 	virtual void addEdge(int x,int y) = 0;

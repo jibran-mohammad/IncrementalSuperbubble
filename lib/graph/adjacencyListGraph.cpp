@@ -44,6 +44,7 @@
        if(t == this->adjLOutgoing[this->reverseMapping[x]].end()) {
            this->adjLOutgoing[this->reverseMapping[x]].push_back(this->reverseMapping[y]);  // Add to outgoing edges
            this->adjLIncoming[this->reverseMapping[y]].push_back(this->reverseMapping[x]);  // Add to incoming edges (for completeness) 
+           this->sizeE++;     // the edge itself (a duplicate is not added and not counted)
        }
        if(this->incoming[this->reverseMapping[y]] == 2) {
            this->incoming[this->reverseMapping[y]] = 1 ;
