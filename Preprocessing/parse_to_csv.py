@@ -232,6 +232,19 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
             header_line = next(line_iter).strip()
             while not header_line:
                 header_line = next(line_iter).strip()
+            # Read the columns by the names in this header: the programs
+            # write them in their own order (e.g. ... TotalVertices TotalEdges
+            # TotalAffectedEdges TotalExploredEdges), which is not the order of
+            # the fixed lists above (reading by position put the values into
+            # the wrong columns). The fixed lists stay as the fallback for a
+            # file without a usable header.
+            header_names = header_line.split()
+            if (len(header_names) > 2 and header_names[1] == 'Haplotype_Name'
+                    and 'Total_Time' in header_names):
+                FULL_METRIC_COLUMNS = header_names[2:]
+                EXPECTED_DATA_PARTS_LEN = len(header_names)
+            else:
+                print(f"    Warning: no column header in {filename.name}; reading the columns by position")
         except StopIteration:
             pass
         
