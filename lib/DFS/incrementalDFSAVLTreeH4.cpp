@@ -383,6 +383,7 @@
             this->reachable[z] = 1;
             this->reachList.push_back(z);
             #ifndef BENCHMARK
+            this->vertexCount.currentcountExploredVertices ++;
             this->vertexCount.currentTotalExploredEdges += g->getOutDegree(z);
             #endif
             for (int u : g->displayOutgoingNeighbours(z)) {
@@ -455,6 +456,7 @@
         this->latestTimes.currenttopologicalOrderTime += elapsed.count();
         this->latestTimes.topologicalOrderTime += elapsed.count();
         this->vertexCount.countAffectedVertices += this->vertexCount.currentcountAffectedVertices;
+        this->vertexCount.countExploredVertices += this->vertexCount.currentcountExploredVertices;
         #endif
     }
 
