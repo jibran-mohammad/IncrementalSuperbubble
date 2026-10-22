@@ -76,6 +76,16 @@ DISPLAY_NAMES = {
     "incBSTBatch": "Inc-BST-Batch",
 }
 
+# short labels under the bars of the stacked breakdown plots
+SHORT_NAMES = {
+    "static": "S",
+    "incRecompute": "Rec",
+    "incBST": "BST",
+    "incMinIBST": "MinI",
+    "incMinIBSTH1": "H1",
+    "incBSTBatch": "Batch",
+}
+
 COMPONENT_SUFFIX = {
     'Insert': 'InsertTime', 'DFS': 'DFSTime', 'TopologicalOrder': 'TopologicalOrderTime',
     'MinI': 'MinITime', 'MaxO': 'MaxOTime', 'SBCompute': 'SBComputeTime', 'Total': 'TotalTime',
@@ -394,8 +404,8 @@ def plot_separate_time_components(df, output_dir, dataset_name, mode, scale):
 
 def plot_total_time_line(df, output_dir, dataset_name, mode, scale):
     """
-    Plot Total Time vs Step for static, incRecompute, incBST.
-    This shows the overall runtime behaviour.
+    Plot Total Time vs Step, one line per algorithm in the CSV (ALGORITHMS,
+    set by select_algorithms). This shows the overall runtime behaviour.
     """
 
     print("Generating Plot: Total Time vs Step (Line Plot)...")
@@ -406,28 +416,11 @@ def plot_total_time_line(df, output_dir, dataset_name, mode, scale):
 
     eps = 1e-9
 
-    ax.plot(
-        df_plot["Step"],
-        df_plot["staticTotalTime"] + eps,
-        **VERSION_STYLES["static"],
-        label=DISPLAY_NAMES["static"]
-    )
-
-    ax.plot(
-        df_plot["Step"],
-        df_plot["incRecomputeTotalTime"] + eps,
-        **VERSION_STYLES["incRecompute"],
-        label=DISPLAY_NAMES["incRecompute"]
-    )
-
-    ax.plot(
-        df_plot["Step"],
-        df_plot["incBSTTotalTime"] + eps,
-        **VERSION_STYLES["incBST"],
-        label=DISPLAY_NAMES["incBST"]
-    )
-
-    ax.plot(df_plot["Step"], df_plot["incMinIBSTTotalTime"] + eps, **VERSION_STYLES["incMinIBST"], label=DISPLAY_NAMES["incMinIBST"])
+    for v in ALGORITHMS:
+        col = f"{v}TotalTime"
+        if col not in df_plot.columns:
+            continue
+        ax.plot(df_plot["Step"], df_plot[col] + eps, **VERSION_STYLES[v], label=DISPLAY_NAMES[v])
 
     if scale == "log":
         ax.set_yscale("log", nonpositive="clip")
@@ -450,116 +443,87 @@ def plot_total_time_line(df, output_dir, dataset_name, mode, scale):
 
     print(f"Saved Total Time Line Plot to {plot_filename}")
 
+
+def draw_stacked_groups(ax, df_plot, group_labels, group_axis_label):
+    """
+    One group of stacked bars per row of df_plot (a genome or an edge
+    update), one bar per algorithm, stacked by time component. The groups
+    are 0.8 wide whatever the number of algorithms, centred on their tick,
+    with a dotted line halfway between groups; each bar has its short name
+    (SHORT_NAMES) under it and the groups their label below those. Returns
+    the legend handles of the components.
+    """
+    components = ['Insert', 'DFS', 'TopologicalOrder', 'MinI', 'MaxO', 'SBCompute']
+    versions = list(ALGORITHMS)
+    n = len(versions)
+    width = 0.8 / n
+    groups = np.arange(len(df_plot))
+    offsets = (np.arange(n) - (n - 1) / 2) * width
+    bottoms = {v: np.zeros(len(df_plot)) for v in versions}
+
+    handles = {}
+    for comp in components:
+        for k, v in enumerate(versions):
+            col = f"{v}{comp}Time"
+            vals = df_plot[col].fillna(0).values if col in df_plot.columns else np.zeros(len(df_plot))
+            bars = ax.bar(groups + offsets[k], vals, width * 0.9, bottom=bottoms[v],
+                          color=STACK_COLORS[comp], edgecolor="black", linewidth=0.4)
+            handles.setdefault(comp, bars)
+            bottoms[v] += vals
+
+    # separators halfway between groups
+    for x in groups[:-1] + 0.5:
+        ax.axvline(x=x, color="gray", linestyle=":", linewidth=1.0, alpha=0.6)
+    ax.set_xlim(-0.5, len(df_plot) - 0.5)
+
+    # short algorithm names under every bar ...
+    ax.set_xticks(np.concatenate([groups + o for o in offsets]))
+    ax.set_xticklabels([SHORT_NAMES.get(v, v) for v in versions for _ in groups],
+                       rotation=90, fontsize=8)
+    ax.tick_params(axis="x", length=2, pad=2)
+    # ... and the group labels below them
+    sec = ax.secondary_xaxis(-0.09)
+    sec.set_xticks(groups)
+    sec.set_xticklabels(group_labels, fontsize=11)
+    sec.tick_params(axis="x", length=0)
+    sec.spines["bottom"].set_visible(False)
+    sec.set_xlabel(group_axis_label, fontsize=13)
+    return handles
+
+
+def stacked_legend_and_note(ax, fig, handles):
+    # outside the axes, right of the plot: inside it covers the last group
+    ax.legend(list(handles.values()), list(handles.keys()), loc="upper left",
+              bbox_to_anchor=(1.005, 1.0), title="Time component", fancybox=True)
+    note = ",  ".join(f"{SHORT_NAMES.get(v, v)} = {DISPLAY_NAMES.get(v, v)}" for v in ALGORITHMS)
+    fig.text(0.5, 0.005, note, ha="center", va="bottom", fontsize=9)
+
 def plot_stacked_bar_breakdown(df, output_dir, dataset_name, mode, scale, num_steps=5):
     """
-    Generates a stacked bar chart showing the breakdown of Total Time
-    into component times for the static, incRecompute, and incBST versions across
-    a few representative Haplotype Steps.
+    Stacked bars of the time components of every algorithm for the first
+    num_steps genomes (the first genomes change the graph the most, so they
+    are the most expensive ones, not typical ones).
     """
     print(f"Generating Plot 2: Total Time Stacked Breakdown (First {num_steps} Steps)...")
-    
-    # Filter out 'Base' and select the first 'num_steps' steps
+
     df_plot = df[df['Step'] != 0].head(num_steps).copy()
-    
     if df_plot.empty:
         print("Not enough non-base data to generate the stacked bar chart.")
         return
 
-    # --- MODIFIED: 'Insert' component has been removed ---
-    components = ['Insert','DFS', 'TopologicalOrder', 'MinI', 'MaxO', 'SBCompute']
-    versions = ALGORITHMS
-    
-    # Create the figure
     fig, ax = plt.subplots(figsize=(15, 8))
-    
-    # Define bar width and positions
-    bar_width = 0.2
-    step_indices = np.arange(len(df_plot)) # X-coordinates for each step group
-    
-    # Dictionary to store the cumulative height (bottom) for each version's bar
-    version_bottoms = {v: np.zeros(num_steps) for v in versions}
-                       
-    # X positions for bars: 
-    x_positions = {v: step_indices + (i - len(ALGORITHMS)/2 + 0.5) * bar_width 
-                    for i, v in enumerate(ALGORITHMS)}
-
-    # Loop through each time component to stack the bars
-    for comp in components:
-        color = STACK_COLORS[comp]
-        
-        for version in versions:
-            # Column name in the DataFrame, e.g., 'staticInsertTime'
-            col_name = f'{version}{comp}Time'
-            
-            # The data for the current component and version across the steps
-            data = df_plot[col_name].values
-
-            # Plot the bar segment
-            # Only label the component for the 'static' version to avoid duplicates in the legend
-            label_text = f'{comp} Time' if version == 'static' else "" 
-            
-            ax.bar(
-                x_positions[version], 
-                data, 
-                bar_width, 
-                label=label_text,
-                bottom=version_bottoms[version], 
-                color=color, 
-                edgecolor='black',
-                linewidth=0.5
-            )
-            
-            # Update the bottom position for the next component in this version's bar
-            version_bottoms[version] += data
-
-    # --- Add Version Labels Above Bars and Step Lines ---
-    
-    # Draw vertical lines to separate step groups
-    for x in step_indices[:-1] + (bar_width * 1.5):
-        ax.axvline(x=x, color='gray', linestyle=':', linewidth=1.0, alpha=0.5)
-    ymax = ax.get_ylim()[1]
-    ax.set_ylim(0, ymax * 1.12)
-    # Add the version labels (static, incRecompute, incBST) centered above their respective bars
-    # Find the maximum height for each bar group to place the label just above it
-    for i, step in enumerate(df_plot['Step']):
-        max_heights = {v: version_bottoms[v][i] for v in versions}
-        
-        for version in versions:
-            x_pos = x_positions[version][i]
-            y_pos = max_heights[version] + 0.05 * ax.get_ylim()[1] # Offset label slightly above bar
-            
-            # Place the version label
-            ax.text(x_pos, y_pos, version, 
-                    ha='center', va='bottom', fontsize=10, 
-                    fontweight='bold', color='k')
-
-    # --- Final Plot Aesthetics ---
-    
-    ax.set_title(f'Total Time Breakdown by Version for First {num_steps} Haplotype Steps — {dataset_name}', fontsize=16)
-    ax.set_xlabel('Haplotype Step', fontsize=14)
+    handles = draw_stacked_groups(ax, df_plot, df_plot['Step'].astype(str).tolist(), "Genome (step)")
+    ax.set_title(f'Time per component for the first {num_steps} genomes — {dataset_name}', fontsize=16)
     ax.set_ylabel('Total Time (ms) [Sum of Components]')
-    
-    # Set X ticks to be in the center of the step groups
-    ax.set_xticks(step_indices) 
-    ax.set_xticklabels(df_plot['Step'].astype(str))
-    
-    # Use a simpler legend focused only on the components (since versions are labeled above bars)
-    handles, labels = ax.get_legend_handles_labels()
-    # Filter out empty labels from the plotting loop
-    valid_handles = [h for h, l in zip(handles, labels) if l]
-    valid_labels = [l.replace(' Time', '') for l in labels if l]
-    
-    ax.legend(valid_handles, valid_labels, loc='upper right', ncol=1, 
-              title='Time Component', fancybox=True, shadow=True)
-              
     ax.grid(axis='y', ls='--', alpha=0.6)
-    plt.tight_layout()
-    
+    stacked_legend_and_note(ax, fig, handles)
+    plt.tight_layout(rect=(0, 0.03, 1, 1))
+
     plot_filename = os.path.join(
         output_dir,
         build_plot_filename(dataset_name, mode, scale, "stacked_breakdown")
     )
-    plt.savefig(plot_filename, dpi=200)
+    plt.savefig(plot_filename, dpi=200, bbox_inches="tight")
     print(f"Saved Plot 2 to {plot_filename}")
     plt.close(fig)
 
@@ -706,6 +670,7 @@ def plot_separate_time_components_peredge(df, output_dir, dataset_name, mode, sc
 
 
 def plot_stacked_bar_breakdown_peredge(df, output_dir, dataset_name, mode, scale, num_steps=10):
+    """Like plot_stacked_bar_breakdown, for the first num_steps edge updates."""
     print(f"Generating Plot 2 (perEdge): Total Time Stacked Breakdown (First {num_steps} Edge Updates)...")
 
     df_plot = df.head(num_steps).copy()
@@ -713,81 +678,26 @@ def plot_stacked_bar_breakdown_peredge(df, output_dir, dataset_name, mode, scale
         print("Not enough data to generate stacked bar chart.")
         return
 
-    components = ['Insert',"DFS","TopologicalOrder", "MinI", "MaxO", "SBCompute"]
-    versions = ALGORITHMS
-
     fig, ax = plt.subplots(figsize=(15, 8))
-
-    bar_width = 0.25
-    step_indices = np.arange(len(df_plot))
-
-    version_bottoms = {v: np.zeros(len(df_plot)) for v in versions}
-
-    x_positions = {v: step_indices + (i - len(ALGORITHMS)/2 + 0.5) * bar_width 
-               for i, v in enumerate(ALGORITHMS)}
-
-    # stack bars
-    for comp in components:
-        color = STACK_COLORS[comp]
-        for version in versions:
-            col_name = f"{version}{comp}Time"
-            data_vals = df_plot[col_name].values
-
-            label_text = f"{comp}" if version == "static" else ""
-
-            ax.bar(
-                x_positions[version],
-                data_vals,
-                bar_width,
-                label=label_text,
-                bottom=version_bottoms[version],
-                color=color,
-                edgecolor="black",
-                linewidth=0.5,
-            )
-
-            version_bottoms[version] += data_vals
-
-    # vertical separators between edge groups (like perbatch plot)
-    for x in step_indices[:-1] + (bar_width * 2):
-        ax.axvline(x=x, color="gray", linestyle=":", linewidth=1.0, alpha=0.5)
-
-    # ✅ add static/incRecompute/incBST labels on top of each bar
-    for i in range(len(df_plot)):
-        for version in versions:
-            x_pos = x_positions[version][i]
-            y_pos = version_bottoms[version][i] + 0.03 * ax.get_ylim()[1]  # small offset
-            ax.text(
-                x_pos, y_pos, version,
-                ha="center", va="bottom",
-                fontsize=10, fontweight="bold", color="black"
-            )
-
-    ax.set_xticks(step_indices)
-    ax.set_xticklabels(df_plot["Step"].astype(str), rotation=0)
-
-    ax.set_xlabel("Edge Update ID (Global Step)")
+    handles = draw_stacked_groups(ax, df_plot, df_plot["Step"].astype(str).tolist(), "Edge update (global step)")
+    ax.set_title(f"Time per component for the first {num_steps} edge updates — {dataset_name}", fontsize=16)
     ax.set_ylabel("Time (ms)")
-    ax.set_title(f"Total Time Breakdown by Version for First {num_steps} Edge Updates -- {dataset_name}")
-
-    ax.legend(title="Component", loc="upper right")
     ax.grid(True, axis="y", linestyle="--", alpha=0.5)
-
+    stacked_legend_and_note(ax, fig, handles)
+    plt.tight_layout(rect=(0, 0.03, 1, 1))
 
     plot_filename = os.path.join(
         output_dir,
         build_plot_filename(dataset_name, mode, scale, "stacked_breakdown")
     )
-    
-    plt.tight_layout()
     plt.savefig(plot_filename, dpi=200, bbox_inches="tight")
     print(f"Saved Plot 2 to {plot_filename}")
     plt.close(fig)
 
 def run_perbatch(csv_path, output_dir,dataset_name, scale):
     df = pd.read_csv(csv_path)
+    select_algorithms(df)          # before cleaning: it checks the columns of these algorithms only
     df = clean_and_normalize_df(df)
-    select_algorithms(df)
     # convert to ms
     df = convert_seconds_to_ms(df)
 
@@ -809,6 +719,8 @@ def run_perbatch(csv_path, output_dir,dataset_name, scale):
 
 def plot_chromosome_comparison(csv_files, labels, output_dir):
 
+    # the algorithms of the first CSV (all CSVs of one call have the same mode)
+    select_algorithms(pd.read_csv(csv_files[0], nrows=1))
     totals = {alg: [] for alg in ALGORITHMS}
 
     for file in csv_files:
@@ -855,8 +767,8 @@ def plot_chromosome_comparison(csv_files, labels, output_dir):
 
 def run_peredge(csv_path, output_dir,dataset_name, scale):
     df = pd.read_csv(csv_path)
+    select_algorithms(df)          # before cleaning: it checks the columns of these algorithms only
     df = clean_and_normalize_df(df)
-    select_algorithms(df)
 
     # remove Base and sort
     df = df[df["Step"] != 0].copy()
@@ -865,27 +777,35 @@ def run_peredge(csv_path, output_dir,dataset_name, scale):
     # convert to ms
     df = convert_seconds_to_ms(df)
 
-    # OPTIONAL downsample (still fine)
+    # Thinning (downsampling) to at most max_points evenly spread rows, ONLY
+    # for the line plots (a curve over a million updates is slow to draw and
+    # looks the same with 5,000 points). The bar plots add the times up and
+    # the stacked plot shows the first updates: they get every row. (They
+    # used to get the thinned rows too: chr22 bars showed 9.48 s of static's
+    # 14.45 s, and the stacked plot skipped every third update.)
     max_points = 5000
-    if len(df) > max_points:
-        idx = np.linspace(0, len(df) - 1, max_points).astype(int)
-        df = df.iloc[idx].copy()
+    def thin(d):
+        if len(d) <= max_points:
+            return d
+        idx = np.linspace(0, len(d) - 1, max_points).astype(int)
+        return d.iloc[idx].copy()
 
-    # smoothing for edge updates (bigger window)
-    df_smooth = smooth_df_rolling(df, window=50)
+    # smoothing over all updates (bigger window), then thinning
+    df_smooth = thin(smooth_df_rolling(df, window=50))
 
     mode = "peredge"
 
+    # line plots: thinned
     plot_separate_time_components_peredge(df_smooth, output_dir, dataset_name, mode, scale)
     plot_total_time_line(df_smooth, output_dir, dataset_name, mode, scale)
+    plot_vertex_activity(thin(df), output_dir, dataset_name, mode, scale)
 
+    # bars and the first updates: every row
     plot_stacked_bar_breakdown_peredge(df, output_dir, dataset_name, mode, scale, num_steps=10)
 
     plot_aggregated_version_bars(df, output_dir, dataset_name, mode, scale)
 
     plot_total_time_bar(df, output_dir, dataset_name, mode, scale)
-
-    plot_vertex_activity(df, output_dir, dataset_name, mode, scale)
 
 
 def main():
