@@ -13,7 +13,13 @@
       5) edge (u,v) inserted, both nodes exist, edge is from right to left in the DFS tree
          (u before v in the topological order: the order stays valid, nothing is reordered).
 
-      Cases 1 and 5 when v's only parent was the artificial source 0: the graph
+      Case 1: u is placed as the rightmost child of 0 (directly after 0 in
+      the topological order), so (u,v) is a right-to-left edge and nothing is
+      reordered: all other positions move up by one (O(n)), no partialDFS. If
+      v's only parent was 0, u takes v's place instead (directly before v),
+      again without a rebuild. (The same as in incMinIBST.)
+
+      Case 5 when v's only parent was the artificial source 0: the graph
       deletes the edge 0->v (g->strategy->artificialParentRemoved), but in the
       DFS tree v and its subtree are still children of 0, so they are not placed
       under u: superbubbles that now contain v are not contiguous in the order
@@ -102,29 +108,22 @@
                    start = std::chrono::high_resolution_clock::now();
                    #endif
 
-                   if(g->strategy->artificialParentRemoved) {
-                       // v's only parent was 0: move v's subtree under u
-                       this->rebuildFromStaticDFS(g);
+                   {
+                   // v has another parent: u becomes the rightmost child of 0
+                   // in the DFS tree, directly after 0 in the topological
+                   // order, and (u,v) is a right-to-left edge: nothing else is
+                   // reordered, no partialDFS. v's only parent was 0 (the edge
+                   // 0->v is deleted): u takes v's place, directly before v, and
+                   // v's subtree stays the same: no rebuild. Every vertex from
+                   // that position on moves one position later. (As in
+                   // incMinIBST; minI/maxO are recomputed after every update.)
+                   int pos = g->strategy->artificialParentRemoved ? this->reverseTopologicalOrder[v] : 1;
+                   for(int i = this->n - 2; i >= pos; i--) {
+                       this->topOrd[i + 1] = this->topOrd[i];
+                       this->reverseTopologicalOrder[this->topOrd[i + 1]] = i + 1;
                    }
-                   else {
-                   this->reverseTopologicalOrder[u] = this->n-1;
-                   this->topOrd[u] = this->n - 1;
-
-                   // timed as in case 4: update adds its own time, so it
-                   // stays outside these timers (else it is counted twice)
-                   this->partialDFS(g,u,v);
-                   #ifndef BENCHMARK
-                   end = std::chrono::high_resolution_clock::now();
-                   elapsed = end - start;
-                   this->latestTimes.currentdfsTime += elapsed.count();
-                   this->latestTimes.dfsTime += elapsed.count();
-                   #endif
-                   //std::cout << "partial DFS done in case where u is new node" << std::endl;
-                   this->update(g);
-                   #ifndef BENCHMARK
-                   start = std::chrono::high_resolution_clock::now();
-                   #endif
-                   this->reset();
+                   this->reverseTopologicalOrder[u] = pos;
+                   this->topOrd[pos] = u;
                    }
 
                     #ifndef BENCHMARK
