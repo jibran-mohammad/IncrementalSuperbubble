@@ -41,8 +41,10 @@ OUTPUT (PNG files in --out, named <dataset>_<mode>_<scale>_<plot>.png)
                           order, minI, maxO, superbubbles) per algorithm
     stacked_breakdown     the same steps stacked, for a few updates
     aggregated_versions   time of each step summed over all updates
-    vertex_activity       affected / explored vertices per update
-    edge_activity         affected / explored edges per update
+    activity              part of the graph touched (affected / explored
+                          vertices and edges): perbatch cumulative over
+                          the genomes, edge-by-edge vs batch; peredge
+                          distribution over the updates that reorder
 
 Algorithms are shown with their display names (DISPLAY_NAMES below, e.g.
 Inc-MinI-BST); the plotted algorithms are listed in ALGORITHMS below.
@@ -131,49 +133,93 @@ def build_plot_filename(dataset, mode, scale, plot_type):
     """
     return f"{dataset}_{mode}_{scale}_{plot_type}.png"
 
-def plot_vertex_activity(df, output_dir, dataset_name, mode, scale):
+# the edge-by-edge algorithm of the activity plot (all of them give the same
+# affected / explored counts since they share the case logic)
+EDGE_BY_EDGE_FOR_ACTIVITY = ["incMinIBSTH1", "incMinIBST", "incBST"]
 
+
+def plot_activity(df, output_dir, dataset_name, mode, scale):
+    """
+    How much of the graph the algorithms touch: affected = reordered
+    positions, explored = vertices reached by the searches, as a share of
+    the graph (vertices: AffectedVertices / TotalVertices; edges, their
+    out-degrees: TotalAffectedEdges / TotalEdges). Two panels, vertices and
+    edges. One file: <dataset>_<mode>_<scale>_activity.png
+      perbatch  cumulative over the genomes (absolute, log scale),
+                edge-by-edge (the work of all its edges) and batch; the
+                totals after the last genome are in the legend
+      peredge   distribution over the edge updates that reorder (or search):
+                most updates reorder nothing, the others often a large part
+                of the graph; the counts are in the title
+    """
     df_plot = df[df["Step"] != 0].copy()
+    ebe = next((a for a in EDGE_BY_EDGE_FOR_ACTIVITY if f"{a}AffectedVertices" in df_plot.columns), None)
+    algos = [a for a in [ebe] if a]
+    if mode == "perbatch" and "incBSTBatchAffectedVertices" in df_plot.columns:
+        algos.append("incBSTBatch")
+    if not algos:
+        return
+    panels = [("Vertices", "AffectedVertices", "ExploredVertices", "TotalVertices"),
+              ("Edges", "TotalAffectedEdges", "TotalExploredEdges", "TotalEdges")]
 
-    # --- Vertex plot ---
-    v_affected_col = "incRecomputeAffectedVertices"
-    v_explored_col = "incBSTExploredVertices"
+    def share(a, col, total):
+        num = pd.to_numeric(df_plot.get(f"{a}{col}"), errors="coerce")
+        den = pd.to_numeric(df_plot.get(f"{a}{total}"), errors="coerce")
+        return 100.0 * num / den.where(den > 0)
 
-    if v_affected_col in df.columns or v_explored_col in df.columns:
-        fig, ax = plt.subplots(figsize=(12, 6))
-        if v_affected_col in df_plot.columns:
-            ax.plot(df_plot["Step"], df_plot[v_affected_col], label="Affected Vertices (Inc-Recompute)")
-        if v_explored_col in df_plot.columns:
-            ax.plot(df_plot["Step"], df_plot[v_explored_col], label="Explored Vertices (Inc-BST)")
-        ax.set_xlabel("Step")
-        ax.set_ylabel("Vertices")
-        ax.set_title(f"Affected vs Explored Vertices — {dataset_name}")
-        ax.legend()
-        ax.grid(True, linestyle="--", alpha=0.6)
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_dir,
-            build_plot_filename(dataset_name, mode, scale, "vertex_activity")), dpi=200)
-        plt.close(fig)
+    fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+    if mode == "perbatch":
+        # cumulative: positions reordered (and vertices searched) up to genome
+        # k; monotone, so genomes without any reorder leave no gap
+        for ax, (what, aff, exp, tot) in zip(axes, panels):
+            for a in algos:
+                name = "Batch" if a == "incBSTBatch" else f"Edge-by-edge ({DISPLAY_NAMES.get(a, a)})"
+                color = VERSION_STYLES[a]["color"]
+                for col, kind, style in [(aff, "affected", "-"), (exp, "explored", ":")]:
+                    vals = pd.to_numeric(df_plot.get(f"{a}{col}"), errors="coerce").fillna(0).cumsum()
+                    ax.plot(df_plot["Step"], vals.where(vals > 0), color=color, linestyle=style, linewidth=1.4,
+                            label=f"{kind}, {name}: {int(vals.iloc[-1]):,}" if len(vals) else f"{kind}, {name}")
+            ax.set_yscale("log")
+            ax.set_xlabel("Genome (step)")
+            ax.set_ylabel(f"{what} touched, cumulative (log)")
+            ax.set_title(what)
+            ax.grid(True, which="both", linestyle="--", alpha=0.4)
+            ax.legend(fontsize=9, title="total after the last genome", title_fontsize=9)
+        fig.suptitle(f"Part of the graph touched, cumulative over the genomes — {dataset_name}\n"
+                     "(affected: reordered positions; explored: vertices reached by the searches; "
+                     "edges: their out-degrees)", fontsize=13)
+    else:
+        a = algos[0]
+        n_updates = len(df_plot)
+        for ax, (what, aff, exp, tot) in zip(axes, panels):
+            aff_pct = share(a, aff, tot)
+            exp_pct = share(a, exp, tot)
+            aff_pct = aff_pct[aff_pct > 0].dropna()
+            exp_pct = exp_pct[exp_pct > 0].dropna()
+            values = pd.concat([aff_pct, exp_pct])
+            if values.empty:
+                ax.set_title(f"{what}: no update reorders")
+                continue
+            lo = max(values.min(), 1e-4)
+            hi = max(values.max(), lo * 10)
+            bins = np.logspace(np.log10(lo), np.log10(hi), 40)
+            ax.hist(aff_pct, bins=bins, alpha=0.6, color=VERSION_STYLES[a]["color"],
+                    label=f"affected: {len(aff_pct):,} of {n_updates:,} updates")
+            ax.hist(exp_pct, bins=bins, alpha=0.6, color="gray",
+                    label=f"explored: {len(exp_pct):,} of {n_updates:,} updates")
+            ax.set_xscale("log")
+            ax.set_xlabel(f"% of the graph's {what.lower()} touched by one update (log)")
+            ax.set_ylabel("Number of updates")
+            ax.set_title(what)
+            ax.legend(fontsize=9)
+            ax.grid(True, which="both", linestyle="--", alpha=0.4)
+        fig.suptitle(f"Size of the reorders of single edge updates — {dataset_name}, "
+                     f"{DISPLAY_NAMES.get(a, a)}\n(only the updates that reorder or search; "
+                     f"all other updates touch nothing)", fontsize=13)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, build_plot_filename(dataset_name, mode, scale, "activity")), dpi=200)
+    plt.close(fig)
 
-    # --- Edge plot (new) ---
-    e_affected_col = "incRecomputeTotalAffectedEdges"
-    e_explored_col = "incBSTTotalExploredEdges"
-
-    if e_affected_col in df.columns or e_explored_col in df.columns:
-        fig, ax = plt.subplots(figsize=(12, 6))
-        if e_affected_col in df_plot.columns:
-            ax.plot(df_plot["Step"], df_plot[e_affected_col], label="Affected Edges (Inc-Recompute)")
-        if e_explored_col in df_plot.columns:
-            ax.plot(df_plot["Step"], df_plot[e_explored_col], label="Explored Edges (Inc-BST)")
-        ax.set_xlabel("Step")
-        ax.set_ylabel("Edges")
-        ax.set_title(f"Affected vs Explored Edges — {dataset_name}")
-        ax.legend()
-        ax.grid(True, linestyle="--", alpha=0.6)
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_dir,
-            build_plot_filename(dataset_name, mode, scale, "edge_activity")), dpi=200)
-        plt.close(fig)
 
 def plot_total_time_bar(df, output_dir, dataset_name, mode, scale):
     """
@@ -715,7 +761,7 @@ def run_perbatch(csv_path, output_dir,dataset_name, scale):
 
     plot_total_time_line(df_smooth, output_dir, dataset_name, mode, scale)
 
-    plot_vertex_activity(df, output_dir, dataset_name, mode, scale)
+    plot_activity(df, output_dir, dataset_name, mode, scale)
 
 def plot_chromosome_comparison(csv_files, labels, output_dir):
 
@@ -798,9 +844,9 @@ def run_peredge(csv_path, output_dir,dataset_name, scale):
     # line plots: thinned
     plot_separate_time_components_peredge(df_smooth, output_dir, dataset_name, mode, scale)
     plot_total_time_line(df_smooth, output_dir, dataset_name, mode, scale)
-    plot_vertex_activity(thin(df), output_dir, dataset_name, mode, scale)
 
-    # bars and the first updates: every row
+    # bars, the first updates and the distribution of the reorders: every row
+    plot_activity(df, output_dir, dataset_name, mode, scale)
     plot_stacked_bar_breakdown_peredge(df, output_dir, dataset_name, mode, scale, num_steps=10)
 
     plot_aggregated_version_bars(df, output_dir, dataset_name, mode, scale)
