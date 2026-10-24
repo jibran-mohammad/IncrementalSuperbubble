@@ -21,7 +21,7 @@ public:
 
 	void performDFS(GraphContext *g);
 	void updateEdge(GraphContext *g, int u ,int v);
-	void updateEdgeBatch(GraphContext *g);
+	void updateEdgeBatch(GraphContext *g, const std::vector<std::pair<int,int>> &edges);
 	void reset();
 	void displayTopologicalOrder();
 	void displayReverseTopologicalOrder();

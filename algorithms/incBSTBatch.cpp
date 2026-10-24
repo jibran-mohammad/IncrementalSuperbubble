@@ -86,7 +86,7 @@ public:
         #ifndef BENCHMARK
         auto start = std::chrono::high_resolution_clock::now();
         #endif
-        d.performDFS(&g);   // static DFS of the base graph; the batch order starts from it
+        d.performDFS(&g);   // static DFS of the base graph
         d.createMinI(&g);
         d.createMaxO(&g);
         superbubble.computeSB(&d, &g);
@@ -116,10 +116,6 @@ public:
         #endif
         #ifndef BENCHMARK
         SuperbubbleHistory hist;
-        if (history && mode != "perBatch") {
-            std::cerr << "history: only in perBatch mode (one step per genome); not written" << std::endl;
-            history = false;
-        }
         if (history) {
             std::string prefix = output_path;
             const std::string suffix = "_time.txt";
@@ -129,16 +125,9 @@ public:
             else hist.record(0, "base", d, g, superbubble.SB, 0, num_base_edges, elapsed.count());
         }
         #endif
-        if(mode == "perEdge") {
-            #ifndef BENCHMARK
-            timeFile << "Edge_Number Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5 AffectedVertices ExploredVertices TotalVertices TotalEdges TotalAffectedEdges TotalExploredEdges\n";
-            #endif
-        }
-        else {
-            #ifndef BENCHMARK
-            timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5 AffectedVertices ExploredVertices TotalVertices TotalEdges TotalAffectedEdges TotalExploredEdges\n";
-            #endif
-        }
+        #ifndef BENCHMARK
+        timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5 AffectedVertices ExploredVertices TotalVertices TotalEdges TotalAffectedEdges TotalExploredEdges\n";
+        #endif
         //timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5\n";
         // --- 2. Process Haplotype Additions Incrementally ---
         while (std::getline(std::cin, line)) {
@@ -205,37 +194,11 @@ public:
             
             
              // BATCH INSERT all edges for this haplotype
+            std::vector<std::pair<int,int>> edges;           // the genome's edges, applied as one batch
+            edges.reserve(hap_edge_count);
             for (int i = 0; i < hap_edge_count; ++i) {
                 std::cin >> x >> y;
-                incdfs.addEdgeToBatch(x, y);
-                //d.displayTopologicalOrder();
-               // d.displayReverseTopologicalOrder();
-                //d.displayMinI();
-                //d.displayMaxO();
-
-                if (mode == "perEdge") {
-                    // perEdge: every edge is a batch of one
-                    incdfs.insertBatch(&g);
-                    superbubble.SB.clear();
-                    #ifndef BENCHMARK
-                    start = std::chrono::high_resolution_clock::now();
-                    #endif
-                    superbubble.computeSB(&d, &g);
-                    #ifndef BENCHMARK
-                    end = std::chrono::high_resolution_clock::now();
-                    elapsed = end - start;
-                    currentsuperbubbleTime = elapsed.count();
-                    superbubbleTime += elapsed.count();
-                    totalTime = incdfs.latestTimes.currentinsertTime + incdfs.latestTimes.currentdfsTime + incdfs.latestTimes.currenttopologicalOrderTime + incdfs.latestTimes.currentminITime + incdfs.latestTimes.currentmaxOTime + currentsuperbubbleTime;
-                    timeFile << i + 1 << " " << clean_hap_name << " " << incdfs.latestTimes.currentinsertTime << " " << incdfs.latestTimes.currentdfsTime << " " << incdfs.latestTimes.currenttopologicalOrderTime << " " << incdfs.latestTimes.currentminITime << " " << incdfs.latestTimes.currentmaxOTime << " " << currentsuperbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.currentcase1 << " " << incdfs.edgeTypes.currentcase2 << " " << incdfs.edgeTypes.currentcase3 << " " << incdfs.edgeTypes.currentcase4 << " " << incdfs.edgeTypes.currentcase5 << " " << incdfs.vertexCount.currentcountAffectedVertices << " " << incdfs.vertexCount.currentcountExploredVertices << " " << incdfs.n << " " << incdfs.vertexCount.currentTotalEdges << " " << incdfs.vertexCount.currentTotalAffectedEdges << " " << incdfs.vertexCount.currentTotalExploredEdges <<"\n";
-                    currentsuperbubbleTime = 0.0;
-                    #endif
-
-                    #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
-                    superbubble.printSuperbubbles(&g);
-                    #endif
-                } 
-                
+                edges.push_back(std::make_pair(x, y));
             }
             
             if (mode == "perBatch") {
@@ -243,8 +206,7 @@ public:
                 #ifndef BENCHMARK
                 int nBefore = g.displayNumberVertices();     // for the history: new vertices have ids >= nBefore
                 #endif
-                incdfs.insertBatch(&g);
-                superbubble.SB.clear();
+                superbubble.insertBatch(&d,&g,edges);
                 #ifndef BENCHMARK
                 start = std::chrono::high_resolution_clock::now();
                 #endif
@@ -284,7 +246,7 @@ public:
         timeFile.close();
         // superbubbles of the final graph -> <ID>_superbubbles.txt
         writeFinalSuperbubbles(output_path, superbubble, g);
-        std::cout << "batch algorithm: " << incdfs.adoptions << " adoptions (case 5, v a source; "
+        std::cout << "batch algorithm: " << incdfs.rounds << " reorder rounds, " << incdfs.adoptions << " adoptions (case 5, v's only parent 0; "
                   << incdfs.repairedEdges << " backward edges repaired), " << incdfs.duplicateEdges << " duplicate edges" << std::endl;
         #endif
     }
@@ -298,8 +260,14 @@ int main(int argc, char* argv[]){
     if (argc < 3) {
         // Print error to standard error
         std::cerr << "Error: No output file path provided." << std::endl;
-        std::cerr << "Usage: " << argv[0] << " <output_file_path> <perBatch|perEdge> [history]" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <output_file_path> perBatch [history]" << std::endl;
         return 1; // Exit with an error code
+    }
+    // the batch algorithm applies one genome at a time: perBatch only
+    if (std::string(argv[2]) != "perBatch") {
+        std::cerr << "Error: This implementation only supports batch updates." << std::endl;
+        std::cerr << "Please run with mode = perBatch." << std::endl;
+        return 1;
     }
 	IncBSTBatchSuperbubble incremental;
     bool history = (argc >= 4 && std::string(argv[3]) == "history");

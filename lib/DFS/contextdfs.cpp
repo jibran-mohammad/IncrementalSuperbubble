@@ -8,8 +8,8 @@
 	    this->dfsStrategy->insert(g,u,v);
     }
 
-    void DFSCONTEXT::updateEdgeBatch(GraphContext *g) {
-        this->dfsStrategy->insertBatch(g);
+    void DFSCONTEXT::updateEdgeBatch(GraphContext *g, const std::vector<std::pair<int,int>> &edges) {
+        this->dfsStrategy->insertBatch(g, edges);
     }
 
     void DFSCONTEXT::reset() {

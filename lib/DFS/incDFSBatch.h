@@ -2,10 +2,10 @@
 #define INCREMENTAL_DFS_BATCH
 #include "baseDFS.h"
 #include "minImaxOdatastructure.h"
-#include "incremental_topo.hpp"
 #include "../tree/differentAVLTree.h"
 #include <climits>
 #include <chrono>
+#include <list>
 #include <vector>
 #include <utility>
 
@@ -13,83 +13,74 @@
   ===========================================================================
   Batch algorithm (incBSTBatch)
   ===========================================================================
-  The graph grows by batches of edges (one haplotype in perBatch mode, one
-  edge in perEdge mode). After each batch the order must again be a DFS
-  order (reverse postorder of a DFS from the artificial source 0), because
-  computeSB only works on a DFS order, and minI / maxO must be up to date.
-  The superbubbles are then computed once per batch (by the program).
+  The graph grows by batches of edges, one batch per genome. After each
+  batch the order must again be a DFS order (reverse postorder of a DFS from
+  the artificial source 0), because computeSB only works on a DFS order, and
+  minI / maxO must be up to date. The superbubbles are then computed once per
+  batch (by the program).
 
-  The order is kept by inctopo::IncrementalTopoOrder (incremental_topo.hpp):
-  its reorder fixes edges that point backwards with bounded forward searches,
-  for the whole batch at once. A valid topological order is not enough,
-  though: the edges that do NOT point backwards but change the DFS tree are
-  handled by the same rules as in incMinIBST. Per edge u -> v of a batch
-  (cases as in the per-edge algorithms, from the state at that edge):
+  Base graph: insert() adds every edge to the graph, dfs() is the static DFS
+  (as in the static algorithm), calculateMinI / calculateMaxO build minI and
+  maxO.
 
-    case 1  u new          u is placed where the DFS would visit it:
-                           directly after 0 (last child of 0), or directly
-                           before v if v's only parent was 0 (u takes v's
-                           place; v's subtree hangs under u unchanged)
-    case 2  v new          v directly after u (last child of u)
-    case 3  u and v new    u, v directly before the sink 1
-    case 4  u after v      the edge points backwards: batch reorder
-    case 5  u before v     nothing, unless v's only parent was 0 ("adoption",
-                           see below)
+  A batch (SuperbubbleCalculation::insertBatch -> DFSCONTEXT::updateEdgeBatch
+  -> insertBatch(g, edges)), the edges of one genome in their order:
 
-  Adoption (case 5, v a source): v and its subtree (a contiguous block of
-  the order, from v up to the next child of 0) must hang under u. The block
-  is moved directly after u (v = last child of u); then every edge from a
-  vertex behind the block into the block points backwards (that vertex
-  reaches part of v's old subtree first now) and is repaired by the batch
-  reorder, exactly like a case 4 edge. This replaces the static DFS.
-  Example: order 0 a u b v x 1, edges a->u, b->x, v->x, new edge u->v:
-    move v's block after u:   0 a u v x b 1
-    backward edge b->x:       reorder moves x behind b -> 0 a u v b x 1
-  which is the order a fresh DFS gives (x now belongs to b).
-
-  New vertices are not inserted one by one (each insertion shifts every
-  position behind it, O(n)): step 1 only NOTES where each belongs - after or
-  before an anchor vertex (u, v, 0 or 1; the anchor may itself be a new
-  vertex of the batch) - and materialize() builds them all into the order in
-  one pass over it, O(n + new vertices). The result is the same order as
-  inserting them one at a time: several new vertices after one anchor end up
-  newest first (each was inserted directly after the anchor), several before
-  one anchor in the order they were noted.
-  Until then a noted vertex has a virtual position directly after / before
-  its anchor (vkey), exact relative to every placed vertex; comparing two
-  noted vertices builds them in first.
-
-  Steps of insertBatch():
-    1. per edge: classify, add to the graph, note new vertices (cases 1-3);
-       collect the new edges for the reorder; adoptions (case 5, v source)
-       flush first (build in the noted vertices, reorder: the block must be
-       read from a DFS order), then move the block and collect the backward
-       edges
-    2. flush: build in the noted vertices (one pass), then one reorder for
-       all pending new edges and collected backward edges
-       (IncrementalTopoOrder::insertAndRepair)
-    3. copy the changed positions into topOrd / reverseTopologicalOrder
+    1. classify: one pass over the edges, without changing the graph. A
+       vertex is new at an edge if it is neither in the graph nor seen at an
+       earlier edge of the batch; v's only parent is 0 if it has no real
+       parent in the graph and got none at an earlier edge of the batch.
+         E_new  edges with a new vertex (cases 1-3), each new vertex gets
+                its place next to an anchor (rules of incMinIBST):
+                  case 1  u new    u directly after 0 (last child of 0), or
+                                   directly before v if v's only parent was 0
+                                   (u takes v's place, v's subtree hangs
+                                   under u unchanged)
+                  case 2  v new    v directly after u (last child of u)
+                  case 3  both     u, v directly before the sink 1
+         E_old  edges between vertices that exist at that point
+       Duplicate edges are dropped. New vertices get the internal ids the
+       graph will give them (consecutive, in order of first appearance).
+    2. new vertices: E_new goes into the graph; materialize() builds all new
+       vertices into topOrd / reverseTopologicalOrder in one pass over the
+       order, O(n + new vertices). Every relative order of the old vertices
+       is kept.
+    3. E_old, in order (each edge goes into the graph first):
+         u after v (backward)   collected for the reorder (case 4)
+         u before v             nothing (case 5), unless v's only parent was
+                                0: adoption (below)
+       repairRound(): the batch reorder for all collected backward edges at
+       once (the IncrementalDFS / Update of the batch DFS algorithm): the
+       window of positions from the earliest head to the latest tail is
+       scanned from right to left; for every tail (in its edges' order) a
+       search from the head, bounded by the tail's position, collects the
+       vertices that must move behind the tail, in postorder; each vertex is
+       emitted once and the window is relabeled once.
+       Adoption (v's only parent was 0, v's subtree must hang under u): the
+       collected backward edges are repaired first (the block must be read
+       from a DFS order), then v's block (v up to the next child of 0) moves
+       directly after u; edges from vertices now behind the block into it
+       point backwards and are collected for the next round.
+       At the end, one round for the rest. Without adoptions a batch has
+       exactly one round.
     4. minI / maxO of the vertices whose relative order changed (see
-       updateMinIMaxO)
+       updateMinIMaxO); minI in trees as in incMinIBST, maxO by comparisons.
 
-  minI is kept as in incMinIBST: every vertex c has a balanced search tree
-  (minIbst[c]) of its real parents, ordered by position, and minI[c] is its
-  minimum. A tree is ordered by reverseTopologicalOrder, which is only
-  updated in step 3, so the vertices that change their relative order (moved
-  by a reorder or an adoption) are taken out of their children's trees
-  before step 3 and put back after it. maxO is kept without a tree, by
-  comparisons (as in incMinIBST).
+  The minI trees compare by reverseTopologicalOrder: a vertex is taken out
+  of its children's trees before its relative order changes (searched in a
+  round, or in an adopted block) and put back after step 3. Building in new
+  vertices keeps every relative order.
   Compile switch: with -DBATCH_MINI_SCAN (make ... MINI_SCAN=1) minI is kept
-  without trees instead: a child's parents are scanned only when its
-  earliest parent moved later or a parent moved earlier.
+  without trees: a child's parents are scanned only when its earliest
+  parent moved later or a parent moved earlier.
   ===========================================================================
 */
 class IncrementalDFSTREEBatch : public BaseDFS, public IDatastructure {
 public:
     struct IncrementalUpdateTimes {
-        double insertTime = 0.0;            // step 1 without the order work: graph, classifying, noting
-        double dfsTime = 0.0;               // order: building in new vertices, reorders, block moves
-        double topologicalOrderTime = 0.0;  // step 3
+        double insertTime = 0.0;            // step 1 and the graph
+        double dfsTime = 0.0;               // searches of the reorder, block moves
+        double topologicalOrderTime = 0.0;  // building in new vertices, relabeling
         double minITime = 0.0;
         double maxOTime = 0.0;
         double currentinsertTime = 0.0;
@@ -103,7 +94,7 @@ public:
         int currentcase1 = 0, currentcase2 = 0, currentcase3 = 0, currentcase4 = 0, currentcase5 = 0;
     };
     struct CountOfVertices {
-        int countAffectedVertices = 0;        // positions that changed
+        int countAffectedVertices = 0;        // positions in the reorder windows and moved blocks
         int countExploredVertices = 0;        // vertices reached by the reorder's searches
         int currentcountAffectedVertices = 0;
         int currentcountExploredVertices = 0;
@@ -118,11 +109,10 @@ public:
     TypeOfEdgeInsertion edgeTypes;
     CountOfVertices vertexCount;
     long long duplicateEdges = 0;     // edges already in the graph (ignored)
-    long long adoptions = 0;          // case 5 with v a source (block moved)
+    long long adoptions = 0;          // case 5 with v's only parent 0 (block moved)
     long long repairedEdges = 0;      // backward edges collected by adoptions
-    long long materializations = 0;   // passes that built noted new vertices into the order
+    long long rounds = 0;             // reorder rounds (1 per batch + 1 per adoption)
 
-    inctopo::IncrementalTopoOrder topo;
 #ifndef BATCH_MINI_SCAN
     // minIbst[c]: the real parents of c, ordered by position (minI[c] = minimum)
     std::vector<DifferentBalancedBinaryTree> minIbst;
@@ -135,14 +125,12 @@ public:
         n = g->displayNumberVertices();
         this->fitSize(n);
     }
-    // base graph: only adds the edge to the graph (the order comes from dfs)
+    // base graph: the edge goes into the graph (the order comes from dfs)
     void insert(GraphContext *g, int u, int v) override;
-    // static DFS of the base graph; IncrementalTopoOrder starts from its order
+    // static DFS of the base graph (as in the static algorithm)
     void dfs(GraphContext *g) override;
-    // collects an edge (input ids) for the next insertBatch
-    void addEdgeToBatch(int u, int v) { this->pending.push_back(std::make_pair(u, v)); }
-    // applies the collected edges (steps 1-4 above)
-    void insertBatch(GraphContext *g) override;
+    // a batch: the edges of one genome (input ids), steps 1-4 above
+    void insertBatch(GraphContext *g, const std::vector<std::pair<int,int>> &edges) override;
     void reset() override {}
     // full minI / maxO with the rules of SimpleDFS (base graph)
     void calculateMinI(GraphContext *g) override;
@@ -151,43 +139,43 @@ public:
     void printMaxO() const override;
 
 private:
-    std::vector<std::pair<int,int>> pending;    // edges of the current batch (input ids)
+    struct OldEdge { int x, y, u, v; bool vOnly0; };   // input ids, internal ids
 
-    // ---- per batch (reset at the start of insertBatch)
-    std::vector<inctopo::Edge> newEdges;        // edges for the next flush (incl. artificial ones of new vertices)
-    std::vector<inctopo::Edge> backEdges;       // backward edges collected by adoptions
+    // ---- per batch
+    std::vector<std::pair<int,int>> newInputEdges;  // E_new (input ids), in order
+    std::vector<OldEdge> oldEdges;              // E_old, in order
+    std::vector<std::pair<int,int>> pending;    // backward edges for the next round
     std::vector<std::pair<int,int>> realEdges;  // all edges of the batch (internal ids), for minI / maxO
-    std::vector<int> movedLater;                // moved by a reorder (only later relative to the others)
-    std::vector<int> movedEarlier;              // moved by an adoption (a block, earlier relative to the others)
-    int dirtyLo, dirtyHi;                       // positions that changed (step 3)
+    std::vector<int> movedLater;                // searched in a round (only later relative to the others)
+    std::vector<int> movedEarlier;              // in an adopted block (earlier relative to the others)
+    std::vector<int> detached;                  // taken out of their children's minI trees
 
-    // noted new vertices (step 1), built into the order by materialize()
-    std::vector<std::vector<int>> afterList;    // per anchor: new vertices noted after it (in noting order)
-    std::vector<std::vector<int>> beforeList;   // per anchor: new vertices noted before it (in noting order)
+    // new vertices, built into the order by materialize()
+    std::vector<std::vector<int>> afterList;    // per anchor: new vertices noted after it
+    std::vector<std::vector<int>> beforeList;   // per anchor: new vertices noted before it
     std::vector<int> anchors;                   // anchors with a non-empty list (to clear them)
-    std::vector<int> pendAnchor;                // per noted vertex: its anchor
-    std::vector<char> pendBefore;               // per noted vertex: 1 before its anchor, 0 after
-    int pendingCount = 0;
 
     // stamps: set membership per batch without clearing
-    std::vector<unsigned> stampLater, stampEarlier, stampIn, stampOut, stampNew;
+    std::vector<unsigned> stampLater, stampEarlier, stampIn, stampOut, stampNew, stampParent, stampDetached;
     unsigned stamp = 0;
+    // per round: searched vertices, tails and their edges (in order)
+    std::vector<unsigned> markEpoch, tailEpoch;
+    std::vector<int> tailFirst, tailLast, edgeNext;
+    std::vector<int> out;                       // the window, emitted from right to left
+    unsigned epoch = 0;
 
     void fitSize(int n);
     void beginBatch();
-    void notePlacement(int caseNo, int ru, int rv, bool vWasSource);
+    void notePlacement(int caseNo, int ru, int rv, bool vOnly0);
     void noteVertex(int x, int anchor, bool before);
-    void materialize();
-    bool isPending(int x) const { return x >= this->topo.size(); }
-    long long vkey(int x) const;
+    void materialize(int nBefore, int nAfter);
     void adoptSubtree(GraphContext *g, int u, int v);
-    void flushReorder();
-    void markDirty(int lo, int hi);
-    void copyOrder();
+    void repairRound(GraphContext *g);
+    long long search(GraphContext *g, int v, int tail, int bound);
+    void detachFromTrees(GraphContext *g, int x);
     void updateMinIMaxO(GraphContext *g);
 #ifndef BATCH_MINI_SCAN
-    void detachMovedFromTrees(GraphContext *g);   // before step 3
-    void attachMovedToTrees(GraphContext *g);     // after step 3
+    void attachToTrees(GraphContext *g);
 #endif
     void minIOf(GraphContext *g, int x);
     void maxOOf(GraphContext *g, int x);

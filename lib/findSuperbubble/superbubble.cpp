@@ -104,12 +104,12 @@
         this->SB.clear();
     }
  
-    /*
-    void SuperbubbleCalculation::insertBatch(DFSCONTEXT *sdfs, GraphContext *g) {
-	    sdfs->updateEdge(g);
+    // a batch of edges (input ids): the DFS strategy updates the order, minI
+    // and maxO once for all of them
+    void SuperbubbleCalculation::insertBatch(DFSCONTEXT *sdfs, GraphContext *g, const std::vector<std::pair<int,int>> &edges) {
+	    sdfs->updateEdgeBatch(g, edges);
 	    this->SB.clear();
 	}
-	*/
 
 
 

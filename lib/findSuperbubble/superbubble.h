@@ -27,6 +27,7 @@ public:
     void writeSuperbubbles(GraphContext *g, std::ostream &out);
     int numberOfSuperbubbles();
     void insertE(DFSCONTEXT *sdfs,GraphContext *g,int u, int v);
-    void insertBatch(DFSCONTEXT *sdfs, GraphContext *g);
+    // the edges of a batch (input ids), applied at once by the DFS strategy
+    void insertBatch(DFSCONTEXT *sdfs, GraphContext *g, const std::vector<std::pair<int,int>> &edges);
 };
 #endif	
