@@ -42,8 +42,12 @@ OUTPUT (.tex files in --outdir)
                                  SBCompute: total time of that step per
                                  algorithm (and speedup / improvement)
     table_TotalTime.tex          total time and peak memory
-    table_<case>_<step>_<mode>.tex   the same per case (Case1..Case5)
-    table_cases.tex              number of updates of each case
+    table_cases.tex              perEdge: number of updates of each case (and share)
+    table_case_time.tex          perEdge: time per case, every algorithm
+    table_case_time_best.tex     perEdge: the same, static and the best one
+    table_case_steps_<ID>.tex    perEdge: time per case and step, one algorithm
+    table_batch.tex              perBatch: what the batch algorithm does
+                                 per genome
     table_activity.tex           affected / explored vertices and edges,
                                  total and share of the graph (perEdge:
                                  edge-by-edge; perBatch: edge-by-edge vs
@@ -277,35 +281,156 @@ def build_summary_rows_for_metric(csv_paths: list, metric_name: str, mode: str):
 
 def build_case_table(csv_paths: list):
     """
-    Dataset | Case1..Case5 | TotalCases
+    Dataset | Edges | Case1..Case5: number of edge updates of each case and
+    its share ("289 (3.8%)"). The cases are those of the edge-by-edge
+    algorithms (all four classify every edge the same way; the CSV takes
+    them from incBST).
+    """
+    rows = []
+    for path in csv_paths:
+        df = load_updates(path)
+        name = infer_dataset_name_from_path(path)
+        present = [c for c in CASE_COLUMNS_CANDIDATES if c in df.columns]
+        row = {"Dataset": name}
+        if not present:
+            row["Edges"] = "-"
+            rows.append(row)
+            continue
+        totals = {c: int(pd.to_numeric(df[c], errors="coerce").fillna(0).sum()) for c in present}
+        all_edges = sum(totals.values())
+        row["Edges"] = f"{all_edges:,}"
+        for c in CASE_COLUMNS_CANDIDATES:
+            row[c] = f"{totals[c]:,} ({100.0 * totals[c] / all_edges:.1f}%)" if c in totals and all_edges else "-"
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------- cases (perEdge)
+# Time per case only exists in perEdge: there every row is one edge with one
+# case. (In perBatch a row is a genome with edges of every case.)
+
+CASE_TIME_ALGORITHMS = ["static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1"]
+BEST_EDGE_BY_EDGE = ["incMinIBSTH1", "incMinIBST", "incBST"]
+STEP_COLUMNS = [("Insert", "InsertTime"), ("DFS", "DFSTime"), ("TopoOrder", "TopologicalOrderTime"),
+                ("MinI", "MinITime"), ("MaxO", "MaxOTime"), ("SBCompute", "SBComputeTime")]
+
+
+def load_updates(path):
+    """The CSV without the base graph row."""
+    df = pd.read_csv(path, low_memory=False)
+    if "Step" in df.columns:
+        df = df[df["Step"].astype(str) != "Base"]
+    return df
+
+
+def case_of_rows(df):
+    """perEdge: the case (1-5) of every row, 0 if a row has none."""
+    cols = [c for c in CASE_COLUMNS_CANDIDATES if c in df.columns]
+    if not cols:
+        return pd.Series(0, index=df.index)
+    m = df[cols].apply(pd.to_numeric, errors="coerce").fillna(0)
+    case = m.values.argmax(axis=1) + 1
+    case[m.values.max(axis=1) <= 0] = 0
+    return pd.Series(case, index=df.index)
+
+
+def num(df, col):
+    return pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+
+def build_case_time_table(csv_paths: list, algorithms: list):
+    """
+    perEdge: Dataset | Algorithm | Total | Case 1..5: total time (s) of each
+    algorithm on the edges of each case, with its share of the algorithm's
+    total time and its speedup over static on the same edges, e.g.
+    "0.147 (11%, 3.7x)"; Total: "1.388 (10.4x)".
     """
     rows = []
 
+    def speedup(static_t, t):
+        return f"{static_t / t:.1f}x" if static_t is not None and t > 0 else None
+
     for path in csv_paths:
-        df = pd.read_csv(path)
-        df = normalize_dataframe(df, path)
+        df = load_updates(path)
         name = infer_dataset_name_from_path(path)
+        case = case_of_rows(df)
+        static_total, static_case = None, {}
+        if "staticTotalTime" in df.columns:
+            st = num(df, "staticTotalTime")
+            static_total = float(st.sum())
+            static_case = {k: float(st[case == k].sum()) for k in range(1, 6)}
+        for a in algorithms:
+            col = f"{a}TotalTime"
+            if col not in df.columns:
+                continue
+            t = num(df, col)
+            total = float(t.sum())
+            sp = speedup(static_total, total) if a != "static" else None
+            row = {"Dataset": name, "Algorithm": DISPLAY_NAMES.get(a, a),
+                   "Total": f"{total:.3f}" + (f" ({sp})" if sp else "")}
+            for k in range(1, 6):
+                v = float(t[case == k].sum())
+                if total <= 0:
+                    row[f"Case {k}"] = "-"
+                    continue
+                spk = speedup(static_case.get(k), v) if a != "static" else None
+                row[f"Case {k}"] = f"{v:.3f} ({100.0 * v / total:.0f}%" + (f", {spk})" if spk else ")")
+            rows.append(row)
+    return pd.DataFrame(rows)
 
-        present_cases = [c for c in CASE_COLUMNS_CANDIDATES if c in df.columns]
-        if not present_cases:
-            # If your cases are stored as algorithm-prefixed, you can extend here later.
-            rows.append({"Dataset": name, "TotalCases": "-"})
+
+def build_case_step_table(csv_paths: list, algo: str):
+    """
+    perEdge, one algorithm: Dataset | Case | Insert .. SBCompute | Total: time
+    (ms) of each step on the edges of each case. The Total column is the
+    algorithm's row of table_case_time (in ms).
+    """
+    rows = []
+    for path in csv_paths:
+        df = load_updates(path)
+        if f"{algo}TotalTime" not in df.columns:
             continue
+        name = infer_dataset_name_from_path(path)
+        case = case_of_rows(df)
+        for k in range(1, 6):
+            sel = df[case == k]
+            row = {"Dataset": name, "Case": str(k), "Edges": f"{len(sel):,}"}
+            total = 0.0
+            for label, suffix in STEP_COLUMNS:
+                col = f"{algo}{suffix}"
+                v = 1000.0 * float(num(sel, col).sum()) if col in sel.columns else 0.0
+                total += v
+                row[label] = f"{v:,.1f}"
+            row["Total"] = f"{total:,.1f}"
+            rows.append(row)
+    return pd.DataFrame(rows)
 
-        totals = {}
-        total_cases_sum = 0
-        for c in present_cases:
-            s = int(df[c].fillna(0).sum())
-            totals[c] = s
-            total_cases_sum += s
 
-        row = {"Dataset": name}
-        for c in CASE_COLUMNS_CANDIDATES:
-            row[c] = str(totals.get(c, "-"))
-        row["TotalCases"] = str(total_cases_sum)
+BATCH_TABLE_COLUMNS = [("NewVertices", "New vertices"),
+                       ("SourcesPlaced", "Sources placed under their first parent"),
+                       ("BackwardEdges", "Backward edges repaired"),
+                       ("Rounds", "Reorder rounds"),
+                       ("Adoptions", "Adoptions")]
 
+
+def build_batch_table(csv_paths: list):
+    """perBatch: what the batch algorithm did, total over the genomes (mean per genome)."""
+    rows = []
+    for path in csv_paths:
+        df = load_updates(path)
+        if "incBSTBatchTotalTime" not in df.columns:
+            continue
+        name = infer_dataset_name_from_path(path)
+        g = len(df)
+        row = {"Dataset": name, "Genomes": str(g)}
+        for col, label in BATCH_TABLE_COLUMNS:
+            c = f"incBSTBatch{col}"
+            if c in df.columns and g:
+                v = float(num(df, c).sum())
+                row[label] = f"{int(v):,} ({v / g:,.1f})"
+            else:
+                row[label] = "-"
         rows.append(row)
-
     return pd.DataFrame(rows)
 
 def build_vertex_activity_table(csv_paths):
@@ -461,72 +586,6 @@ def build_size_haplotype_table(csv_paths: list):
 
     return pd.DataFrame(rows)
 
-def build_case_metric_table(csv_paths: list, case_name: str, metric_name: str, mode: str):
-    """
-    Build table per case per metric.
-    """
-
-    rows = []
-    metric_suffix = METRICS[metric_name]
-
-    for path in csv_paths:
-        df = pd.read_csv(path)
-        df = normalize_dataframe(df, path)
-        name = infer_dataset_name_from_path(path)
-
-        if case_name not in df.columns:
-            continue
-
-        # Filter rows where that case occurred
-        case_df = df[df[case_name] > 0]
-
-        if case_df.empty:
-            continue
-
-        simple_total = float(case_df[f"static{metric_suffix}"].fillna(0).sum())
-        inc_total = float(case_df[f"incRecompute{metric_suffix}"].fillna(0).sum())
-        bst_total = float(case_df[f"incBST{metric_suffix}"].fillna(0).sum())
-        diffmaxo_total   = float(case_df[f"incMinIBST{metric_suffix}"].fillna(0).sum()) if f"incMinIBST{metric_suffix}" in case_df.columns else float("nan")
-        h1_total = float(case_df[f"incMinIBSTH1{metric_suffix}"].fillna(0).sum()) if f"incMinIBSTH1{metric_suffix}" in case_df.columns else float("nan")
-        batch_total = float(case_df[f"incBSTBatch{metric_suffix}"].fillna(0).sum()) if f"incBSTBatch{metric_suffix}" in case_df.columns else float("nan")
-
-        inc_speedup = compute_speedup(simple_total, inc_total)
-        bst_speedup = compute_speedup(simple_total, bst_total)
-        diffmaxo_speedup = compute_speedup(simple_total, diffmaxo_total)
-
-        inc_percent = pct_improvement(simple_total, inc_total)
-        bst_percent = pct_improvement(simple_total, bst_total)
-        diffmaxo_percent = pct_improvement(simple_total, diffmaxo_total)
-
-        if mode == "time":
-            row = {
-                "Dataset": name,
-                "static": format_float(simple_total),
-                "incRecompute": format_float(inc_total),
-                "incBST": format_float(bst_total),
-                "incMinIBST":format_float(diffmaxo_total),
-                "incMinIBSTH1": format_float(h1_total),
-                "incBSTBatch": format_float(batch_total),
-                "incRecompute_Speedup": format_float(inc_speedup, precision=2),
-                "incBST_Speedup": format_float(bst_speedup, precision=2),
-                "incMinIBST_Speedup": format_float(diffmaxo_speedup, precision=2),
-                "incMinIBSTH1_Speedup": format_float(compute_speedup(simple_total, h1_total), precision=2),
-                "incBSTBatch_Speedup": format_float(compute_speedup(simple_total, batch_total), precision=2),
-            }
-        else:
-            row = {
-                "Dataset": name,
-                "incRecompute_Imp(%)": format_float(inc_percent, precision=2),
-                "incBST_Imp(%)": format_float(bst_percent, precision=2),
-                "incMinIBST_Imp(%)": format_float(diffmaxo_percent, precision=2),
-                "incMinIBSTH1_Imp(%)": format_float(pct_improvement(simple_total, h1_total), precision=2),
-                "incBSTBatch_Imp(%)": format_float(pct_improvement(simple_total, batch_total), precision=2),
-            }
-
-        rows.append(row)
-
-    return pd.DataFrame(rows)    
-
 def detect_mode_from_path(path):
 
     p = path.lower()
@@ -681,16 +740,19 @@ def main():
             out_tex=out_tex
         )
 
-    # -------- cases table --------
-    cases_df = build_case_table(csv_paths)
+    # -------- cases table (perEdge: one case per edge; perBatch has table_batch) --------
+    cases_df = build_case_table(csv_paths) if detect_mode_from_path(csv_paths[0]) == "perEdge" else pd.DataFrame()
     out_tex = os.path.join(args.outdir, "table_cases.tex")
-    generate_latex_table(
-        cases_df,
-        columns=["Dataset"] + CASE_COLUMNS_CANDIDATES + ["TotalCases"],
-        caption="Case distribution across datasets (sum across all steps)",
-        label="tab:cases_summary",
-        out_tex=out_tex
-    )
+    if not cases_df.empty:
+        generate_latex_table(
+            cases_df,
+            columns=["Dataset", "Edges"] + CASE_COLUMNS_CANDIDATES,
+            caption=("Edge updates per case (number and share). 1: u new, 2: v new, 3: both new, "
+                     "4: u after v (the order is repaired), 5: u before v (the order stays valid). "
+                     "All edge-by-edge algorithms classify every edge the same way."),
+            label="tab:cases_summary",
+            out_tex=out_tex
+        )
 
     # -------- peak memory per algorithm --------
     memory_df = build_memory_table(csv_paths)
@@ -731,37 +793,47 @@ def main():
         out_tex=out_tex
     )
 
-    # -------- case specific metric tables --------
-    for case_name in CASE_COLUMNS_CANDIDATES:
-        for metric_name in ["Insert","DFS", "TopoOrder", "MinI", "MaxO", "SBCompute"]:
-
-            case_df = build_case_metric_table(csv_paths, case_name, metric_name, mode)
-
-            if case_df.empty:
+    # -------- cases: time per case and per step (perEdge), batch table (perBatch) --------
+    data_mode = detect_mode_from_path(csv_paths[0]) if csv_paths else "perEdge"
+    if data_mode == "perEdge":
+        generate_latex_table(
+            build_case_time_table(csv_paths, CASE_TIME_ALGORITHMS),
+            columns=["Dataset", "Algorithm", "Total"] + [f"Case {k}" for k in range(1, 6)],
+            caption=("Time per case (s): total time of each algorithm on the edge updates of each "
+                     "case; in brackets its share of the algorithm's total time and its speedup "
+                     "over static on the same edges (x)."),
+            label="tab:case_time",
+            out_tex=os.path.join(args.outdir, "table_case_time.tex"))
+        generate_latex_table(
+            build_case_time_table(csv_paths, ["static"] + BEST_EDGE_BY_EDGE[:1]),
+            columns=["Dataset", "Algorithm", "Total"] + [f"Case {k}" for k in range(1, 6)],
+            caption=("Time per case (s), static and the best edge-by-edge algorithm: total time on "
+                     "the edge updates of each case; in brackets its share of the algorithm's total "
+                     "time and its speedup over static on the same edges (x)."),
+            label="tab:case_time_best",
+            out_tex=os.path.join(args.outdir, "table_case_time_best.tex"))
+        for algo in CASE_TIME_ALGORITHMS:
+            step_df = build_case_step_table(csv_paths, algo)
+            if step_df.empty:
                 continue
-
-            if mode == "time":
-                columns = ["Dataset", "static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1", "incBSTBatch", "incRecompute_Speedup", "incBST_Speedup", "incMinIBST_Speedup", "incMinIBSTH1_Speedup", "incBSTBatch_Speedup"]
-                caption = f"{metric_name} time comparison for {case_name}"
-                label = f"tab:{case_name.lower()}_{metric_name.lower()}_time"
-            else:
-                columns = ["Dataset", "incRecompute_Imp(%)", "incBST_Imp(%)", "incMinIBST_Imp(%)", "incMinIBSTH1_Imp(%)", "incBSTBatch_Imp(%)"]
-                caption = f"{metric_name} percentage improvement for {case_name}"
-                label = f"tab:{case_name.lower()}_{metric_name.lower()}_percent"
-
-            out_tex = os.path.join(
-                args.outdir,
-                f"table_{case_name}_{metric_name}_{mode}.tex"
-            )
-
             generate_latex_table(
-                case_df,
-                columns=columns,
-                caption=caption,
-                label=label,
-                out_tex=out_tex
-            )
-
+                step_df,
+                columns=["Dataset", "Case", "Edges"] + [l for l, _ in STEP_COLUMNS] + ["Total"],
+                caption=(f"{DISPLAY_NAMES.get(algo, algo)}: time (ms) of each step on the edge updates "
+                         "of each case (Total = its row of the time-per-case table)."),
+                label=f"tab:case_steps_{algo}",
+                out_tex=os.path.join(args.outdir, f"table_case_steps_{algo}.tex"))
+    else:
+        batch_df = build_batch_table(csv_paths)
+        if not batch_df.empty:
+            generate_latex_table(
+                batch_df,
+                columns=["Dataset", "Genomes"] + [l for _, l in BATCH_TABLE_COLUMNS],
+                caption=("What the batch algorithm does per genome: total over all genomes and, in "
+                         "brackets, the mean per genome. Reorder rounds: one for the backward edges "
+                         "of a genome (if it has any) plus one per adoption of an old source."),
+                label="tab:batch",
+                out_tex=os.path.join(args.outdir, "table_batch.tex"))
 
     # --- Activity table: affected / explored vertices and edges ---
     act_df, act_cols, act_mode, act_algos = build_activity_table(csv_paths)
