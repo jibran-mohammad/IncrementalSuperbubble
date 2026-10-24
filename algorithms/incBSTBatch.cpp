@@ -126,7 +126,10 @@ public:
         }
         #endif
         #ifndef BENCHMARK
-        timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5 AffectedVertices ExploredVertices TotalVertices TotalEdges TotalAffectedEdges TotalExploredEdges\n";
+        // per genome: what the batch did (NewVertices SourcesPlaced BackwardEdges
+        // Rounds Adoptions, see IncrementalDFSTREEBatch::BatchCounts) instead of
+        // the per-edge cases of the other algorithms
+        timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count NewVertices SourcesPlaced BackwardEdges Rounds Adoptions AffectedVertices ExploredVertices TotalVertices TotalEdges TotalAffectedEdges TotalExploredEdges\n";
         #endif
         //timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5\n";
         // --- 2. Process Haplotype Additions Incrementally ---
@@ -181,11 +184,6 @@ public:
             incdfs.latestTimes.maxOTime = 0.0;
             incdfs.vertexCount.countAffectedVertices = 0;
             incdfs.vertexCount.countExploredVertices = 0;
-            incdfs.edgeTypes.case1 = 0;
-            incdfs.edgeTypes.case2 = 0;
-            incdfs.edgeTypes.case3 = 0;
-            incdfs.edgeTypes.case4 = 0;
-            incdfs.edgeTypes.case5 = 0;
             incdfs.vertexCount.totalEdges = 0;
             incdfs.vertexCount.totalExploredEdges = 0;
             incdfs.vertexCount.totalAffectedEdges = 0;
@@ -215,7 +213,7 @@ public:
                 end = std::chrono::high_resolution_clock::now();
                 superbubbleTime = std::chrono::duration<double>(end - start).count();
                 totalTime = incdfs.latestTimes.insertTime + incdfs.latestTimes.dfsTime + incdfs.latestTimes.topologicalOrderTime + incdfs.latestTimes.minITime + incdfs.latestTimes.maxOTime + superbubbleTime;
-                timeFile << update_counter << " " << clean_hap_name << " " << incdfs.latestTimes.insertTime << " " << incdfs.latestTimes.dfsTime << " " << incdfs.latestTimes.topologicalOrderTime << " " << incdfs.latestTimes.minITime << " " << incdfs.latestTimes.maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.case1 << " " << incdfs.edgeTypes.case2 << " " << incdfs.edgeTypes.case3 << " " << incdfs.edgeTypes.case4 << " " << incdfs.edgeTypes.case5 << " "<< incdfs.vertexCount.countAffectedVertices << " " << incdfs.vertexCount.countExploredVertices << " " << incdfs.n << " " << incdfs.vertexCount.totalEdges << " " << incdfs.vertexCount.totalAffectedEdges << " " << incdfs.vertexCount.totalExploredEdges << "\n";
+                timeFile << update_counter << " " << clean_hap_name << " " << incdfs.latestTimes.insertTime << " " << incdfs.latestTimes.dfsTime << " " << incdfs.latestTimes.topologicalOrderTime << " " << incdfs.latestTimes.minITime << " " << incdfs.latestTimes.maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.counts.currentNewVertices << " " << incdfs.counts.currentSourcesPlaced << " " << incdfs.counts.currentBackwardEdges << " " << incdfs.counts.currentRounds << " " << incdfs.counts.currentAdoptions << " " << incdfs.vertexCount.countAffectedVertices << " " << incdfs.vertexCount.countExploredVertices << " " << incdfs.n << " " << incdfs.vertexCount.totalEdges << " " << incdfs.vertexCount.totalAffectedEdges << " " << incdfs.vertexCount.totalExploredEdges << "\n";
                 if (history) hist.record(update_counter, clean_hap_name, d, g, superbubble.SB, nBefore, hap_edge_count, totalTime);
                 #endif 
             }
@@ -246,8 +244,9 @@ public:
         timeFile.close();
         // superbubbles of the final graph -> <ID>_superbubbles.txt
         writeFinalSuperbubbles(output_path, superbubble, g);
-        std::cout << "batch algorithm: " << incdfs.rounds << " reorder rounds, " << incdfs.sourcesPlaced << " sources placed under their first parent, " << incdfs.adoptions << " adoptions (case 5, v's only parent 0; "
-                  << incdfs.repairedEdges << " backward edges repaired), " << incdfs.duplicateEdges << " duplicate edges" << std::endl;
+        std::cout << "batch algorithm: " << incdfs.counts.newVertices << " new vertices, " << incdfs.counts.sourcesPlaced << " sources placed under their first parent, "
+                  << incdfs.counts.backwardEdges << " backward edges in " << incdfs.counts.rounds << " reorder rounds, " << incdfs.counts.adoptions << " adoptions ("
+                  << incdfs.repairedEdges << " backward edges from them), " << incdfs.duplicateEdges << " duplicate edges" << std::endl;
         #endif
     }
 

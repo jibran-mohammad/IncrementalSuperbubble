@@ -98,9 +98,16 @@ public:
         double currentminITime = 0.0;
         double currentmaxOTime = 0.0;
     };
-    struct TypeOfEdgeInsertion {
-        int case1 = 0, case2 = 0, case3 = 0, case4 = 0, case5 = 0;
-        int currentcase1 = 0, currentcase2 = 0, currentcase3 = 0, currentcase4 = 0, currentcase5 = 0;
+    // what a batch did (the per-edge cases 1-5 of the other algorithms do not
+    // apply: the edges of a batch are handled together); current* = this batch
+    struct BatchCounts {
+        long long newVertices = 0;        // new vertices, placed in one pass
+        long long sourcesPlaced = 0;      // sources of the genome placed directly under their first parent
+        long long backwardEdges = 0;      // edges repaired by the reorder rounds
+        long long rounds = 0;             // reorder rounds (1 per batch with backward edges + 1 per adoption)
+        long long adoptions = 0;          // old sources that got their first parent (block moved under it)
+        long long currentNewVertices = 0, currentSourcesPlaced = 0, currentBackwardEdges = 0;
+        long long currentRounds = 0, currentAdoptions = 0;
     };
     struct CountOfVertices {
         int countAffectedVertices = 0;        // positions in the reorder windows and moved blocks
@@ -115,13 +122,10 @@ public:
         int currentTotalAffectedEdges = 0;
     };
     IncrementalUpdateTimes latestTimes;
-    TypeOfEdgeInsertion edgeTypes;
+    BatchCounts counts;
     CountOfVertices vertexCount;
     long long duplicateEdges = 0;     // edges already in the graph (ignored)
-    long long adoptions = 0;          // case 5 with v's only parent 0 (block moved)
     long long repairedEdges = 0;      // backward edges collected by adoptions
-    long long rounds = 0;             // reorder rounds (1 per batch + 1 per adoption)
-    long long sourcesPlaced = 0;      // sources of a genome placed directly under their first parent
 
 #ifndef BATCH_MINI_SCAN
     // minIbst[c]: the real parents of c, ordered by position (minI[c] = minimum)

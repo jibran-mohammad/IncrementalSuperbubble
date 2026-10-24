@@ -678,6 +678,8 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         TIME_METRICS = ['InsertTime', 'DFSTime', 'TopologicalOrderTime', 'MinITime', 'MaxOTime', 'SBComputeTime', 'TotalTime']
         VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
         GRAPH_METRICS = ['TotalVertices', 'TotalEdges']
+        # the batch algorithm writes what a batch did instead of the per-edge cases
+        BATCH_METRICS = ['NewVertices', 'SourcesPlaced', 'BackwardEdges', 'Rounds', 'Adoptions']
         PREFIXES = ['static', 'incRecompute', 'incBST', 'incBSTBatch','incMinIBST','incMinIBSTH1']
 
         final_order = BASE_COLS + ['SuperbubbleCount']
@@ -700,6 +702,11 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
                 col_name = f'{prefix}{metric}'
                 if col_name in merged_df.columns:
                     final_order.append(col_name)            
+
+        for metric in BATCH_METRICS:
+            col_name = f'incBSTBatch{metric}'
+            if col_name in merged_df.columns:
+                final_order.append(col_name)
         
         
         # 3. Add Case metrics (now just the 5 CaseX columns)
@@ -718,7 +725,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         for col in merged_df.columns:
             if 'Time' in col or 'Compute' in col:
                 merged_df[col] = pd.to_numeric(merged_df[col], errors='coerce').astype(float).fillna(0.0)
-            elif col in ['SuperbubbleCount', 'Nodes', 'Edges'] or col in CASE_METRICS or any(col.endswith(s) for s in ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']):
+            elif col in ['SuperbubbleCount', 'Nodes', 'Edges'] or col in CASE_METRICS or any(col.endswith(s) for s in ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges'] + BATCH_METRICS):
                 merged_df[col] = pd.to_numeric(merged_df[col], errors='coerce').astype('Int64').fillna(0)
             
         merged_df['HaplotypeName'] = merged_df['HaplotypeName'].fillna('N/A')

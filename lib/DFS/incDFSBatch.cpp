@@ -177,8 +177,7 @@
                     // directly after u (instead of an adoption or a reorder)
                     dDeferred[rv - nBefore] = 0;
                     this->noteVertex(rv, ru, false);
-                    this->sourcesPlaced++;
-                    this->edgeTypes.currentcase5++;
+                    this->counts.currentSourcesPlaced++;
                     this->newInputEdges.push_back(e);
                     this->realEdges.push_back(std::make_pair(ru, rv));
                 }
@@ -191,14 +190,12 @@
                 if (!ku && !kv) {
                     // case 3: u, v directly before the sink (u a source, v its child)
                     ru = fresh(e.first); rv = fresh(e.second);
-                    this->edgeTypes.currentcase3++;
                     defer(ru, 1, true, seq++);
                     this->noteVertex(rv, ru, false);
                 }
                 else if (!ku) {
                     // case 1: u directly after 0, or in v's place if v's only parent was 0
                     ru = fresh(e.first);
-                    this->edgeTypes.currentcase1++;
                     if (hasParent(rv)) defer(ru, 0, false, seq++);
                     else if (deferred(rv)) {
                         // v is a source of this genome: u takes its (default) place, v hangs under u
@@ -212,7 +209,6 @@
                 else {
                     // case 2: v directly after u (u may itself be new)
                     rv = fresh(e.second);
-                    this->edgeTypes.currentcase2++;
                     this->noteVertex(rv, ru, false);
                 }
                 this->newInputEdges.push_back(e);
@@ -270,22 +266,12 @@
             BATCH_TIMER_ADD(this->latestTimes.currentinsertTime)
             }
             if (adoption) {
-                if (this->reverseTopologicalOrder[e.u] < this->reverseTopologicalOrder[e.v]) {
-                    this->edgeTypes.currentcase5++;
-                    this->adoptSubtree(g, e.u, e.v);
-                }
-                else {
-                    this->edgeTypes.currentcase4++;
-                    this->pending.push_back(std::make_pair(e.u, e.v));
-                }
+                if (this->reverseTopologicalOrder[e.u] < this->reverseTopologicalOrder[e.v]) this->adoptSubtree(g, e.u, e.v);
+                else this->pending.push_back(std::make_pair(e.u, e.v));
             }
             else if (this->reverseTopologicalOrder[e.u] > this->reverseTopologicalOrder[e.v]) {
-                this->edgeTypes.currentcase4++;              // points backwards
-                this->pending.push_back(std::make_pair(e.u, e.v));
-            }
-            else {
-                this->edgeTypes.currentcase5++;              // the order stays valid
-            }
+                this->pending.push_back(std::make_pair(e.u, e.v));   // points backwards
+            }                                                         // otherwise the order stays valid
         }
         this->repairRound(g);
         this->vertexCount.currentTotalEdges = g->displayNumberEdges();
@@ -299,11 +285,12 @@
         this->latestTimes.topologicalOrderTime += this->latestTimes.currenttopologicalOrderTime;
         this->latestTimes.minITime += this->latestTimes.currentminITime;
         this->latestTimes.maxOTime += this->latestTimes.currentmaxOTime;
-        this->edgeTypes.case1 += this->edgeTypes.currentcase1;
-        this->edgeTypes.case2 += this->edgeTypes.currentcase2;
-        this->edgeTypes.case3 += this->edgeTypes.currentcase3;
-        this->edgeTypes.case4 += this->edgeTypes.currentcase4;
-        this->edgeTypes.case5 += this->edgeTypes.currentcase5;
+        this->counts.currentNewVertices = nAfter - nBefore;
+        this->counts.newVertices += this->counts.currentNewVertices;
+        this->counts.sourcesPlaced += this->counts.currentSourcesPlaced;
+        this->counts.backwardEdges += this->counts.currentBackwardEdges;
+        this->counts.rounds += this->counts.currentRounds;
+        this->counts.adoptions += this->counts.currentAdoptions;
         this->vertexCount.countAffectedVertices += this->vertexCount.currentcountAffectedVertices;
         this->vertexCount.countExploredVertices += this->vertexCount.currentcountExploredVertices;
         this->vertexCount.totalAffectedEdges += this->vertexCount.currentTotalAffectedEdges;
@@ -320,8 +307,8 @@
         this->latestTimes.currenttopologicalOrderTime = 0.0;
         this->latestTimes.currentminITime = 0.0;
         this->latestTimes.currentmaxOTime = 0.0;
-        this->edgeTypes.currentcase1 = this->edgeTypes.currentcase2 = this->edgeTypes.currentcase3 = 0;
-        this->edgeTypes.currentcase4 = this->edgeTypes.currentcase5 = 0;
+        this->counts.currentNewVertices = this->counts.currentSourcesPlaced = this->counts.currentBackwardEdges = 0;
+        this->counts.currentRounds = this->counts.currentAdoptions = 0;
         this->vertexCount.currentcountAffectedVertices = 0;
         this->vertexCount.currentcountExploredVertices = 0;
         this->vertexCount.currentTotalAffectedEdges = 0;
@@ -432,6 +419,7 @@
         for (int i = 0; i < (int)this->pending.size(); i++) {
             int u = this->pending[i].first, v = this->pending[i].second;
             if (this->reverseTopologicalOrder[u] < this->reverseTopologicalOrder[v]) continue;   // already consistent
+            this->counts.currentBackwardEdges++;
             if (this->tailEpoch[u] != this->epoch) { this->tailEpoch[u] = this->epoch; this->tailFirst[u] = i; }
             else this->edgeNext[this->tailLast[u]] = i;
             this->tailLast[u] = i;
@@ -439,7 +427,7 @@
             hi = std::max(hi, this->reverseTopologicalOrder[u]);
         }
         if (hi >= 0) {
-            this->rounds++;
+            this->counts.currentRounds++;
             this->out.clear();
             for (int p = hi; p >= lo; p--) {
                 int x = this->topOrd[p];
@@ -542,7 +530,7 @@
             e++;
         }
         int to = this->reverseTopologicalOrder[u] + 1;
-        this->adoptions++;
+        this->counts.currentAdoptions++;
         if (to >= s) return;
         // the block changes its relative order: out of the minI trees first
         for (int p = s; p <= e; p++) this->detachFromTrees(g, this->topOrd[p]);
