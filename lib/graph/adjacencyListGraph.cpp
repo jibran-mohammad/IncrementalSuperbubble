@@ -57,7 +57,7 @@
               not change the DFS tree (1 is the first vertex visited) and are
               ignored by maxO.
            */
-           this->adjLOutgoing[0].remove(this->reverseMapping[y]);
+           this->adjLOutgoing[0].erase(this->sourcePos[this->reverseMapping[y]]);
            this->adjLIncoming[this->reverseMapping[y]].remove(0);
            this->sizeE--;
            this->artificialParentRemoved = true;
@@ -71,6 +71,8 @@
        */
        if(this->incoming[this->reverseMapping[x]] == 0 && this->reverseMapping[x]!=0) {
           this->adjLOutgoing[0].push_back(this->reverseMapping[x]);
+          if ((int)this->sourcePos.size() <= this->reverseMapping[x]) this->sourcePos.resize(this->reverseMapping[x] + 1);
+          this->sourcePos[this->reverseMapping[x]] = std::prev(this->adjLOutgoing[0].end());
           this->sizeE++;
           this->adjLIncoming[this->reverseMapping[x]].push_back(0);
           this->incoming[this->reverseMapping[x]] = 2 ;

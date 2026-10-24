@@ -4,6 +4,7 @@
 #include<list>
 #include<map>
 #include<algorithm>
+#include<iterator>
 
 /*
 Graph interface defining necessary member functions for the graph and 
@@ -19,6 +20,11 @@ public:
 	//adjacency List for incoming edges.
 
 	std::vector<std::list<int> > adjLIncoming;
+	// for a vertex whose only parent is the artificial source 0: its place in
+	// adjLOutgoing[0], so that the edge 0 -> y is removed in O(1) when y gets
+	// a real parent (a std::list iterator stays valid until its element is
+	// erased); list.remove(y) scanned all of 0's children
+	std::vector<std::list<int>::iterator> sourcePos;
 
 	/*
 	array storing vertices of graph, indices will represent a 
