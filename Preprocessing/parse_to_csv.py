@@ -188,6 +188,7 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     current_haplotype_edges = 0
     current_haplotype_nodes = 0
 
+    baseline_memory = 0
     pending_block_rows = []
     prev_edges = 0
     prev_nodes = 0
@@ -277,6 +278,10 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
             # --- Line N: Edges and Nodes ---
             stats_line = next(line_iter).strip()
             
+            if stats_line.startswith("BaselineMemory"):
+                # the program's memory before reading the input (baseline of PeakMemory)
+                baseline_memory = int(stats_line.split(':')[1].strip())
+                continue
             if "PeakMemory" in stats_line:
                 # Extract the peak memory value
                 peak_memory = int(stats_line.split(':')[1].strip())
@@ -469,7 +474,8 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
         df['Step'] = df['Step'].astype(object)
         df.loc[df['Step'] == 0, 'Step'] = 'Base'
     
-    info = {'genomes': len(genome_names), 'final_edges': prev_edges, 'final_nodes': prev_nodes}
+    info = {'genomes': len(genome_names), 'final_edges': prev_edges, 'final_nodes': prev_nodes,
+            'baseline_memory': baseline_memory}
     return df, peak_memory, info
 
 def real_graph_size(time_dir_path: pathlib.Path):
@@ -554,6 +560,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
 
     all_data = []
     peak_memory_kb = {}        # algorithm ID -> PeakMemory(KB) of its time file
+    baseline_memory_kb = {}    # algorithm ID -> BaselineMemory(KB) (0 if the file has none)
     dataset_info = {}          # genomes and final graph size (the same in every time file)
 
     for (prefix, _fname), (filepath, time_col) in zip(ALGORITHMS.items(), files_to_parse.items()):
@@ -564,6 +571,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
             all_data.append(df)
             if peak_mem:
                 peak_memory_kb[prefix] = peak_mem
+                baseline_memory_kb[prefix] = (info or {}).get('baseline_memory', 0)
 
     if not all_data:
         print("  No data was parsed. No CSV will be generated.")
@@ -738,9 +746,9 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         # next to the CSV; read by csvToLatex.py (table_PeakMemory.tex)
         memory_filename = time_dir_path / "peak_memory.csv"
         with open(memory_filename, "w") as mf:
-            mf.write("Algorithm,PeakMemoryKB\n")
+            mf.write("Algorithm,PeakMemoryKB,BaselineMemoryKB\n")
             for algo_id, kb in peak_memory_kb.items():
-                mf.write(f"{algo_id},{kb}\n")
+                mf.write(f"{algo_id},{kb},{baseline_memory_kb.get(algo_id, 0)}\n")
         
         # Genomes and final graph size, next to the CSV; read by csvToLatex.py
         # (table_size_haplotypes.tex). Counted from the time file, so genomes

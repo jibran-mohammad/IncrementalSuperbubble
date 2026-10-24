@@ -589,7 +589,10 @@ def main():
                      f"{tool_label} time / {algo_label} time, and peak memory"
                      + (f" ({tool_label} baseline: its memory without the graph)" if show_baseline else "")
                      + ". "
-                     f"Preprocessing produces the input of both and is not included in either time."
+                     f"Preprocessing produces the input of both and is not included in either time. "
+                     f"{algo_label} time: wall time of the whole program in the BENCHMARK build (no "
+                     f"timers), mean over the timed runs, including reading the input and the base graph; "
+                     f"it therefore differs from the per-update sums of the algorithm tables."
                      + sampled_note),
             label=f"tab:{args.tool}_performance_{mode}",
             out_tex=str(outdir / f"performance_{mode}.tex"),

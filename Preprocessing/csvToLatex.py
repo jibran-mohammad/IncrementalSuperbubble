@@ -107,6 +107,25 @@ METRICS = {
 
 CASE_COLUMNS_CANDIDATES = ["Case1", "Case2", "Case3", "Case4", "Case5"]
 
+# How the times of these tables are measured (every time caption says it):
+# the per-update times written by the normal build. The tool comparison
+# (toolComparisonToLatex.py) uses another measurement: the wall time of the
+# BENCHMARK build, so the two differ.
+TIME_NOTE = ("Times: sum of the per-update times measured inside each program (normal build, "
+             "timers around every step; reading the input and building the base graph are not "
+             "included). The comparison with the external tools uses the wall time of the whole "
+             "program in the BENCHMARK build (no timers) instead, so its times differ from these.")
+
+# what each step of the step tables measures
+STEP_MEANING = {
+    "Insert": "inserting the edge into the graph and classifying it",
+    "DFS": "repairing the order (searches of the incremental DFS; static: the full DFS)",
+    "TopoOrder": "writing the new positions of the topological order",
+    "MinI": "updating minI (earliest parent of every vertex)",
+    "MaxO": "updating maxO (latest child of every vertex)",
+    "SBCompute": "computing the superbubbles from the order, minI and maxO",
+}
+
 PEAK_MEMORY_CANDIDATES = [
     "PeakMemoryMB", "PeakMemory", "Peak_Memory_MB", "Peak_Memory"
 ]
@@ -525,24 +544,34 @@ def build_total_time_table(csv_paths: list, mode: str):
 
 def build_memory_table(csv_paths: list):
     """
-    Dataset | <algorithm> (MB) ... : peak memory of every algorithm, from
-    peak_memory.csv next to each CSV (written by parse_to_csv.py from the
-    PeakMemory(KB) line of each <ID>_time.txt)
+    Dataset | <algorithm> ... : peak memory (MB) of every algorithm and, in
+    brackets, the peak minus the program's own memory measured before the
+    input is read (graph and data structures), from peak_memory.csv next to
+    each CSV (parse_to_csv.py: PeakMemory(KB) and BaselineMemory(KB) of each
+    <ID>_time.txt; time files without a baseline show the peak only)
     """
     rows = []
     for path in csv_paths:
         name = infer_dataset_name_from_path(path)
         mem_path = os.path.join(os.path.dirname(path), "peak_memory.csv")
         row = {"Dataset": name}
-        memory = {}
+        memory, baseline = {}, {}
         if os.path.exists(mem_path):
             mem = pd.read_csv(mem_path)
             memory = dict(zip(mem["Algorithm"], mem["PeakMemoryKB"]))
+            if "BaselineMemoryKB" in mem.columns:
+                baseline = dict(zip(mem["Algorithm"], mem["BaselineMemoryKB"]))
         else:
             print(f"  [!] {name}: no peak_memory.csv (run parse_to_csv.py again)")
         for algo in ALGORITHMS.values():
             kb = memory.get(algo)
-            row[algo] = format_float(kb / 1024, precision=1) if kb else "-"
+            base = baseline.get(algo, 0) or 0
+            if not kb:
+                row[algo] = "-"
+            elif base > 0:
+                row[algo] = f"{kb / 1024:.1f} ({(kb - base) / 1024:.1f})"
+            else:
+                row[algo] = format_float(kb / 1024, precision=1)
         rows.append(row)
     return pd.DataFrame(rows)
 
@@ -726,11 +755,13 @@ def main():
         out_tex = os.path.join(args.outdir, f"table_{metric_name}.tex")
         if mode == "time":
             columns = ["Dataset", "static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1", "incBSTBatch", "incRecompute_Speedup", "incBST_Speedup", "incMinIBST_Speedup", "incMinIBSTH1_Speedup", "incBSTBatch_Speedup"] 
-            caption = f"{metric_name} total time comparison across datasets"
+            caption = (f"{metric_name} time (s): {STEP_MEANING[metric_name]}, summed over all updates; "
+                       f"speedup = static / algorithm. " + TIME_NOTE)
             label = f"tab:{metric_name.lower()}_summary_time"
         else:
             columns = ["Dataset", "incRecompute_Imp(%)", "incBST_Imp(%)", "incMinIBST_Imp(%)", "incMinIBSTH1_Imp(%)", "incBSTBatch_Imp(%)"] 
-            caption = f"{metric_name} percentage improvement across datasets"
+            caption = (f"{metric_name} ({STEP_MEANING[metric_name]}): improvement over static in "
+                       f"percent. " + TIME_NOTE)
             label = f"tab:{metric_name.lower()}_summary_percent"
         generate_latex_table(
             summary_df,
@@ -759,8 +790,11 @@ def main():
     generate_latex_table(
         memory_df,
         columns=["Dataset"] + list(ALGORITHMS.values()),
-        caption="Peak memory (MB) of each algorithm (peak resident memory of the whole program, "
-                "VmHWM, mean over the runs of superbubbleRunner.py)",
+        caption=("Peak memory (MB) of each algorithm: the peak resident memory of the whole program "
+                 "(VmHWM), mean over the runs of superbubbleRunner.py; it includes the program's own "
+                 "memory (code, libraries, about 4 MB). In brackets: the peak minus that baseline, "
+                 "measured before the input is read, i.e. the memory of the graph and the "
+                 "algorithm's data structures (e.g. the minI / maxO trees)."),
         label="tab:peak_memory",
         out_tex=os.path.join(args.outdir, "table_PeakMemory.tex")
     )
@@ -769,11 +803,12 @@ def main():
     out_tex = os.path.join(args.outdir, "table_TotalTime.tex")
     if mode == "time":
         columns = ["Dataset", "static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1", "incBSTBatch", "incRecompute_Speedup", "incBST_Speedup", "incMinIBST_Speedup", "incMinIBSTH1_Speedup", "incBSTBatch_Speedup"]
-        caption = "Total time comparison across datasets (sum of the per-update times; peak memory: Table~\\ref{tab:peak_memory})"
+        caption = ("Total time (s) of each algorithm, summed over all updates (all steps), and the "
+                   "speedup = static / algorithm; peak memory: Table~\\ref{tab:peak_memory}. " + TIME_NOTE)
         label = "tab:totaltime_summary_time"
     else:
         columns = ["Dataset", "incRecompute_Imp(%)", "incBST_Imp(%)", "incMinIBST_Imp(%)", "incMinIBSTH1_Imp(%)", "incBSTBatch_Imp(%)"]
-        caption = "Total time percentage improvement across datasets"
+        caption = "Total time: improvement over static in percent. " + TIME_NOTE
         label = "tab:totaltime_summary_percent"
     generate_latex_table(
         total_df,
@@ -801,7 +836,7 @@ def main():
             columns=["Dataset", "Algorithm", "Total"] + [f"Case {k}" for k in range(1, 6)],
             caption=("Time per case (s): total time of each algorithm on the edge updates of each "
                      "case; in brackets its share of the algorithm's total time and its speedup "
-                     "over static on the same edges (x)."),
+                     "over static on the same edges (x). " + TIME_NOTE),
             label="tab:case_time",
             out_tex=os.path.join(args.outdir, "table_case_time.tex"))
         generate_latex_table(
@@ -809,7 +844,7 @@ def main():
             columns=["Dataset", "Algorithm", "Total"] + [f"Case {k}" for k in range(1, 6)],
             caption=("Time per case (s), static and the best edge-by-edge algorithm: total time on "
                      "the edge updates of each case; in brackets its share of the algorithm's total "
-                     "time and its speedup over static on the same edges (x)."),
+                     "time and its speedup over static on the same edges (x). " + TIME_NOTE),
             label="tab:case_time_best",
             out_tex=os.path.join(args.outdir, "table_case_time_best.tex"))
         for algo in CASE_TIME_ALGORITHMS:
@@ -820,7 +855,7 @@ def main():
                 step_df,
                 columns=["Dataset", "Case", "Edges"] + [l for l, _ in STEP_COLUMNS] + ["Total"],
                 caption=(f"{DISPLAY_NAMES.get(algo, algo)}: time (ms) of each step on the edge updates "
-                         "of each case (Total = its row of the time-per-case table)."),
+                         "of each case (Total = its row of the time-per-case table). " + TIME_NOTE),
                 label=f"tab:case_steps_{algo}",
                 out_tex=os.path.join(args.outdir, f"table_case_steps_{algo}.tex"))
     else:

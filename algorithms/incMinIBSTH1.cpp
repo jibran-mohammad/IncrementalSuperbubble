@@ -43,6 +43,16 @@ public:
     // Not getrusage(RUSAGE_SELF).ru_maxrss: on Linux a program started by
     // another process inherits that process's peak, so when started from the
     // Python runners it reported the runner's memory instead of its own.
+    // resident memory now (VmRSS): read at the start, before the input, it is the
+    // program's own memory without the graph (baseline of PeakMemory)
+    long getCurrentMemoryInKB() {
+        std::ifstream status("/proc/self/status");
+        std::string line;
+        while (std::getline(status, line)) {
+            if (line.compare(0, 6, "VmRSS:") == 0) return std::stol(line.substr(6));
+        }
+        return -1;
+    }
     long getMemoryUsageInKB() {
         std::ifstream status("/proc/self/status");
         std::string line;
@@ -54,6 +64,9 @@ public:
         return -1;
     }   
     void inputAndCompute(std::string output_path, std::string mode) {
+        #ifndef BENCHMARK
+        long baselineMemoryKB = getCurrentMemoryInKB();   // before the input is read
+        #endif
         // --- File path configuration ---
         //std::ofstream outFile("/home/dell/Research/Superbubble/Experiment/IncSuperbubble/output/Human/HaplotypeTestingData/outFile/SuperbubbleIncrementalAVLDFSOutput.txt");
         #ifndef BENCHMARK
@@ -282,6 +295,7 @@ public:
         //outFile.close();
         // --- Finalization ---
         #ifndef BENCHMARK
+        timeFile << "BaselineMemory(KB): " << baselineMemoryKB << "\n";
         timeFile << "PeakMemory(KB): " << getMemoryUsageInKB() << "\n";
         timeFile.close();
         // superbubbles of the final graph -> <ID>_superbubbles.txt
