@@ -44,9 +44,10 @@ OUTPUT (.tex files in --outdir)
     table_TotalTime.tex          total time and peak memory
     table_<case>_<step>_<mode>.tex   the same per case (Case1..Case5)
     table_cases.tex              number of updates of each case
-    table_vertex_ratio.tex, table_edge_ratio.tex
-                                 affected / explored vertices and edges
-                                 relative to the graph size
+    table_activity.tex           affected / explored vertices and edges,
+                                 total and share of the graph (perEdge:
+                                 edge-by-edge; perBatch: edge-by-edge vs
+                                 batch)
     table_size_haplotypes.tex    graph size per dataset
 
 Columns use the display names of the algorithms (DISPLAY_NAMES below,
@@ -555,72 +556,81 @@ def normalize_dataframe(df, path):
 
     return df   
 
-def build_vertex_ratio_table(csv_paths: list):
+# the edge-by-edge algorithm shown in the activity table (all of them give the
+# same affected / explored counts since they share the case logic)
+EDGE_BY_EDGE_FOR_ACTIVITY = ["incMinIBSTH1", "incMinIBST", "incBST"]
+
+
+def build_activity_table(csv_paths: list):
+    """
+    How much of the graph the algorithms touch, one row per dataset:
+      affected  positions that are reordered (window sizes; for the batch
+                algorithm also moved blocks), as vertices and as edges (their
+                out-degrees)
+      explored  vertices (and their out-degrees) reached by the searches
+    each as the mean per update (total / number of updates) and as a share
+    of the graph: mean per update / mean graph size (= total / sum of the
+    graph size over the updates), e.g. 358 (1.95%) = an update reorders 358
+    of the graph's 18,388 vertices (Mean V) on average.
+      perEdge   one update per edge; the edge-by-edge algorithm (all four
+                give the same counts)
+      perBatch  one update per genome; the edge-by-edge algorithm (its counts
+                are summed over the genome's edges, so they can exceed 100%:
+                the same regions are reordered again and again) next to the
+                batch algorithm (once per genome)
+    Returns (DataFrame, columns, mode, algorithm IDs).
+    """
+    mode = detect_mode_from_path(csv_paths[0]) if csv_paths else "perEdge"
     rows = []
+    algos_used = []
+
+    def cell(total, graph_sum, updates):
+        if total is None or graph_sum <= 0 or updates <= 0:
+            return "-"
+        mean = total / updates
+        mean_text = f"{mean:,.1f}" if mean < 10 else f"{mean:,.0f}"
+        return f"{mean_text} ({100.0 * total / graph_sum:.2f}%)"
 
     for path in csv_paths:
-        df = pd.read_csv(path)
-        
-        # Filter Base BEFORE normalize_dataframe, because perBatch groupby drops Step
+        df = pd.read_csv(path, low_memory=False)
         if "Step" in df.columns:
-            df = df[df["Step"] != "Base"].copy()
-        
-        df = normalize_dataframe(df, path)
+            df = df[df["Step"].astype(str) != "Base"]
         name = infer_dataset_name_from_path(path)
-        mode_label = detect_mode_from_path(path)
+        algos = [next((a for a in EDGE_BY_EDGE_FOR_ACTIVITY if f"{a}AffectedVertices" in df.columns), None)]
+        if mode == "perBatch":
+            algos.append("incBSTBatch" if "incBSTBatchAffectedVertices" in df.columns else None)
+        size_algo = next((a for a in algos if a), None)
+        row = {"Dataset": name, "Updates": str(len(df))}
+        if size_algo is None:
+            rows.append(row)
+            continue
+        vsum = float(pd.to_numeric(df[f"{size_algo}TotalVertices"], errors="coerce").fillna(0).sum())
+        esum = float(pd.to_numeric(df[f"{size_algo}TotalEdges"], errors="coerce").fillna(0).sum())
+        row["Mean V"] = f"{vsum / max(len(df), 1):,.0f}"
+        row["Mean E"] = f"{esum / max(len(df), 1):,.0f}"
+        updates = len(df)
+        for a in algos:
+            label = "Batch" if a == "incBSTBatch" else "Edge-by-edge"
+            def total(col):
+                c = f"{a}{col}" if a else None
+                return float(pd.to_numeric(df[c], errors="coerce").fillna(0).sum()) if c in df.columns else None
+            row[f"Affected V {label}"] = cell(total("AffectedVertices"), vsum, updates)
+            row[f"Affected E {label}"] = cell(total("TotalAffectedEdges"), esum, updates)
+            row[f"Explored V {label}"] = cell(total("ExploredVertices"), vsum, updates)
+            row[f"Explored E {label}"] = cell(total("TotalExploredEdges"), esum, updates)
+            if a and a not in algos_used:
+                algos_used.append(a)
+        rows.append(row)
 
-        # No longer need this line since we already filtered above
-        # data = df[df["Step"] != "Base"]
+    labels = ["Edge-by-edge"] + (["Batch"] if mode == "perBatch" else [])
+    for r in rows:
+        if mode == "perBatch" and "Updates" in r:
+            r["Genomes"] = r.pop("Updates")
+    columns = ["Dataset", "Genomes" if mode == "perBatch" else "Updates", "Mean V", "Mean E"]
+    for what in ["Affected V", "Affected E", "Explored V", "Explored E"]:
+        columns += [f"{what} {l}" for l in labels]
+    return pd.DataFrame(rows), columns, mode, algos_used
 
-        total_verts = int(df["incRecomputeTotalVertices"].fillna(0).sum()) if "incRecomputeTotalVertices" in df.columns else 0
-        affected    = int(df["incRecomputeAffectedVertices"].fillna(0).sum()) if "incRecomputeAffectedVertices" in df.columns else 0
-        explored    = int(df["incBSTExploredVertices"].fillna(0).sum()) if "incBSTExploredVertices" in df.columns else 0
-
-        affected_ratio = (affected / total_verts * 100) if total_verts > 0 else float("nan")
-        explored_ratio = (explored / total_verts * 100) if total_verts > 0 else float("nan")
-
-        rows.append({
-            "Dataset":           name,
-            "Mode":              mode_label,
-            "TotalVertices":     str(total_verts),
-            "AffectedVertices":  str(affected),
-            "ExploredVertices":  str(explored),
-            "Affected/Total(%)": format_float(affected_ratio, precision=2),
-            "Explored/Total(%)": format_float(explored_ratio, precision=2),
-        })
-
-    return pd.DataFrame(rows) 
-
-
-def build_edge_ratio_table(csv_paths: list):
-    rows = []
-
-    for path in csv_paths:
-        df = pd.read_csv(path)
-        if "Step" in df.columns:
-            df = df[df["Step"] != "Base"].copy()
-        df = normalize_dataframe(df, path)
-        name = infer_dataset_name_from_path(path)
-        mode_label = detect_mode_from_path(path)
-
-        total_edges    = int(df["incRecomputeTotalEdges"].fillna(0).sum())         if "incRecomputeTotalEdges"             in df.columns else 0
-        affected_edges = int(df["incRecomputeTotalAffectedEdges"].fillna(0).sum()) if "incRecomputeTotalAffectedEdges"     in df.columns else 0
-        explored_edges = int(df["incBSTTotalExploredEdges"].fillna(0).sum()) if "incBSTTotalExploredEdges"     in df.columns else 0
-
-        affected_ratio = (affected_edges / total_edges * 100) if total_edges > 0 else float("nan")
-        explored_ratio = (explored_edges / total_edges * 100) if total_edges > 0 else float("nan")
-
-        rows.append({
-            "Dataset":              name,
-            "Mode":                 mode_label,
-            "TotalEdges":           str(total_edges),
-            "AffectedEdges":        str(affected_edges),
-            "ExploredEdges":        str(explored_edges),
-            "Affected/Total(%)":    format_float(affected_ratio, precision=2),
-            "Explored/Total(%)":    format_float(explored_ratio, precision=2),
-        })
-
-    return pd.DataFrame(rows)        
 
 def main():
     import argparse
@@ -753,30 +763,28 @@ def main():
             )
 
 
-    # --- Vertex ratio table ---
-    vratio_df = build_vertex_ratio_table(csv_paths)
-    out_tex = os.path.join(args.outdir, "table_vertex_ratio.tex")
+    # --- Activity table: affected / explored vertices and edges ---
+    act_df, act_cols, act_mode, act_algos = build_activity_table(csv_paths)
+    shown = ", ".join(DISPLAY_NAMES.get(x, x) for x in act_algos) or "-"
+    if act_mode == "perBatch":
+        act_caption = ("Part of the graph touched per genome, on average: affected = reordered "
+                       "positions, explored = vertices reached by the searches, as vertices (V) and "
+                       "edges (E, their out-degrees); mean per genome and, in brackets, its share of "
+                       "the mean graph size (Mean V, Mean E). Edge-by-edge, the work of all edges of a "
+                       "genome is added up and can exceed 100\\% (the same regions are reordered "
+                       f"repeatedly); the batch algorithm reorders once per genome. Algorithms: {shown}.")
+    else:
+        act_caption = ("Part of the graph touched per edge update, on average: affected = reordered "
+                       "positions, explored = vertices reached by the search, as vertices (V) and "
+                       "edges (E, their out-degrees); mean per update and, in brackets, its share of "
+                       "the mean graph size (Mean V, Mean E); the edge-by-edge algorithms give the "
+                       f"same counts. Algorithm: {shown}.")
     generate_latex_table(
-        vratio_df,
-        columns=["Dataset", "Mode", "TotalVertices",
-                 "AffectedVertices", "ExploredVertices",
-                 "Affected/Total(%)", "Explored/Total(%)"],
-        caption="Affected and explored vertices as a percentage of total graph vertices",
-        label="tab:vertex_ratio",
-        out_tex=out_tex
-    )
-
-    # --- Edge ratio table (new) ---
-    eratio_df = build_edge_ratio_table(csv_paths)
-    out_tex = os.path.join(args.outdir, "table_edge_ratio.tex")
-    generate_latex_table(
-        eratio_df,
-        columns=["Dataset", "Mode", "TotalEdges",
-                 "AffectedEdges", "ExploredEdges",
-                 "Affected/Total(%)", "Explored/Total(%)"],
-        caption="Affected and explored edges as a percentage of total graph edges",
-        label="tab:edge_ratio",
-        out_tex=out_tex
+        act_df,
+        columns=act_cols,
+        caption=act_caption,
+        label="tab:activity",
+        out_tex=os.path.join(args.outdir, "table_activity.tex")
     )
 
 if __name__ == "__main__":

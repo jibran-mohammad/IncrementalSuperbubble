@@ -55,7 +55,10 @@
         g->insertEdge(u,v);
         this->n=g->displayNumberVertices();
         this->vertexCount.currentTotalEdges = g->displayNumberEdges();
-        this->vertexCount.totalEdges += this->vertexCount.currentTotalEdges;
+        // perBatch: the graph size after the genome (like TotalVertices = n),
+        // not summed over the genome's edges (affected / explored are summed:
+        // that is the work of the genome)
+        this->vertexCount.totalEdges = this->vertexCount.currentTotalEdges;
         x=this->n-x;
         //std::cout << "original U= "<< u << " " << "original v= " << v << std::endl;
         this->u=g->strategy->reverseMapping[u];
