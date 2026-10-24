@@ -246,7 +246,7 @@ public:
         timeFile.close();
         // superbubbles of the final graph -> <ID>_superbubbles.txt
         writeFinalSuperbubbles(output_path, superbubble, g);
-        std::cout << "batch algorithm: " << incdfs.rounds << " reorder rounds, " << incdfs.adoptions << " adoptions (case 5, v's only parent 0; "
+        std::cout << "batch algorithm: " << incdfs.rounds << " reorder rounds, " << incdfs.sourcesPlaced << " sources placed under their first parent, " << incdfs.adoptions << " adoptions (case 5, v's only parent 0; "
                   << incdfs.repairedEdges << " backward edges repaired), " << incdfs.duplicateEdges << " duplicate edges" << std::endl;
         #endif
     }

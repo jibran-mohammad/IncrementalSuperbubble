@@ -8,7 +8,7 @@
   Batch algorithm: see the description in incDFSBatch.h. Order of this file:
     base graph          insert, dfs, calculateMinI / calculateMaxO
     a batch             insertBatch (steps 1-4) and its helpers in step order:
-                        beginBatch, notePlacement / materialize (steps 1-2),
+                        beginBatch, noteVertex / materialize (steps 1-2),
                         repairRound / search, adoptSubtree (step 3),
                         updateMinIMaxO (step 4)
     minI / maxO of one vertex (rules of SimpleDFS), printing
@@ -136,6 +136,24 @@
         auto hasParent = [&](int id) -> bool {
             return (id < nBefore && G->incoming[id] == 1) || this->stampParent[id] == this->stamp;
         };
+        // A new vertex that is a source when it appears (u of case 1 or 3) is
+        // placed only once the pass knows whether the genome gives it a parent:
+        // then it goes directly after its first parent (where an adoption or a
+        // reorder would put it), otherwise to its default place, noted at the
+        // end in the order the sources appeared (the default lists hold only
+        // such sources, so their order is that of noting them one by one).
+        std::vector<int> dAnchor, dSeq;              // per new vertex (id - nBefore)
+        std::vector<char> dBefore, dDeferred;
+        int seq = 0;
+        auto defer = [&](int s, int anchor, bool before, int sq) {
+            int k = s - nBefore;
+            if ((int)dDeferred.size() <= k) { dAnchor.resize(k + 1); dSeq.resize(k + 1); dBefore.resize(k + 1); dDeferred.resize(k + 1, 0); }
+            dAnchor[k] = anchor; dBefore[k] = before; dSeq[k] = sq; dDeferred[k] = 1;
+        };
+        auto deferred = [&](int id) -> bool {
+            int k = id - nBefore;
+            return k >= 0 && k < (int)dDeferred.size() && dDeferred[k];
+        };
 
         for (const std::pair<int,int> &e : edges) {
             int ru = -1, rv = -1;
@@ -149,21 +167,66 @@
                 }
                 if (dup) { this->duplicateEdges++; continue; }
                 batchEdges.insert(key);
-                this->oldEdges.push_back(OldEdge{e.first, e.second, ru, rv, !hasParent(rv)});
+                // only a source whose subtree is made of this genome's new
+                // vertices (default place after 0 or before the sink); a source
+                // in an old source's place (case 1, v's only parent 0) carries
+                // that old subtree, so its parent edge is an adoption (E_old)
+                int k = rv - nBefore;
+                if (deferred(rv) && !hasParent(rv) && (dAnchor[k] == 0 || dAnchor[k] == 1)) {
+                    // the first parent of a source of this genome: v goes
+                    // directly after u (instead of an adoption or a reorder)
+                    dDeferred[rv - nBefore] = 0;
+                    this->noteVertex(rv, ru, false);
+                    this->sourcesPlaced++;
+                    this->edgeTypes.currentcase5++;
+                    this->newInputEdges.push_back(e);
+                    this->realEdges.push_back(std::make_pair(ru, rv));
+                }
+                else {
+                    this->oldEdges.push_back(OldEdge{e.first, e.second, ru, rv, !hasParent(rv)});
+                }
             }
             else {
                 batchEdges.insert(key);
-                int caseNo;
-                if (!ku && !kv) { ru = fresh(e.first); rv = fresh(e.second); caseNo = 3; }
-                else if (!ku)   { ru = fresh(e.first); caseNo = 1; }
-                else            { rv = fresh(e.second); caseNo = 2; }
-                this->notePlacement(caseNo, ru, rv, caseNo == 1 && !hasParent(rv));
+                if (!ku && !kv) {
+                    // case 3: u, v directly before the sink (u a source, v its child)
+                    ru = fresh(e.first); rv = fresh(e.second);
+                    this->edgeTypes.currentcase3++;
+                    defer(ru, 1, true, seq++);
+                    this->noteVertex(rv, ru, false);
+                }
+                else if (!ku) {
+                    // case 1: u directly after 0, or in v's place if v's only parent was 0
+                    ru = fresh(e.first);
+                    this->edgeTypes.currentcase1++;
+                    if (hasParent(rv)) defer(ru, 0, false, seq++);
+                    else if (deferred(rv)) {
+                        // v is a source of this genome: u takes its (default) place, v hangs under u
+                        int k = rv - nBefore;
+                        defer(ru, dAnchor[k], dBefore[k], dSeq[k]);
+                        dDeferred[k] = 0;
+                        this->noteVertex(rv, ru, false);
+                    }
+                    else defer(ru, rv, true, seq++);
+                }
+                else {
+                    // case 2: v directly after u (u may itself be new)
+                    rv = fresh(e.second);
+                    this->edgeTypes.currentcase2++;
+                    this->noteVertex(rv, ru, false);
+                }
                 this->newInputEdges.push_back(e);
                 this->realEdges.push_back(std::make_pair(ru, rv));
             }
             this->stampParent[rv] = this->stamp;
         }
         nAfter = nBefore + (int)newId.size();
+        {   // the sources without a parent in this genome: at their default places
+            std::vector<int> rest;
+            for (int k = 0; k < (int)dDeferred.size(); k++) if (dDeferred[k]) rest.push_back(nBefore + k);
+            std::sort(rest.begin(), rest.end(), [&](int a, int b) { return dSeq[a - nBefore] < dSeq[b - nBefore]; });
+            for (int s : rest) this->noteVertex(s, dAnchor[s - nBefore], dBefore[s - nBefore]);
+        }
 
         // E_new into the graph, in order: the graph gives the new vertices
         // exactly the ids of step 1
@@ -181,6 +244,12 @@
 
         // ---- step 2: build the new vertices into the order
         this->materialize(nBefore, nAfter);
+        // a source placed under its parent may have an edge to an old vertex
+        // before that parent: such E_new edges point backwards and go into the
+        // first round (realEdges holds only E_new so far)
+        for (const std::pair<int,int> &e : this->realEdges) {
+            if (this->reverseTopologicalOrder[e.first] > this->reverseTopologicalOrder[e.second]) this->pending.push_back(e);
+        }
 
         // ---- step 3: E_old, in order
         // During a round every backward edge of the graph must be one of the
@@ -275,34 +344,8 @@
     }
 
 
-    /*
-      Step 1, cases 1-3: a new vertex goes where the DFS would visit it (rules
-      of incMinIBST); it is noted next to an anchor and built into the order
-      by materialize() in step 2:
-        case 1  u directly after 0, or directly before v if v's only parent
-                was 0 (u takes v's place, v's subtree hangs under u)
-        case 2  v directly after u (u may itself be a new vertex)
-        case 3  u, v directly before 1
-    */
-    void IncrementalDFSTREEBatch::notePlacement(int caseNo, int ru, int rv, bool vOnly0) {
-        switch (caseNo) {
-        case 1:
-            this->edgeTypes.currentcase1++;
-            if (vOnly0) this->noteVertex(ru, rv, true);
-            else this->noteVertex(ru, 0, false);
-            break;
-        case 2:
-            this->edgeTypes.currentcase2++;
-            this->noteVertex(rv, ru, false);
-            break;
-        default:
-            this->edgeTypes.currentcase3++;
-            this->noteVertex(ru, 1, true);
-            this->noteVertex(rv, 1, true);
-        }
-    }
-
-
+    // Step 1: a new vertex is noted next to its anchor (before or after it);
+    // materialize() builds the noted vertices into the order in step 2
     void IncrementalDFSTREEBatch::noteVertex(int x, int anchor, bool before) {
         if (this->afterList[anchor].empty() && this->beforeList[anchor].empty()) this->anchors.push_back(anchor);
         (before ? this->beforeList[anchor] : this->afterList[anchor]).push_back(x);

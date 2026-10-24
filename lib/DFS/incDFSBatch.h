@@ -37,7 +37,12 @@
                                    (u takes v's place, v's subtree hangs
                                    under u unchanged)
                   case 2  v new    v directly after u (last child of u)
-                  case 3  both     u, v directly before the sink 1
+                  case 3  both     u directly before the sink 1, v after u
+                A new vertex that is a source when it appears (u of case 1
+                or 3) gets its place only at the end of the pass: if a later
+                edge x -> u of the genome gives it its first parent, u goes
+                directly after x (where an adoption or a reorder would put
+                it; the edge counts to E_new), otherwise to its default place
          E_old  edges between vertices that exist at that point
        Duplicate edges are dropped. New vertices get the internal ids the
        graph will give them (consecutive, in order of first appearance).
@@ -56,7 +61,11 @@
        search from the head, bounded by the tail's position, collects the
        vertices that must move behind the tail, in postorder; each vertex is
        emitted once and the window is relabeled once.
-       Adoption (v's only parent was 0, v's subtree must hang under u): the
+       E_new edges that point backwards after step 2 (a source placed under
+       its parent with an edge to an old vertex before that parent) go into
+       the first round.
+       Adoption (v's only parent was 0 - with the rule above only old
+       sources, rare - v's subtree must hang under u): the
        collected backward edges are repaired first (the block must be read
        from a DFS order), then v's block (v up to the next child of 0) moves
        directly after u; edges from vertices now behind the block into it
@@ -112,6 +121,7 @@ public:
     long long adoptions = 0;          // case 5 with v's only parent 0 (block moved)
     long long repairedEdges = 0;      // backward edges collected by adoptions
     long long rounds = 0;             // reorder rounds (1 per batch + 1 per adoption)
+    long long sourcesPlaced = 0;      // sources of a genome placed directly under their first parent
 
 #ifndef BATCH_MINI_SCAN
     // minIbst[c]: the real parents of c, ordered by position (minI[c] = minimum)
@@ -166,7 +176,6 @@ private:
 
     void fitSize(int n);
     void beginBatch();
-    void notePlacement(int caseNo, int ru, int rv, bool vOnly0);
     void noteVertex(int x, int anchor, bool before);
     void materialize(int nBefore, int nAfter);
     void adoptSubtree(GraphContext *g, int u, int v);
