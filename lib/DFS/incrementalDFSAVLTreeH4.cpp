@@ -411,7 +411,10 @@
         
         for(int i = this->reverseTopologicalOrder[this->u]; i >= this->reverseTopologicalOrder[this->v]; i--) {
             #ifndef BENCHMARK
-            this->vertexCount.currentTotalAffectedEdges += g->getOutDegree(this->reverseTopologicalOrder[i]);
+            // i is a position: the vertex there is topOrd[i] (reverseTopologicalOrder
+            // maps a vertex to its position; it used to be read with i, i.e. the
+            // out-degree of an arbitrary vertex was added)
+            this->vertexCount.currentTotalAffectedEdges += g->getOutDegree(this->topOrd[i]);
             this->vertexCount.currentcountAffectedVertices ++;
             #endif
             index = this->topOrd[i];

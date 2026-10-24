@@ -110,7 +110,7 @@ public:
         long long currentRounds = 0, currentAdoptions = 0;
     };
     struct CountOfVertices {
-        int countAffectedVertices = 0;        // positions in the reorder windows and moved blocks
+        int countAffectedVertices = 0;        // positions in the reorder windows and moved blocks (affected edges: their out-degrees)
         int countExploredVertices = 0;        // vertices reached by the reorder's searches
         int currentcountAffectedVertices = 0;
         int currentcountExploredVertices = 0;

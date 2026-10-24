@@ -458,6 +458,7 @@
             this->topOrd[pos] = x;
             this->reverseTopologicalOrder[x] = pos;
             pos--;
+            this->vertexCount.currentTotalAffectedEdges += g->getOutDegree(x);
         }
         this->vertexCount.currentcountAffectedVertices += hi - lo + 1;
         this->vertexCount.currentcountExploredVertices += (int)explored;
@@ -536,7 +537,10 @@
         for (int p = s; p <= e; p++) this->detachFromTrees(g, this->topOrd[p]);
         BATCH_TIMER_START
         std::rotate(this->topOrd.begin() + to, this->topOrd.begin() + s, this->topOrd.begin() + e + 1);
-        for (int p = to; p <= e; p++) this->reverseTopologicalOrder[this->topOrd[p]] = p;
+        for (int p = to; p <= e; p++) {
+            this->reverseTopologicalOrder[this->topOrd[p]] = p;
+            this->vertexCount.currentTotalAffectedEdges += g->getOutDegree(this->topOrd[p]);
+        }
         this->vertexCount.currentcountAffectedVertices += e - to + 1;
         int blockEnd = to + (e - s);
         for (int p = to; p <= blockEnd; p++) {
