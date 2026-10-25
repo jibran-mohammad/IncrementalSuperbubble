@@ -191,6 +191,10 @@ def plot_activity(df, output_dir, dataset_name, mode, scale):
     else:
         a = algos[0]
         n_updates = len(df_plot)
+        n_touch = 0                      # updates that reorder (the same for every panel)
+
+        def pct(x):
+            return f"{x:.2g}%" if x < 10 else f"{x:.0f}%"
         for ax, (what, aff, exp, tot) in zip(axes, panels):
             aff_pct = share(a, aff, tot)
             exp_pct = share(a, exp, tot)
@@ -203,10 +207,14 @@ def plot_activity(df, output_dir, dataset_name, mode, scale):
             lo = max(values.min(), 1e-4)
             hi = max(values.max(), lo * 10)
             bins = np.logspace(np.log10(lo), np.log10(hi), 40)
+            n_touch = max(n_touch, len(aff_pct), len(exp_pct))
+            # legend: how much one such update touches (median, mean)
             ax.hist(aff_pct, bins=bins, alpha=0.6, color=VERSION_STYLES[a]["color"],
-                    label=f"affected: {len(aff_pct):,} of {n_updates:,} updates")
+                    label=f"affected (positions repaired): median {pct(aff_pct.median())}, "
+                          f"mean {pct(aff_pct.mean())}")
             ax.hist(exp_pct, bins=bins, alpha=0.6, color="gray",
-                    label=f"explored: {len(exp_pct):,} of {n_updates:,} updates")
+                    label=f"explored (reached by the search): median {pct(exp_pct.median())}, "
+                          f"mean {pct(exp_pct.mean())}")
             ax.set_xscale("log")
             ax.set_xlabel(f"% of the graph's {what.lower()} touched by one update (log)")
             ax.set_ylabel("Number of updates")
@@ -214,8 +222,8 @@ def plot_activity(df, output_dir, dataset_name, mode, scale):
             ax.legend(fontsize=9)
             ax.grid(True, which="both", linestyle="--", alpha=0.4)
         fig.suptitle(f"Size of the reorders of single edge updates — {dataset_name}, "
-                     f"{DISPLAY_NAMES.get(a, a)}\n(only the updates that reorder or search; "
-                     f"all other updates touch nothing)", fontsize=13)
+                     f"{DISPLAY_NAMES.get(a, a)}\n({n_touch:,} of {n_updates:,} updates reorder and are "
+                     f"counted here; all other updates touch nothing)", fontsize=13)
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, build_plot_filename(dataset_name, mode, scale, "activity")), dpi=200)
     plt.close(fig)
