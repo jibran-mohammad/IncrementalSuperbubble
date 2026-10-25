@@ -28,7 +28,7 @@ Options:
 OUTPUT (.tex files in --outdir)
 =====================================================================
 
-    <dataset>_<step>.tex      step = Insert, DFS, Topo, MinI, MaxO, SBCompute:
+    <dataset>_<step>.tex      step = UpdateDS, DFS, Topo, MinI, MaxO, SBCompute:
                               time of that step per algorithm and case
     <dataset>_<metric>.tex    Affected / Explored vertices per case
 
@@ -47,7 +47,7 @@ import argparse
 CASE_COLUMNS = ["Case1", "Case2", "Case3", "Case4", "Case5"]
 
 METRICS = {
-    "Insert": "InsertTime",
+    "UpdateDS": "UpdateDSTime",
     "DFS": "DFSTime",
     "Topo": "TopologicalOrderTime",
     "MinI": "MinITime",

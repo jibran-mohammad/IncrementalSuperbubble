@@ -144,12 +144,12 @@ public:
         #endif
         if(mode == "perEdge") {
             #ifndef BENCHMARK
-            timeFile << "Edge_Number Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count\n";
+            timeFile << "Edge_Number Haplotype_Name UpdateDS_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count\n";
             #endif
         }
         else {
             #ifndef BENCHMARK
-            timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count\n";
+            timeFile << "Update_ID Haplotype_Name UpdateDS_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count\n";
             #endif
         }
         // --- 2. Process Haplotype Additions Incrementally ---

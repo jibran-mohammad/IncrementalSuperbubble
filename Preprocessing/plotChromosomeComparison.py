@@ -5,7 +5,7 @@ plotChromosomeComparison.py
 
 One bar chart comparing algorithms across datasets: for every dataset
 (chromosome or E. coli) one group of bars, one bar per algorithm, each
-bar stacked from the time of each step (Insert, DFS, TopologicalOrder,
+bar stacked from the time of each step (UpdateDS, DFS, TopologicalOrder,
 MinI, MaxO, SBCompute) summed over all updates (the base graph is left
 out). Algorithms: static, incRecompute and incMinIBST (shown as "Final"); change ALGORITHMS / DISPLAY_NAMES below to
 plot others. Intended for perEdge or perbatch results.
@@ -72,7 +72,7 @@ def plot_component_comparison(paths, output_dir, mode):
     })
 
     COMPONENTS = [
-        "Insert",
+        "UpdateDS",
         "DFS",
         "TopologicalOrder",
         "MinI",
@@ -124,7 +124,7 @@ def plot_component_comparison(paths, output_dir, mode):
     }
 
     STACK_COLORS = {
-        "Insert": "#4C72B0",
+        "UpdateDS": "#4C72B0",
         "DFS": "#55A868",
         "TopologicalOrder": "#DD8452",
         "MinI": "#C44E52",

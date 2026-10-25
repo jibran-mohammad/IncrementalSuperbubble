@@ -133,7 +133,7 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     line_iter = iter(lines)
     
     # Define metric columns
-    BASE_METRIC_COLUMNS = ['Insert_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time', 'SB_Count', 'AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
+    BASE_METRIC_COLUMNS = ['UpdateDS_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time', 'SB_Count', 'AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
     
     # Timing files are named <ID>_time.txt (see ALGORITHMS.md); the
     # incremental algorithms write case columns, and some also explored counts.
@@ -154,7 +154,7 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     else:
         CASE_COLUMNS = []
         FULL_METRIC_COLUMNS = [
-            'Insert_Time',
+            'UpdateDS_Time',
             'DFS_Time',
             'TopologicalOrderTime',
             'MinI_Time',
@@ -261,6 +261,8 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
             # the wrong columns). The fixed lists stay as the fallback for a
             # file without a usable header.
             header_names = header_line.split()
+            # files written before the rename call the first step Insert_Time
+            header_names = ['UpdateDS_Time' if h == 'Insert_Time' else h for h in header_names]
             if (len(header_names) > 2 and header_names[1] == 'Haplotype_Name'
                     and 'Total_Time' in header_names):
                 FULL_METRIC_COLUMNS = header_names[2:]
@@ -583,7 +585,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         COMMON_MERGE_COLS = ['Step', 'Haplotype_Name', 'Nodes', 'Edges']
         
         # 1. Define time metric structures for use in merging and filtering (FIX: SCOPE)
-        BASE_TIME_METRICS = ['Insert_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time']
+        BASE_TIME_METRICS = ['UpdateDS_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time']
         BASE_VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
         PREFIXES = ['static_', 'incRecompute_', 'incBST_','incBSTBatch_','incMinIBST_','incMinIBSTH1_']
         
@@ -683,7 +685,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         # --- Define Final Order using the new PascalCase names ---
         
         BASE_COLS = ['Step', 'HaplotypeName', 'Nodes', 'Edges']
-        TIME_METRICS = ['InsertTime', 'DFSTime', 'TopologicalOrderTime', 'MinITime', 'MaxOTime', 'SBComputeTime', 'TotalTime']
+        TIME_METRICS = ['UpdateDSTime', 'DFSTime', 'TopologicalOrderTime', 'MinITime', 'MaxOTime', 'SBComputeTime', 'TotalTime']
         VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
         GRAPH_METRICS = ['TotalVertices', 'TotalEdges']
         # the batch algorithm writes what a batch did instead of the per-edge cases

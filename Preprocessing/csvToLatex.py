@@ -38,7 +38,7 @@ Use CSVs of the same mode (all perEdge or all perbatch) in one call.
 OUTPUT (.tex files in --outdir)
 =====================================================================
 
-    table_<step>.tex             step = Insert, DFS, TopoOrder, MinI, MaxO,
+    table_<step>.tex             step = UpdateDS, DFS, TopoOrder, MinI, MaxO,
                                  SBCompute: total time of that step per
                                  algorithm (and speedup / improvement)
     table_TotalTime.tex          total time and peak memory
@@ -97,7 +97,7 @@ def display_header(column: str) -> str:
 
 # Metrics -> column suffix used in CSV
 METRICS = {
-    "Insert": "InsertTime",
+    "UpdateDS": "UpdateDSTime",
     "DFS": "DFSTime",
     "TopoOrder": "TopologicalOrderTime",
     "MinI": "MinITime",
@@ -118,7 +118,9 @@ TIME_NOTE = ("Times: sum of the per-update times measured inside each program (n
 
 # what each step of the step tables measures
 STEP_MEANING = {
-    "Insert": "inserting the edge into the graph and classifying it",
+    "UpdateDS": ("updating the graph and the data structures for the new edges (inserting the edge, "
+                 "classifying it; static: also clearing the arrays for the DFS, after every edge in perEdge, "
+                 "once per genome in perBatch)"),
     "DFS": "repairing the order (searches of the incremental DFS; static: the full DFS)",
     "TopoOrder": "writing the new positions of the topological order",
     "MinI": "updating minI (earliest parent of every vertex)",
@@ -330,7 +332,7 @@ def build_case_table(csv_paths: list):
 
 CASE_TIME_ALGORITHMS = ["static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1"]
 BEST_EDGE_BY_EDGE = ["incMinIBSTH1", "incMinIBST", "incBST"]
-STEP_COLUMNS = [("Insert", "InsertTime"), ("DFS", "DFSTime"), ("TopoOrder", "TopologicalOrderTime"),
+STEP_COLUMNS = [("UpdateDS", "UpdateDSTime"), ("DFS", "DFSTime"), ("TopoOrder", "TopologicalOrderTime"),
                 ("MinI", "MinITime"), ("MaxO", "MaxOTime"), ("SBCompute", "SBComputeTime")]
 
 
@@ -400,7 +402,7 @@ def build_case_time_table(csv_paths: list, algorithms: list):
 
 def build_case_step_table(csv_paths: list, algo: str):
     """
-    perEdge, one algorithm: Dataset | Case | Insert .. SBCompute | Total: time
+    perEdge, one algorithm: Dataset | Case | UpdateDS .. SBCompute | Total: time
     (ms) of each step on the edges of each case. The Total column is the
     algorithm's row of table_case_time (in ms).
     """
@@ -749,7 +751,7 @@ def main():
     csv_paths = args.csv
     mode = args.mode
     # -------- 4 metric tables --------
-    for metric_name in ["Insert","DFS", "TopoOrder", "MinI", "MaxO", "SBCompute"]:
+    for metric_name in ["UpdateDS","DFS", "TopoOrder", "MinI", "MaxO", "SBCompute"]:
         summary_df = build_summary_rows_for_metric(csv_paths, metric_name, mode)
 
         out_tex = os.path.join(args.outdir, f"table_{metric_name}.tex")

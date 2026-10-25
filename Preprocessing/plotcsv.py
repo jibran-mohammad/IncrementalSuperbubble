@@ -89,7 +89,7 @@ SHORT_NAMES = {
 }
 
 COMPONENT_SUFFIX = {
-    'Insert': 'InsertTime', 'DFS': 'DFSTime', 'TopologicalOrder': 'TopologicalOrderTime',
+    'UpdateDS': 'UpdateDSTime', 'DFS': 'DFSTime', 'TopologicalOrder': 'TopologicalOrderTime',
     'MinI': 'MinITime', 'MaxO': 'MaxOTime', 'SBCompute': 'SBComputeTime', 'Total': 'TotalTime',
 }
 # component -> one column per algorithm in ALGORITHMS (same order)
@@ -103,9 +103,9 @@ def select_algorithms(df):
     TIME_COMPONENTS = {comp: [a + suf for a in ALGORITHMS] for comp, suf in COMPONENT_SUFFIX.items()}
 
 # Define color palette for the stacked bar chart components
-# --- MODIFIED: 'Insert' color has been removed entirely ---
+# --- MODIFIED: 'UpdateDS' color has been removed entirely ---
 STACK_COLORS = {
-    'Insert': '#4C72B0',
+    'UpdateDS': '#4C72B0',
     'DFS': '#55A868',
     'TopologicalOrder': '#DD8452',  
     'MinI': '#C44E52',
@@ -286,8 +286,8 @@ def clean_and_normalize_df(df):
 
     # 2) expected components and versions
     versions = ALGORITHMS
-    # NOTE: 'Insert' is kept here for data cleaning, but excluded from TIME_COMPONENTS for plotting
-    components = ['Insert', 'DFS', 'TopologicalOrder', 'MinI', 'MaxO', 'SBCompute', 'Total']  
+    # NOTE: 'UpdateDS' is kept here for data cleaning, but excluded from TIME_COMPONENTS for plotting
+    components = ['UpdateDS', 'DFS', 'TopologicalOrder', 'MinI', 'MaxO', 'SBCompute', 'Total']  
 
     # 3) build canonical column names and check presence (allow small variations)
     # For robustness, accept lowercase variants or missing 'Time' suffix
@@ -300,7 +300,7 @@ def clean_and_normalize_df(df):
     cols = df.columns.tolist()
     for v in versions:
         for comp in components:
-            # candidates: e.g., "staticInsertTime", "staticInsert", "simple_insert_time"
+            # candidates: e.g., "staticUpdateDSTime", "staticUpdateDS", "simple_insert_time"
             candidates = [
                 f"{v}{comp}Time",
                 f"{v}{comp}",
@@ -313,7 +313,7 @@ def clean_and_normalize_df(df):
             if not found:
                 # Not fatal for some components (you may allow missing SBCompute), but warn/raise as needed
                 # Here we'll raise for core components, warn for SuperBubble
-                if comp in ['Insert', 'TopologicalOrder', 'DFS', 'MinI', 'MaxO']:
+                if comp in ['UpdateDS', 'TopologicalOrder', 'DFS', 'MinI', 'MaxO']:
                     raise KeyError(f"Missing required column for plotting: tried {candidates}")
                 else:
                     # Fill missing SBCompute/Total with zeros
@@ -336,7 +336,7 @@ def convert_seconds_to_ms(df):
     """Convert all canonical time columns from seconds to milliseconds."""
     df = df.copy()
     versions = ALGORITHMS
-    components = ['Insert', 'DFS', 'TopologicalOrder', 'MinI', 'MaxO', 'SBCompute', 'Total']
+    components = ['UpdateDS', 'DFS', 'TopologicalOrder', 'MinI', 'MaxO', 'SBCompute', 'Total']
 
     for v in versions:
         for comp in components:
@@ -354,7 +354,7 @@ def smooth_df_rolling(df, window=15):
     df = df.sort_values("Step").copy()
 
     versions = ALGORITHMS
-    components = ['Insert','DFS','TopologicalOrder', 'MinI', 'MaxO', 'SBCompute', 'Total']  # Insert excluded in plots
+    components = ['UpdateDS','DFS','TopologicalOrder', 'MinI', 'MaxO', 'SBCompute', 'Total']  # UpdateDS excluded in plots
 
     for v in versions:
         for comp in components:
@@ -499,7 +499,7 @@ def draw_stacked_groups(ax, df_plot, group_labels, group_axis_label):
     (SHORT_NAMES) under it and the groups their label below those. Returns
     the legend handles of the components.
     """
-    components = ['Insert', 'DFS', 'TopologicalOrder', 'MinI', 'MaxO', 'SBCompute']
+    components = ['UpdateDS', 'DFS', 'TopologicalOrder', 'MinI', 'MaxO', 'SBCompute']
     versions = list(ALGORITHMS)
     n = len(versions)
     width = 0.8 / n
@@ -588,8 +588,8 @@ def plot_aggregated_version_bars(df, output_dir, dataset_name, mode, scale):
         return
 
     versions = ALGORITHMS
-    # --- MODIFIED: 'Insert' component has been removed ---
-    components = ['Insert','DFS','TopologicalOrder', 'MinI', 'MaxO', 'SBCompute']
+    # --- MODIFIED: 'UpdateDS' component has been removed ---
+    components = ['UpdateDS','DFS','TopologicalOrder', 'MinI', 'MaxO', 'SBCompute']
 
     # compute sums for each (version, component)
     sums = {v: [] for v in versions}
