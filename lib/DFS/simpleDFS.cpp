@@ -1,4 +1,28 @@
 #include"simpleDFS.h"
+    void SimpleDFS::insert(GraphContext *g, int u, int v) {
+        if (this->clearOnInsert) {
+            BaseDFS::insert(g, u, v);
+            return;
+        }
+        int before = this->n;
+        g->insertEdge(u, v);
+        this->n = g->displayNumberVertices();
+        if (this->n > before) {
+            this->oldReverseTopologicalOrder.resize(this->n);
+            this->visit.resize(this->n);
+            this->topOrd.resize(this->n);
+            this->reverseTopologicalOrder.resize(this->n);
+            this->minI.resize(this->n);
+            this->maxO.resize(this->n);
+        }
+    }
+
+    // what BaseDFS::insert does after every edge, once (before a DFS)
+    void SimpleDFS::clear() {
+        this->postorderNumber = 0;
+        this->reset();
+    }
+
     /*
        this function calculate the minimum incoming edge of every node, it will take O(m+n) time, because it
        is exploring every edge of the graph, except for node 0 and 1, node 0 is the artifical source and its 

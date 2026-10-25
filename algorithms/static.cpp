@@ -72,6 +72,10 @@ public:
         AdjacencyListGraph adl(num_base_edges); 
         GraphContext g(&adl);
         SimpleDFS simdfs(&g);
+        // perEdge: a full DFS follows every edge, so every insert clears the
+        // arrays for it. perBatch: one DFS per genome, so the arrays are
+        // cleared once before it (simdfs.clear()), not after every edge.
+        simdfs.clearOnInsert = (mode == "perEdge");
         DFSCONTEXT d(&simdfs);
         SuperbubbleCalculation superbubble;
         LOG(std::cout << "creating of objects classes" << std::endl;)
@@ -96,6 +100,9 @@ public:
         std::cout << "All edges updated succesfully" << std::endl;
         #endif
         //g.displayOutgoingGraph();
+        if (!simdfs.clearOnInsert) {
+            simdfs.clear();
+        }
         // Now, perform the first full calculation on the complete base graph
         #ifndef BENCHMARK
         auto start = std::chrono::high_resolution_clock::now();
@@ -274,7 +281,17 @@ public:
             //timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";
             
             if (mode == "perBatch") {
-                
+                // the clearing for the DFS, once per genome (counted as
+                // updating the data structures, as after every edge in perEdge)
+                #ifndef BENCHMARK
+                start = std::chrono::high_resolution_clock::now();
+                #endif
+                simdfs.clear();
+                #ifndef BENCHMARK
+                end = std::chrono::high_resolution_clock::now();
+                elapsed = end - start;
+                insertTime += elapsed.count();
+                #endif
                 d.performDFS(&g);
                 
                 #ifndef BENCHMARK
