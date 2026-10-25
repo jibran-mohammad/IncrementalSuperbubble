@@ -88,12 +88,58 @@ DISPLAY_NAMES = {
 }
 
 
+# short names in table headers and cells (as under the bars of the plots,
+# plotcsv.py SHORT_NAMES), so the columns stay narrow; every caption lists
+# the abbreviations its table uses
+SHORT_NAMES = {
+    "static": "S",
+    "incRecompute": "Rec",
+    "incBST": "BST",
+    "incMinIBST": "MinI",
+    "incMinIBSTH1": "H1",
+    "incBSTBatch": "Batch",
+}
+SHORT_BY_DISPLAY = {DISPLAY_NAMES[a]: SHORT_NAMES[a] for a in SHORT_NAMES}
+# other long headers / words in headers
+SHORT_WORDS = {
+    "Sources placed under their first parent": "Sources placed",
+    "Backward edges repaired": "Backward edges",
+    "Reorder rounds": "Rounds",
+    "Edge-by-edge": "EbE",
+}
+ABBREVIATION_TEXT = dict([(SHORT_NAMES[a], DISPLAY_NAMES[a]) for a in SHORT_NAMES]
+                         + [("EbE", "edge-by-edge algorithms"), ("$\\times$", "speedup (static / algorithm)")])
+
+
 def display_header(column: str) -> str:
-    """'incBST_Speedup' -> 'Inc-BST Speedup'; other columns unchanged."""
+    """'incBST_Speedup' -> 'BST $\\times$' (speedup), 'incBST' -> 'BST'; long
+    headers shortened by SHORT_WORDS; other columns unchanged."""
     algo, _, rest = column.partition("_")
-    if algo in DISPLAY_NAMES:
-        return DISPLAY_NAMES[algo] + (" " + rest if rest else "")
+    if algo in SHORT_NAMES:
+        if rest == "Speedup":
+            return SHORT_NAMES[algo] + " $\\times$"
+        return SHORT_NAMES[algo] + (" " + rest if rest else "")
+    for long, short in SHORT_WORDS.items():
+        column = column.replace(long, short)
     return column
+
+
+def short_cell(value):
+    """An algorithm's display name in a cell (e.g. the Algorithm column) -> short name."""
+    return SHORT_BY_DISPLAY.get(str(value), value)
+
+
+def abbreviation_note(texts):
+    """'Abbreviations: S = Static, ...' for the short names that occur in texts."""
+    used = []
+    for short, meaning in ABBREVIATION_TEXT.items():
+        if short.startswith("$"):
+            hit = any(short in t for t in texts)
+        else:
+            hit = any(re.search(r"(^|[ (])" + re.escape(short) + r"($|[ )])", t) for t in texts)
+        if hit:
+            used.append(f"{short} = {meaning}")
+    return (" Abbreviations: " + ", ".join(used) + ".") if used else ""
 
 # Metrics -> column suffix used in CSV
 METRICS = {
@@ -232,13 +278,17 @@ def generate_latex_table(df: pd.DataFrame, columns: list, caption: str, label: s
     lines.append(" & ".join([rf"\textbf{{{h}}}" for h in header]) + r" \\")
     lines.append(r"\hline")
 
+    cells = []
     for _, row in df.iterrows():
         row_vals = []
         for c in columns:
-            row_vals.append(latex_escape(row.get(c, "-")))
+            v = short_cell(row.get(c, "-"))
+            cells.append(str(v))
+            row_vals.append(latex_escape(v))
         lines.append(" & ".join(row_vals) + r" \\")
         lines.append(r"\hline")
     lines.append(r"\end{tabular}")
+    caption = caption + abbreviation_note(header + cells)
     lines.append(rf"\caption{{{caption}}}")
     lines.append(rf"\label{{{label}}}")
     lines.append(r"\end{table}")
