@@ -4,6 +4,7 @@
 #include "../lib/DFS/simpleDFS.h"
 #include "../lib/graph/adjacencyListGraph.h"
 #include "../lib/DFS/incrementalDFSAVLTree.h"
+#include "../lib/DFS/incrementalDFSNormalBST.h"
 #include "../lib/DFS/incrementalDFSAVLTreeH4.h"
 #include "../lib/DFS/incrementalDFSSMM.h"
 //#include "../lib/DFS/incrementalDFS.h"

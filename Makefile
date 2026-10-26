@@ -98,6 +98,7 @@ INCBSTBATCH_OBJS = $(ALGORITHM_DIR)/incBSTBatch.o
 INCMINIBST_OBJS = $(ALGORITHM_DIR)/incMinIBST.o
 INCMINIBSTH1_OBJS = $(ALGORITHM_DIR)/incMinIBSTH1.o
 INCBST_OBJS = $(ALGORITHM_DIR)/incBST.o
+INCNORMALBST_OBJS = $(ALGORITHM_DIR)/incNormalBST.o
 H1SUPERBUBBLE_OBJS = $(ALGORITHM_DIR)/mnlognH1.o
 TESTDFSALLFILES_OBJS = $(TEST_DIR)/testSIIAVLTree.o
 TESTALLFILESSUPERBUBBLE_OBJS = $(TEST_DIR)/testAllSuperbubble.o
@@ -124,6 +125,7 @@ SUPERBUBBLEH1_SRCS = $(SUPERBUBBLE_DIR)/superbubbleh1.cpp
 STATIC_SRCS = $(ALGORITHM_DIR)/static.cpp
 INCSUPERBUBBLE_SRCS = $(ALGORITHM_DIR)/superbubbleIncdfs.cpp
 INCBST_SRCS = $(ALGORITHM_DIR)/incBST.cpp
+INCNORMALBST_SRCS = $(ALGORITHM_DIR)/incNormalBST.cpp
 INCRECOMPUTE_SRCS = $(ALGORITHM_DIR)/incRecompute.cpp
 INCBSTBATCH_SRCS = $(ALGORITHM_DIR)/incBSTBatch.cpp
 INCMINIBST_SRCS = $(ALGORITHM_DIR)/incMinIBST.cpp
@@ -157,6 +159,7 @@ INCBSTBATCH_EXEC = $(TEST_DIR)/incBSTBatch
 INCMINIBST_EXEC = $(TEST_DIR)/incMinIBST
 INCMINIBSTH1_EXEC = $(TEST_DIR)/incMinIBSTH1
 INCBST_EXEC = $(TEST_DIR)/incBST
+INCNORMALBST_EXEC = $(TEST_DIR)/incNormalBST
 H1SUPERBUBBLE_EXEC = $(TEST_DIR)/h1Superbubble
 TESTDFSALLFILES_EXEC = $(TEST_DIR)/testAllFilesDfs
 TESTALLFILESSUPERBUBBLE_EXEC = $(TEST_DIR)/testAllSuperbubbles
@@ -209,6 +212,13 @@ else ifeq ($(TARGET),incBST)
 					$(DFS_DIR)/incrementalDFSAVLTree.o $(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseDFS.o  \
 					$(GRAPH_DIR)/adjacencyListGraph.o $(GRAPH_DIR)/contextGraph.o \
 					$(TREE_DIR)/differentAVLTree.o
+else ifeq ($(TARGET),incNormalBST)
+	# incBST with normal binary search trees (keyed by position) for minI / maxO
+	TARGET_EXEC = $(INCNORMALBST_EXEC)
+	TARGET_DEPS = $(INCNORMALBST_OBJS) $(SUPERBUBBLE_DIR)/superbubble.o \
+					$(DFS_DIR)/incrementalDFSNormalBST.o $(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseDFS.o  \
+					$(GRAPH_DIR)/adjacencyListGraph.o $(GRAPH_DIR)/contextGraph.o \
+					$(TREE_DIR)/avlTree.o
 else ifeq ($(TARGET),H1Superbubble)
 	TARGET_EXEC = $(H1SUPERBUBBLE_EXEC)
 	TARGET_DEPS = $(H1SUPERBUBBLE_OBJS) $(SUPERBUBBLE_DIR)/superbubble.o \
@@ -318,6 +328,9 @@ $(ALGORITHM_DIR)/superbubbleIncdfs.o: $(INCSUPERBUBBLE_SRCS)
 
 $(ALGORITHM_DIR)/incBST.o: $(INCBST_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@	
+
+$(ALGORITHM_DIR)/incNormalBST.o: $(INCNORMALBST_SRCS)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(ALGORITHM_DIR)/incMinIBST.o: $(INCMINIBST_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@	
@@ -470,7 +483,7 @@ clean:
 	 $(SUPERBUBBLEPROBABILITY_OBJS) $(NEWINCH1_OBJS) $(NEWINCH1_EXEC) \
 	 $(INCRECOMPUTE_EXEC) $(INCRECOMPUTE_OBJS) $(INCDFSSMM_OBJS) \
 	 $(INCBSTBATCH_OBJS) $(INCBSTBATCH_EXEC) $(INCMINIBST_OBJS) \
-	 $(INCMINIBST_EXEC)
+	 $(INCMINIBST_EXEC) $(INCNORMALBST_OBJS) $(INCNORMALBST_EXEC)
 	# every object file of the algorithms and libraries, also those without
 	# an *_OBJS variable above (e.g. lib/DFS/incrementalDFSAVLTreeH4.o of
 	# incMinIBST): a stale object from a BENCHMARK=1 build would otherwise be
