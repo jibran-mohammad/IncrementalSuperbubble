@@ -6,7 +6,7 @@ column or a plot always points to the same code.
 
 | ID | Display name (plots, tables) | Topological order | minI / maxO |
 |---|---|---|---|
-| `static` | Static | full DFS after every update | recomputed from scratch after every update |
+| `static` | Static | full DFS after every update | recomputed from scratch after every update ; perEdge estimator for graphs too large to recompute after every edge (HPRC): `test/static <out> perEdge <every>` computes only after every `<every>`-th edge and after the last edge of every genome, and writes the estimated total (mean of the evenly spaced samples x updates), as `superbubbleComparator.py --every` does for the tools |
 | `incRecompute` | Inc-Recompute | incremental DFS | recomputed from scratch after every update |
 | `incNormalBST` | Inc-Normal-BST | incremental DFS (the same as incBST); perEdge only (in perBatch it re-keys after every edge and is far slower than every other algorithm) | both maintained in normal balanced binary search trees keyed by the position number (`lib/tree/avlTree.h`): every vertex whose position changes (cases 1 and 2: all vertices after the new one; case 4: the whole window) is taken out of its neighbours' trees and put back with its new position |
 | `incBST` | Inc-BST | incremental DFS | both maintained in modified balanced binary search trees (`lib/tree/differentAVLTree.h`): they store vertex ids and compare by the current positions, so vertices that move without changing their relative order need no update |
