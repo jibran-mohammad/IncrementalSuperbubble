@@ -21,8 +21,10 @@ Tables and plots list the algorithms in the order in which they were
 developed (static, incRecompute, incNormalBST, incBST, incMinIBST,
 incMinIBSTH1, incBSTBatch).
 
-`static` is the baseline. The best algorithm at the moment is `incMinIBST`;
-it is the one `scripts/pipelineRunner.py` runs by default (`BEST_ALGORITHM`).
+`static` is the baseline. The best edge-by-edge algorithm at the moment is
+`incMinIBSTH1` (incMinIBST with the superbubble heuristic); it is the one
+`scripts/pipelineRunner.py` runs by default (`BEST_ALGORITHM`). In perBatch
+mode the best algorithm is `incBSTBatch` (`-a incBSTBatch`).
 
 
 ## Where the ID is used

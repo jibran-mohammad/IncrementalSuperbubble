@@ -136,8 +136,10 @@ BASE_OUTPUT_DIR = REPO_ROOT / "output"
 TOOL_NAME = "incsuperbubble"
 
 # Algorithm run by default (an ID from ALGORITHMS in superbubbleRunner.py;
-# see ALGORITHMS.md). incMinIBST = algorithms/incMinIBST.cpp
-BEST_ALGORITHM = "incMinIBST"
+# see ALGORITHMS.md): the best edge-by-edge algorithm, incMinIBST with the
+# superbubble heuristic (algorithms/incMinIBSTH1.cpp). In perBatch mode the
+# best algorithm is the batch algorithm: run it with -a incBSTBatch.
+BEST_ALGORITHM = "incMinIBSTH1"
 
 # Algorithms that are never run by the pipeline (not ready yet).
 NOT_READY_ALGORITHMS = set()
