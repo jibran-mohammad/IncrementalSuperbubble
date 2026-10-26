@@ -8,13 +8,18 @@ column or a plot always points to the same code.
 |---|---|---|---|
 | `static` | Static | full DFS after every update | recomputed from scratch after every update |
 | `incRecompute` | Inc-Recompute | incremental DFS | recomputed from scratch after every update |
-| `incBST` | Inc-BST | incremental DFS | both maintained in balanced binary search trees (AVL) |
+| `incNormalBST` | Inc-Normal-BST | incremental DFS (the same as incBST); perEdge only (in perBatch it re-keys after every edge and is far slower than every other algorithm) | both maintained in normal balanced binary search trees keyed by the position number (`lib/tree/avlTree.h`): every vertex whose position changes (cases 1 and 2: all vertices after the new one; case 4: the whole window) is taken out of its neighbours' trees and put back with its new position |
+| `incBST` | Inc-BST | incremental DFS | both maintained in modified balanced binary search trees (`lib/tree/differentAVLTree.h`): they store vertex ids and compare by the current positions, so vertices that move without changing their relative order need no update |
 | `incMinIBST` | Inc-MinI-BST | incremental DFS | minI maintained in an AVL tree; maxO updated directly, without a tree |
 | `incBSTBatch` | Inc-BST-Batch | batch DFS, one batch per haplotype (perBatch only; base graph: static DFS): new vertices placed as in incMinIBST in one pass (a source of the genome directly under its first parent in the genome), then one reorder for all backward edges of the batch (bounded searches, one relabel), plus one per adoption of an old source (`lib/DFS/incDFSBatch.h`); its time file has NewVertices SourcesPlaced BackwardEdges Rounds Adoptions per genome instead of the per-edge cases | updated per batch for the vertices whose relative order changed: minI in AVL trees, maxO by comparison (as in incMinIBST); superbubbles once per batch |
 
 All algorithms compute the superbubbles themselves with the same code,
 `SuperbubbleCalculation::computeSB` (`lib/findSuperbubble/superbubble.cpp`);
 they differ only in how the topological order and minI/maxO are kept up to date.
+
+Tables and plots list the algorithms in the order in which they were
+developed (static, incRecompute, incNormalBST, incBST, incMinIBST,
+incMinIBSTH1, incBSTBatch).
 
 `static` is the baseline. The best algorithm at the moment is `incMinIBST`;
 it is the one `scripts/pipelineRunner.py` runs by default (`BEST_ALGORITHM`).
@@ -54,6 +59,7 @@ The DFS / data-structure classes in `lib/DFS/` kept their original names:
 |---|---|---|
 | `static` | `SimpleDFS` | `lib/DFS/simpleDFS.cpp` |
 | `incRecompute` | `IncrementalDFSSMM` | `lib/DFS/incrementalDFSSMM.cpp` |
+| `incNormalBST` | `IncrementalDFSNormalBST` | `lib/DFS/incrementalDFSNormalBST.cpp` |
 | `incBST` | `IncrementalDFSTREE` | `lib/DFS/incrementalDFSAVLTree.cpp` |
 | `incMinIBST` | `IncrementalDFSTREEH4` | `lib/DFS/incrementalDFSAVLTreeH4.cpp` |
 | `incBSTBatch` | `IncrementalDFSTREEBatch` | `lib/DFS/incDFSBatch.cpp` |

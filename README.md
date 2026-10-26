@@ -111,7 +111,7 @@ This step handles C++ compilation via the Makefile and executes the algorithms o
 
 **Script location: scripts/superbubbleRunner.py**
 
-**Available Algorithms: `static`, `incRecompute`, `incBST`, `incMinIBST`, `incBSTBatch`.** Each ID is also the source file (`algorithms/<ID>.cpp`), make target, binary (`test/<ID>`) and timing file (`<ID>_time.txt`); see [ALGORITHMS.md](ALGORITHMS.md) for what each one does.
+**Available Algorithms: `static`, `incRecompute`, `incNormalBST`, `incBST`, `incMinIBST`, `incBSTBatch`.** Each ID is also the source file (`algorithms/<ID>.cpp`), make target, binary (`test/<ID>`) and timing file (`<ID>_time.txt`); see [ALGORITHMS.md](ALGORITHMS.md) for what each one does.
 
 `incBSTBatch` only runs in `perBatch` mode; it is skipped automatically in `perEdge` mode. Each algorithm is run 100 times (`NUM_RUNS` in `superbubbleRunner.py`) and the timings are averaged, so large datasets take a long time.
 

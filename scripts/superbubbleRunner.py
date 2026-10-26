@@ -39,7 +39,7 @@ Options:
     -d / --dataset       Ecoli | Human | HPRC                     (default: Ecoli;
                          HPRC: Minigraph-Cactus graphs prepared by
                          Preprocessing/mcToDag.py, experimental)
-    -a / --algorithms    algorithm IDs: static incRecompute incBST incMinIBST
+    -a / --algorithms    algorithm IDs: static incRecompute incNormalBST incBST incMinIBST
                          incBSTBatch                              (default: all)
     -c / --chromosomes   Human only: chromosome_1 chromosome_X ... (default: all)
     -m / --mode          perEdge: recompute after every edge;
@@ -49,6 +49,10 @@ Notes:
 
   - incBSTBatch (the batch algorithm) only runs in perBatch mode (skipped
     in perEdge): it processes a whole haplotype at once.
+  - incNormalBST only runs in perEdge mode (skipped in perBatch): it
+    re-keys its trees after every edge, so in perBatch it is far slower
+    than every other algorithm (Ecoli: 55 s vs 0.4 s static) and adds
+    nothing there.
   - Every run starts with "make clean" and uses one _tmp_runs/ folder in
     the repository root, so run only one superbubbleRunner.py at a time
     per copy of the repository.
@@ -138,6 +142,15 @@ ALGORITHMS = [
         "name": "incRecompute",
         "target": "incRecompute",
         "output_filename": "incRecompute_time.txt"
+    },
+
+    {
+        # incBST with normal binary search trees (keyed by position) for
+        # minI / maxO: every vertex that moves is re-keyed in its neighbours'
+        # trees (lib/DFS/incrementalDFSNormalBST.cpp)
+        "name": "incNormalBST",
+        "target": "incNormalBST",
+        "output_filename": "incNormalBST_time.txt"
     },
 
    
@@ -401,6 +414,10 @@ def main():
         ]
         if removed:
             print("[INFO] Skipping incBSTBatch (only valid for perBatch mode)")
+    else:
+        if any(algo['name'] == "incNormalBST" for algo in algorithms_to_run):
+            print("[INFO] Skipping incNormalBST (perEdge only)")
+        algorithms_to_run = [algo for algo in algorithms_to_run if algo['name'] != "incNormalBST"]
 
     print(f"--- Target Dataset: {args.dataset} ---")
 

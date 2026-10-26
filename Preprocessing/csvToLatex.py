@@ -67,10 +67,12 @@ import re
 
 # ----------------------------- CONFIG -----------------------------
 
-# Add algorithms here in future (extensible)
+# The algorithms, in the order of the tables (the order in which they were
+# developed: static, recompute, normal BST, modified BST, minI-BST, H1, batch)
 ALGORITHMS = {
     "static": "static",
     "incRecompute": "incRecompute",
+    "incNormalBST": "incNormalBST",
     "incBST": "incBST",
     "incMinIBST": "incMinIBST",
     "incMinIBSTH1": "incMinIBSTH1",
@@ -81,6 +83,7 @@ ALGORITHMS = {
 DISPLAY_NAMES = {
     "static": "Static",
     "incRecompute": "Inc-Recompute",
+    "incNormalBST": "Inc-Normal-BST",
     "incBST": "Inc-BST",
     "incMinIBST": "Inc-MinI-BST",
     "incMinIBSTH1": "Inc-MinI-BST-H1",
@@ -94,6 +97,7 @@ DISPLAY_NAMES = {
 SHORT_NAMES = {
     "static": "S",
     "incRecompute": "Rec",
+    "incNormalBST": "NBST",
     "incBST": "BST",
     "incMinIBST": "MinI",
     "incMinIBSTH1": "H1",
@@ -299,55 +303,35 @@ def generate_latex_table(df: pd.DataFrame, columns: list, caption: str, label: s
     print(f"✅ Wrote: {out_tex}")
 
 
+def summary_row(df, name, metric_suffix, mode):
+    """One dataset: the summed time of every algorithm and its speedup over
+    static (mode "time"), or its improvement over static in percent."""
+    totals = {a: sum_metric(df, ALGORITHMS[a], metric_suffix) for a in ALGORITHMS}
+    static_total = totals["static"]
+    row = {"Dataset": name}
+    for a, total in totals.items():
+        if mode == "time":
+            row[a] = format_float(total)
+            if a != "static":
+                row[f"{a}_Speedup"] = format_float(compute_speedup(static_total, total), precision=2)
+        elif a != "static":
+            row[f"{a}_Imp(%)"] = format_float(pct_improvement(static_total, total), precision=2)
+    return row
+
+
+def summary_columns(mode):
+    """Dataset, the algorithms' times, then their speedups (or Imp(%))."""
+    others = [a for a in ALGORITHMS if a != "static"]
+    if mode == "time":
+        return ["Dataset"] + list(ALGORITHMS) + [f"{a}_Speedup" for a in others]
+    return ["Dataset"] + [f"{a}_Imp(%)" for a in others]
+
+
 def build_summary_rows_for_metric(csv_paths: list, metric_name: str, mode: str):
     rows = []
-    metric_suffix = METRICS[metric_name]
-
     for path in csv_paths:
-        df = pd.read_csv(path)
-        df = normalize_dataframe(df, path)
-        name = infer_dataset_name_from_path(path)
-
-        simple_total   = sum_metric(df, ALGORITHMS["static"],   metric_suffix)
-        inc_total      = sum_metric(df, ALGORITHMS["incRecompute"],      metric_suffix)
-        bst_total      = sum_metric(df, ALGORITHMS["incBST"],      metric_suffix)
-        diffmaxo_total = sum_metric(df, ALGORITHMS["incMinIBST"], metric_suffix)
-        h1_total = sum_metric(df, ALGORITHMS["incMinIBSTH1"], metric_suffix)
-        batch_total = sum_metric(df, ALGORITHMS["incBSTBatch"], metric_suffix)
-
-        inc_speedup      = compute_speedup(simple_total, inc_total)
-        bst_speedup      = compute_speedup(simple_total, bst_total)
-        diffmaxo_speedup = compute_speedup(simple_total, diffmaxo_total)
-
-        inc_percent      = pct_improvement(simple_total, inc_total)
-        bst_percent      = pct_improvement(simple_total, bst_total)
-        diffmaxo_percent = pct_improvement(simple_total, diffmaxo_total)
-
-        if mode == "time":
-            rows.append({
-                "Dataset":          name,
-                "static":           format_float(simple_total),
-                "incRecompute":              format_float(inc_total),
-                "incBST":              format_float(bst_total),
-                "incMinIBST":         format_float(diffmaxo_total),
-                "incMinIBSTH1": format_float(h1_total),
-                "incBSTBatch": format_float(batch_total),
-                "incRecompute_Speedup":      format_float(inc_speedup,      precision=2),
-                "incBST_Speedup":      format_float(bst_speedup,      precision=2),
-                "incMinIBST_Speedup": format_float(diffmaxo_speedup, precision=2),
-                "incMinIBSTH1_Speedup": format_float(compute_speedup(simple_total, h1_total), precision=2),
-                "incBSTBatch_Speedup": format_float(compute_speedup(simple_total, batch_total), precision=2),
-            })
-        else:
-            rows.append({
-                "Dataset":          name,
-                "incRecompute_Imp(%)":       format_float(inc_percent,      precision=2),
-                "incBST_Imp(%)":       format_float(bst_percent,      precision=2),
-                "incMinIBST_Imp(%)":  format_float(diffmaxo_percent, precision=2),
-                "incMinIBSTH1_Imp(%)": format_float(pct_improvement(simple_total, h1_total), precision=2),
-                "incBSTBatch_Imp(%)": format_float(pct_improvement(simple_total, batch_total), precision=2),
-            })
-
+        df = normalize_dataframe(pd.read_csv(path), path)
+        rows.append(summary_row(df, infer_dataset_name_from_path(path), METRICS[metric_name], mode))
     return pd.DataFrame(rows)
 
 def build_case_table(csv_paths: list):
@@ -380,7 +364,7 @@ def build_case_table(csv_paths: list):
 # Time per case only exists in perEdge: there every row is one edge with one
 # case. (In perBatch a row is a genome with edges of every case.)
 
-CASE_TIME_ALGORITHMS = ["static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1"]
+CASE_TIME_ALGORITHMS = ["static", "incRecompute", "incNormalBST", "incBST", "incMinIBST", "incMinIBSTH1"]
 BEST_EDGE_BY_EDGE = ["incMinIBSTH1", "incMinIBST", "incBST"]
 STEP_COLUMNS = [("UpdateDS", "UpdateDSTime"), ("DFS", "DFSTime"), ("TopoOrder", "TopologicalOrderTime"),
                 ("MinI", "MinITime"), ("MaxO", "MaxOTime"), ("SBCompute", "SBComputeTime")]
@@ -537,61 +521,15 @@ def build_vertex_activity_table(csv_paths):
 
 def build_total_time_table(csv_paths: list, mode: str):
     """
-    Dataset | static_TotalTime | incRecompute_TotalTime | incBST_TotalTime | incRecompute_Imp(%) | incBST_Imp(%) | PeakMemory
+    Dataset | total time of every algorithm | speedups (or Imp(%)) | PeakMemory
     """
     rows = []
-
     for path in csv_paths:
-        df = pd.read_csv(path)
-        df = normalize_dataframe(df, path)
-        name = infer_dataset_name_from_path(path)
-
+        df = normalize_dataframe(pd.read_csv(path), path)
+        row = summary_row(df, infer_dataset_name_from_path(path), "TotalTime", mode)
         peak_col = find_peak_memory_column(df)
-        peak_mem = float(df[peak_col].max()) if peak_col else float("nan")
-
-        simple_total = sum_metric(df, ALGORITHMS["static"], "TotalTime")
-        inc_total = sum_metric(df, ALGORITHMS["incRecompute"], "TotalTime")
-        bst_total = sum_metric(df, ALGORITHMS["incBST"], "TotalTime")
-        diffmaxo_total   = sum_metric(df, ALGORITHMS["incMinIBST"], "TotalTime")
-        h1_total = sum_metric(df, ALGORITHMS["incMinIBSTH1"], "TotalTime")
-        batch_total = sum_metric(df, ALGORITHMS["incBSTBatch"], "TotalTime")
-        
-        diffmaxo_speedup = compute_speedup(simple_total, diffmaxo_total)
-        diffmaxo_percent = pct_improvement(simple_total, diffmaxo_total)
-
-        inc_speedup = compute_speedup(simple_total, inc_total)
-        bst_speedup = compute_speedup(simple_total, bst_total)
-
-        inc_percent = pct_improvement(simple_total, inc_total)
-        bst_percent = pct_improvement(simple_total, bst_total)
-
-        if mode == "time":
-            rows.append({
-                "Dataset": name,
-                "static": format_float(simple_total),
-                "incRecompute": format_float(inc_total),
-                "incBST": format_float(bst_total),
-                "incMinIBST":format_float(diffmaxo_total),
-                "incMinIBSTH1": format_float(h1_total),
-                "incBSTBatch": format_float(batch_total),
-                "incRecompute_Speedup": format_float(inc_speedup, precision=2),
-                "incBST_Speedup": format_float(bst_speedup, precision=2),
-                "incMinIBST_Speedup": format_float(diffmaxo_speedup, precision=2),
-                "incMinIBSTH1_Speedup": format_float(compute_speedup(simple_total, h1_total), precision=2),
-                "incBSTBatch_Speedup": format_float(compute_speedup(simple_total, batch_total), precision=2),
-                "PeakMemory": format_float(peak_mem, precision=2),
-            })
-        else:
-            rows.append({
-                "Dataset": name,
-                "incRecompute_Imp(%)": format_float(inc_percent, precision=2),
-                "incBST_Imp(%)": format_float(bst_percent, precision=2),
-                "incMinIBST_Imp(%)":  format_float(diffmaxo_percent, precision=2),
-                "incMinIBSTH1_Imp(%)": format_float(pct_improvement(simple_total, h1_total), precision=2),
-                "incBSTBatch_Imp(%)": format_float(pct_improvement(simple_total, batch_total), precision=2),
-                "PeakMemory": format_float(peak_mem, precision=2),
-            })
-
+        row["PeakMemory"] = format_float(float(df[peak_col].max()) if peak_col else float("nan"), precision=2)
+        rows.append(row)
     return pd.DataFrame(rows)
 
 def build_memory_table(csv_paths: list):
@@ -806,12 +744,12 @@ def main():
 
         out_tex = os.path.join(args.outdir, f"table_{metric_name}.tex")
         if mode == "time":
-            columns = ["Dataset", "static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1", "incBSTBatch", "incRecompute_Speedup", "incBST_Speedup", "incMinIBST_Speedup", "incMinIBSTH1_Speedup", "incBSTBatch_Speedup"] 
+            columns = summary_columns("time") 
             caption = (f"{metric_name} time (s): {STEP_MEANING[metric_name]}, summed over all updates; "
                        f"speedup = static / algorithm. " + TIME_NOTE)
             label = f"tab:{metric_name.lower()}_summary_time"
         else:
-            columns = ["Dataset", "incRecompute_Imp(%)", "incBST_Imp(%)", "incMinIBST_Imp(%)", "incMinIBSTH1_Imp(%)", "incBSTBatch_Imp(%)"] 
+            columns = summary_columns("percent") 
             caption = (f"{metric_name} ({STEP_MEANING[metric_name]}): improvement over static in "
                        f"percent. " + TIME_NOTE)
             label = f"tab:{metric_name.lower()}_summary_percent"
@@ -854,12 +792,12 @@ def main():
     total_df = build_total_time_table(csv_paths, mode)
     out_tex = os.path.join(args.outdir, "table_TotalTime.tex")
     if mode == "time":
-        columns = ["Dataset", "static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1", "incBSTBatch", "incRecompute_Speedup", "incBST_Speedup", "incMinIBST_Speedup", "incMinIBSTH1_Speedup", "incBSTBatch_Speedup"]
+        columns = summary_columns("time")
         caption = ("Total time (s) of each algorithm, summed over all updates (all steps), and the "
                    "speedup = static / algorithm; peak memory: Table~\\ref{tab:peak_memory}. " + TIME_NOTE)
         label = "tab:totaltime_summary_time"
     else:
-        columns = ["Dataset", "incRecompute_Imp(%)", "incBST_Imp(%)", "incMinIBST_Imp(%)", "incMinIBSTH1_Imp(%)", "incBSTBatch_Imp(%)"]
+        columns = summary_columns("percent")
         caption = "Total time: improvement over static in percent. " + TIME_NOTE
         label = "tab:totaltime_summary_percent"
     generate_latex_table(

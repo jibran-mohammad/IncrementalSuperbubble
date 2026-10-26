@@ -43,7 +43,7 @@ INPUT / OUTPUT
 Input, per folder output/Ecoli/timeFile/<perEdge|perbatch>/ or
 output/Human/chromosome_<X>/timeFile/<perEdge|perbatch>/:
 
-    static_time.txt, incRecompute_time.txt, incBST_time.txt,
+    static_time.txt, incRecompute_time.txt, incNormalBST_time.txt, incBST_time.txt,
     incMinIBST_time.txt, incBSTBatch_time.txt
     (written by superbubbleRunner.py; missing files are skipped with a
     warning, e.g. incBSTBatch_time.txt in perEdge mode)
@@ -139,9 +139,9 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     # incremental algorithms write case columns, and some also explored counts.
     algorithm_id = filename.name[:-len("_time.txt")]
 
-    is_incremental_file = algorithm_id in {"incRecompute", "incBST", "incMinIBST", "incMinIBSTH1", "incBSTBatch"}
+    is_incremental_file = algorithm_id in {"incRecompute", "incNormalBST", "incBST", "incMinIBST", "incMinIBSTH1", "incBSTBatch"}
 
-    has_explored = algorithm_id in {"incBST", "incMinIBST", "incMinIBSTH1", "incBSTBatch"}
+    has_explored = algorithm_id in {"incNormalBST", "incBST", "incMinIBST", "incMinIBSTH1", "incBSTBatch"}
     if is_incremental_file:
         CASE_COLUMNS = ['Case1', 'Case2', 'Case3', 'Case4', 'Case5']
         if has_explored:
@@ -172,6 +172,9 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     elif filename.name == "incRecompute_time.txt":
         source_time_metric = 'DFS_Time'
         prefix = 'incRecompute_'
+    elif filename.name == "incNormalBST_time.txt":
+        source_time_metric = 'DFS_Time'
+        prefix = 'incNormalBST_'
     elif filename.name == "incBST_time.txt":
         source_time_metric = 'DFS_Time'
         prefix = 'incBST_'
@@ -519,6 +522,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
     # ADD THIS CHECK:
     required = ["static_time.txt", 
                 "incRecompute_time.txt", 
+                "incNormalBST_time.txt",
                 "incBST_time.txt",
                 "incBSTBatch_time.txt",
                 "incMinIBST_time.txt",
@@ -549,11 +553,17 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
     ALGORITHMS = {
         "static": "static_time.txt",
         "incRecompute": "incRecompute_time.txt",
+        "incNormalBST": "incNormalBST_time.txt",
         "incBST": "incBST_time.txt",
         "incBSTBatch": "incBSTBatch_time.txt",
         "incMinIBST": "incMinIBST_time.txt",
         "incMinIBSTH1": "incMinIBSTH1_time.txt"
     }
+
+    # incNormalBST is a perEdge-only algorithm (see superbubbleRunner.py):
+    # a perbatch time file of it (from an earlier run) is not read
+    if mode == "perbatch":
+        ALGORITHMS.pop("incNormalBST")
 
     files_to_parse = {
         time_dir_path / fname: f"{prefix}_Time_s"
@@ -587,7 +597,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         # 1. Define time metric structures for use in merging and filtering (FIX: SCOPE)
         BASE_TIME_METRICS = ['UpdateDS_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time']
         BASE_VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
-        PREFIXES = ['static_', 'incRecompute_', 'incBST_','incBSTBatch_','incMinIBST_','incMinIBSTH1_']
+        PREFIXES = ['static_', 'incRecompute_', 'incNormalBST_', 'incBST_','incBSTBatch_','incMinIBST_','incMinIBSTH1_']
         
         # 2. Perform the full merge
         merge_keys = ['Step']
@@ -642,9 +652,10 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         
         rename_dict = {}
         for case in CASE_METRICS:
-            # Drop the incRecompute_ columns
-            if f'incRecompute_{case}' in merged_df.columns:
-                merged_df = merged_df.drop(columns=[f'incRecompute_{case}'], errors='ignore')
+            # Drop the incRecompute_ and incNormalBST_ columns (same cases as incBST)
+            for other in ('incRecompute', 'incNormalBST'):
+                if f'{other}_{case}' in merged_df.columns:
+                    merged_df = merged_df.drop(columns=[f'{other}_{case}'], errors='ignore')
             # Rename the incBST_ columns to the final CaseX name
             if f'incBST_{case}' in merged_df.columns:
                 rename_dict[f'incBST_{case}'] = case
@@ -671,7 +682,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
                 prefix = name.split('_')[0]
                 return prefix + 'TimeS'
 
-            if name.startswith(('static_', 'incRecompute_', 'incBST_', 'incBSTBatch_', 'incMinIBST_', 'incMinIBSTH1_')):
+            if name.startswith(('static_', 'incRecompute_', 'incNormalBST_', 'incBST_', 'incBSTBatch_', 'incMinIBST_', 'incMinIBSTH1_')):
                 parts = name.split('_')
                 # Keep inner parts exactly (no .capitalize()), just glue them:
                 # 'static_DFS_Time' -> ['static','DFS','Time'] -> 'static' + 'DFS' + 'Time' -> 'staticDFSTime'
@@ -690,7 +701,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         GRAPH_METRICS = ['TotalVertices', 'TotalEdges']
         # the batch algorithm writes what a batch did instead of the per-edge cases
         BATCH_METRICS = ['NewVertices', 'SourcesPlaced', 'BackwardEdges', 'Rounds', 'Adoptions']
-        PREFIXES = ['static', 'incRecompute', 'incBST', 'incBSTBatch','incMinIBST','incMinIBSTH1']
+        PREFIXES = ['static', 'incRecompute', 'incNormalBST', 'incBST', 'incBSTBatch','incMinIBST','incMinIBSTH1']
 
         final_order = BASE_COLS + ['SuperbubbleCount']
 

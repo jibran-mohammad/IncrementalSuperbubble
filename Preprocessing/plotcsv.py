@@ -63,15 +63,17 @@ import argparse
 
 # Define the components and their corresponding column names
 
-# all algorithms that can be plotted; each plot shows those present in the CSV
+# all algorithms that can be plotted, in the order in which they were
+# developed (legends, bars); each plot shows those present in the CSV
 # (select_algorithms), e.g. incBSTBatch only in perBatch
-ALL_ALGORITHMS = ["static", "incRecompute", "incBST", "incMinIBST", "incMinIBSTH1", "incBSTBatch"]
+ALL_ALGORITHMS = ["static", "incRecompute", "incNormalBST", "incBST", "incMinIBST", "incMinIBSTH1", "incBSTBatch"]
 ALGORITHMS = list(ALL_ALGORITHMS)
 
 # Names shown in legends (IDs and meanings: see ALGORITHMS.md)
 DISPLAY_NAMES = {
     "static": "Static",
     "incRecompute": "Inc-Recompute",
+    "incNormalBST": "Inc-Normal-BST",
     "incBST": "Inc-BST",
     "incMinIBST": "Inc-MinI-BST",
     "incMinIBSTH1": "Inc-MinI-BST-H1",
@@ -82,6 +84,7 @@ DISPLAY_NAMES = {
 SHORT_NAMES = {
     "static": "S",
     "incRecompute": "Rec",
+    "incNormalBST": "NBST",
     "incBST": "BST",
     "incMinIBST": "MinI",
     "incMinIBSTH1": "H1",
@@ -117,6 +120,7 @@ STACK_COLORS = {
 VERSION_STYLES = {
     'static':  {'color': 'red',    'marker': 'o', 'linestyle': '-',   'linewidth': 0.7, 'markersize': 2},
     'incRecompute':     {'color': 'blue',   'marker': 's', 'linestyle': '--',  'linewidth': 0.7, 'markersize': 2},
+    'incNormalBST':{'color': 'teal',  'marker': 'P', 'linestyle': (0, (3, 1, 1, 1)), 'linewidth': 0.7, 'markersize': 2},
     'incBST':     {'color': 'green',  'marker': '^', 'linestyle': '-.',  'linewidth': 0.7, 'markersize': 2},
     'incMinIBST':{'color': 'orange', 'marker': 'D', 'linestyle': ':',   'linewidth': 0.7, 'markersize': 2},
     'incMinIBSTH1':{'color': 'purple', 'marker': 'v', 'linestyle': '-',   'linewidth': 0.7, 'markersize': 2},
