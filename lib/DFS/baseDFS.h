@@ -25,6 +25,9 @@ public:
 	    double currenttopologicalOrderTime = 0.0;
     };
     IncrementalUpdateTimes latestTimes;
+	// the DFS appends every finished vertex here (postorder); the positions
+	// are written from it afterwards in one pass (timed as TopoOrder)
+	std::vector<int> postorderList;
 public:
 	void dfs(GraphContext *g) override;
 	void dfsUtil(GraphContext *G, int v);

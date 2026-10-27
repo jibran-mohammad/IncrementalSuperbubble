@@ -1,60 +1,52 @@
 #include "baseDFS.h"
     
+    /*
+      Static DFS from every unvisited vertex, then the topological order.
+      Two steps, each timed once (not per vertex: reading the clock four
+      times per vertex cost more than the DFS itself):
+        DFS        the traversal; every finished vertex is appended to
+                   postorderList
+        TopoOrder  one pass over postorderList writes the positions:
+                   the i-th finished vertex gets position (n-1) - i
+    */
     void BaseDFS::dfs(GraphContext *G) { 
-        //this->a=0;
-        //this->b=0;
         #ifndef BENCHMARK
         auto start = std::chrono::high_resolution_clock::now();
-        auto end = std::chrono::high_resolution_clock::now();   
-        std::chrono::duration<double> elapsed = end - start;
-        start = std::chrono::high_resolution_clock::now();
         #endif
+        this->postorderList.clear();
+        this->postorderList.reserve(this->n);
         for (int i = 0; i <this->n; ++i) {
             if (!this->visit[i]) {
                this->dfsUtil(G, i);
            }
         }
         #ifndef BENCHMARK
-        end = std::chrono::high_resolution_clock::now();
-        elapsed = end - start;
-        this->latestTimes.dfsTime = elapsed.count();
-        this->latestTimes.dfsTime = this->latestTimes.dfsTime - this->latestTimes.topologicalOrderTime;
+        auto end = std::chrono::high_resolution_clock::now();
+        this->latestTimes.dfsTime = std::chrono::duration<double>(end - start).count();
+        start = std::chrono::high_resolution_clock::now();
         #endif
-
-       //std::cout <<" Nodes and edges " << this->a << " " << this->b << std::endl;
+        for (int i = 0; i < (int)this->postorderList.size(); ++i) {
+            int v = this->postorderList[i];
+            this->reverseTopologicalOrder[v] = (this->n - 1) - i;
+            this->topOrd[(this->n - 1) - i] = v;
+        }
+        this->postorderNumber = (int)this->postorderList.size();
+        #ifndef BENCHMARK
+        end = std::chrono::high_resolution_clock::now();
+        this->latestTimes.topologicalOrderTime = std::chrono::duration<double>(end - start).count();
+        #endif
     }
  
     void BaseDFS::dfsUtil(GraphContext *G, int v) {
-        #ifndef BENCHMARK
-        auto start = std::chrono::high_resolution_clock::now();
-        auto end = std::chrono::high_resolution_clock::now();   
-        std::chrono::duration<double> elapsed = end - start;
-        #endif
         this->visit[v] = 1; // Mark the current vertex as visited
-        //this->a++;
         // Recur for all adjacent vertices of the current vertex
         for (int u : G->displayOutgoingNeighbours(v)) {
-            //this->b++;
             if (!this->visit[u]) {
                 this->dfsUtil(G, u);
             }
         } 
-          
-        // After visiting all adjacent vertices, add the current vertex to the postorder
-        #ifndef BENCHMARK
-        start = std::chrono::high_resolution_clock::now();
-        #endif
-        this->reverseTopologicalOrder[v]=(this->n-1) - this->postorderNumber;
-        this->topOrd[this->reverseTopologicalOrder[v]]=v;
-        this->postorderNumber++; 
-        #ifndef BENCHMARK
-        end = std::chrono::high_resolution_clock::now();
-        elapsed = end - start;
-        this->latestTimes.currenttopologicalOrderTime = elapsed.count();
-        this->latestTimes.topologicalOrderTime += elapsed.count();  
-        #endif
-        
-         
+        // After visiting all adjacent vertices: v is finished (postorder)
+        this->postorderList.push_back(v);
     }
 
     void BaseDFS::printTopologicalOrder() const {
