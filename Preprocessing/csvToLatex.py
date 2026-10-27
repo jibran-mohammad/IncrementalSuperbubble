@@ -814,6 +814,61 @@ def build_activity_totals(csv_paths: list, what: str):
     return pd.DataFrame(rows), ["Dataset"] + names + ["Total"], algo_used
 
 
+def build_full_time_table(csv_paths: list, out_tex: str, mode: str):
+    """
+    One large table with every step, transposed: one column per dataset plus
+    Total; one block per step (UpdateDS ... SBCompute, Total). In a block:
+    static first, then every other algorithm with its time and, below it,
+    its speedup over static (= static / algorithm). Times in seconds, summed
+    over all updates; the Total column sums the datasets (its speedup is the
+    ratio of the sums). Algorithms without data in this mode are left out.
+    """
+    steps = [("UpdateDS", "UpdateDSTime"), ("DFS", "DFSTime"), ("TopoOrder", "TopologicalOrderTime"),
+             ("MinI", "MinITime"), ("MaxO", "MaxOTime"), ("SBCompute", "SBComputeTime"),
+             ("Total", "TotalTime")]
+    names, frames = [], []
+    for path in csv_paths:
+        frames.append(normalize_dataframe(pd.read_csv(path), path))
+        names.append(infer_dataset_name_from_path(path))
+    algos = [a for a in ALGORITHMS
+             if any(not pd.isna(sum_metric(df, a, "TotalTime")) for df in frames)]
+
+    def t(x):
+        return "-" if pd.isna(x) else f"{x:.4f}"
+
+    def sp(x):
+        return "-" if pd.isna(x) else f"{x:.2f}"
+
+    ncol = len(names) + 2
+    lines = [r"\begin{table}[ht]", r"\centering",
+             r"\begin{tabular}{|l|" + "|".join(["c"] * (ncol - 1)) + "|}", r"\hline",
+             r"\textbf{Dataset} & " + " & ".join(rf"\textbf{{{n}}}" for n in names) + r" & \textbf{Total} \\",
+             r"\hline \hline"]
+    for step, suffix in steps:
+        lines.append(rf"\textbf{{{step}}}" + " &" * (ncol - 1) + r" \\")
+        lines.append(r"\hline")
+        values = {a: [sum_metric(df, a, suffix) for df in frames] for a in algos}
+        totals = {a: sum(v for v in values[a] if not pd.isna(v)) if any(not pd.isna(v) for v in values[a])
+                  else float("nan") for a in algos}
+        for a in algos:
+            label = rf"\texttt{{{SHORT_NAMES.get(a, a)}}}"
+            lines.append(label + " & " + " & ".join(t(v) for v in values[a]) + f" & {t(totals[a])}" + r" \\")
+            if a != "static":
+                speed = [compute_speedup(s0, v) for s0, v in zip(values["static"], values[a])]
+                lines.append("Speedup & " + " & ".join(sp(v) for v in speed)
+                             + f" & {sp(compute_speedup(totals['static'], totals[a]))}" + r" \\")
+            lines.append(r"\hline")
+        lines.append(r"\hline")
+    mode_text = "all edge updates (perEdge)" if mode == "perEdge" else "all genomes (perBatch)"
+    caption = (f"Time (s) of every step, summed over {mode_text}, per dataset and in total; "
+               "below each algorithm its speedup = static / algorithm. " + TIME_NOTE
+               + abbreviation_note([SHORT_NAMES.get(a, a) for a in algos]))
+    lines += [r"\end{tabular}", rf"\caption{{{caption}}}", rf"\label{{tab:full_time_{mode.lower()}}}", r"\end{table}"]
+    with open(out_tex, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    print(f"✅ Wrote: {out_tex}")
+
+
 def main():
     import argparse
 
@@ -987,6 +1042,11 @@ def main():
         label="tab:activity",
         out_tex=os.path.join(args.outdir, "table_activity.tex")
     )
+
+    # -------- all steps in one large table (datasets as columns) --------
+    if mode == "time":
+        build_full_time_table(csv_paths, os.path.join(args.outdir, "table_full_time.tex"),
+                              detect_mode_from_path(csv_paths[0]))
 
     # -------- the same totals, transposed: one table for vertices, one for edges --------
     for what, word in (("V", "vertices"), ("E", "edges")):
