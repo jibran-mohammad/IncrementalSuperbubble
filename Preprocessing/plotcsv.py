@@ -269,6 +269,9 @@ def plot_total_time_bar(df, output_dir, dataset_name, mode, scale):
     plt.setp(ax.get_xticklabels(), rotation=20, ha="right")
 
     ax.set_ylabel("Total Time (ms)")
+    if small_algorithms(dict(zip(versions, totals))):
+        ax.set_yscale("log")
+        ax.set_ylabel("Total Time (ms, log scale)")
     ax.set_title(f"Total Time Comparison — {dataset_name}")
     ax.grid(axis="y", linestyle="--", alpha=0.6)
 
@@ -511,7 +514,21 @@ def plot_total_time_line(df, output_dir, dataset_name, mode, scale):
     print(f"Saved Total Time Line Plot to {plot_filename}")
 
 
-def draw_stacked_groups(ax, df_plot, group_labels, group_axis_label):
+# an algorithm whose total is below 1/ZOOM_RATIO of the largest one is
+# invisible in a linear stacked bar (e.g. static and Batch next to the
+# edge-by-edge algorithms on HPRC perBatch): such plots get a second panel
+# with only these algorithms on their own axis
+ZOOM_RATIO = 20
+
+
+def small_algorithms(totals):
+    """the algorithms (of a {algorithm: total} dict) below 1/ZOOM_RATIO of the largest total"""
+    top = max(totals.values()) if totals else 0
+    small = [a for a, t in totals.items() if top > 0 and t < top / ZOOM_RATIO]
+    return small if 0 < len(small) < len(totals) else []
+
+
+def draw_stacked_groups(ax, df_plot, group_labels, group_axis_label, versions=None):
     """
     One group of stacked bars per row of df_plot (a genome or an edge
     update), one bar per algorithm, stacked by time component. The groups
@@ -521,7 +538,7 @@ def draw_stacked_groups(ax, df_plot, group_labels, group_axis_label):
     the legend handles of the components.
     """
     components = ['UpdateDS', 'DFS', 'TopologicalOrder', 'MinI', 'MaxO', 'SBCompute']
-    versions = list(ALGORITHMS)
+    versions = list(versions or ALGORITHMS)
     n = len(versions)
     width = 0.8 / n
     groups = np.arange(len(df_plot))
@@ -578,12 +595,27 @@ def plot_stacked_bar_breakdown(df, output_dir, dataset_name, mode, scale, num_st
         print("Not enough non-base data to generate the stacked bar chart.")
         return
 
-    fig, ax = plt.subplots(figsize=(15, 8))
-    handles = draw_stacked_groups(ax, df_plot, df_plot['Step'].astype(str).tolist(), "Genome (step)")
+    totals = {v: sum(df_plot[f"{v}{c}Time"].fillna(0).sum() for c in
+                     ['UpdateDS', 'DFS', 'TopologicalOrder', 'MinI', 'MaxO', 'SBCompute']
+                     if f"{v}{c}Time" in df_plot.columns) for v in ALGORITHMS}
+    small = small_algorithms(totals)
+    labels = df_plot['Step'].astype(str).tolist()
+    if small:
+        fig, (ax, axz) = plt.subplots(1, 2, figsize=(20, 8), gridspec_kw={"width_ratios": [3, 2]})
+    else:
+        fig, ax = plt.subplots(figsize=(15, 8))
+    handles = draw_stacked_groups(ax, df_plot, labels, "Genome (step)")
     ax.set_title(f'Time per component for the first {num_steps} genomes — {dataset_name}', fontsize=16)
     ax.set_ylabel('Total Time (ms) [Sum of Components]')
     ax.grid(axis='y', ls='--', alpha=0.6)
-    stacked_legend_and_note(ax, fig, handles)
+    if small:
+        draw_stacked_groups(axz, df_plot, labels, "Genome (step)", versions=small)
+        axz.set_title(f"Zoom: {', '.join(SHORT_NAMES.get(v, v) for v in small)} (own scale; below 1/{ZOOM_RATIO} of the largest)",
+                      fontsize=12)
+        axz.grid(axis='y', ls='--', alpha=0.6)
+        stacked_legend_and_note(axz, fig, handles)
+    else:
+        stacked_legend_and_note(ax, fig, handles)
     plt.tight_layout(rect=(0, 0.03, 1, 1))
 
     plot_filename = os.path.join(
@@ -621,31 +653,34 @@ def plot_aggregated_version_bars(df, output_dir, dataset_name, mode, scale):
                 raise KeyError(f"Expected column '{col}' not found.")
             sums[v].append(df_plot[col].sum())
 
-    # plotting
-    fig, ax = plt.subplots(figsize=(8, 6))
-    x = np.arange(len(versions))
-    bottom = np.zeros(len(versions))
+    # plotting (with a zoom panel for algorithms that would be invisible)
+    small = small_algorithms({v: sum(sums[v]) for v in versions})
+    if small:
+        fig, (ax, axz) = plt.subplots(1, 2, figsize=(13, 6), gridspec_kw={"width_ratios": [3, 2]})
+    else:
+        fig, ax = plt.subplots(figsize=(8, 6))
 
-    for i, comp in enumerate(components):
-        values = [sums[v][i] for v in versions]
-        ax.bar(
-            x,
-            values,
-            bottom=bottom,
-            width=0.6,
-            label=comp,
-            color=STACK_COLORS[comp],
-            edgecolor='black',
-            linewidth=0.4
-        )
-        bottom += values
+    def stacked(axis, vs):
+        x = np.arange(len(vs))
+        bottom = np.zeros(len(vs))
+        for i, comp in enumerate(components):
+            values = [sums[v][i] for v in vs]
+            axis.bar(x, values, bottom=bottom, width=0.6, label=comp, color=STACK_COLORS[comp],
+                     edgecolor='black', linewidth=0.4)
+            bottom += values
+        axis.set_xticks(x)
+        axis.set_xticklabels([DISPLAY_NAMES.get(a, a) for a in vs], rotation=20, ha="right")
+        axis.grid(axis='y', ls='--', alpha=0.5)
 
-    ax.set_xticks(x)
-    ax.set_xticklabels([DISPLAY_NAMES.get(a, a) for a in ALGORITHMS], rotation=20, ha="right")
+    stacked(ax, list(versions))
     ax.set_ylabel('Time (ms) — summed across steps')
     ax.set_title(f'Aggregated Total Time Breakdown by Version --{dataset_name}')
-    ax.legend(title='Component', loc='upper right')
-    ax.grid(axis='y', ls='--', alpha=0.5)
+    if small:
+        stacked(axz, small)
+        axz.set_title(f"Zoom (own scale; below 1/{ZOOM_RATIO} of the largest)", fontsize=10)
+        axz.legend(title='Component', loc='upper left', bbox_to_anchor=(1.01, 1.0))
+    else:
+        ax.legend(title='Component', loc='upper right')
     plt.tight_layout()
 
 
