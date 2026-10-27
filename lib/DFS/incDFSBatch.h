@@ -109,17 +109,17 @@ public:
         long long currentNewVertices = 0, currentSourcesPlaced = 0, currentBackwardEdges = 0;
         long long currentRounds = 0, currentAdoptions = 0;
     };
-    struct CountOfVertices {
-        int countAffectedVertices = 0;        // positions in the reorder windows and moved blocks (affected edges: their out-degrees)
-        int countExploredVertices = 0;        // vertices reached by the reorder's searches
-        int currentcountAffectedVertices = 0;
-        int currentcountExploredVertices = 0;
-        int totalEdges = 0;
-        int currentTotalEdges = 0;
-        int totalExploredEdges = 0;
-        int totalAffectedEdges = 0;
-        int currentTotalExploredEdges = 0;
-        int currentTotalAffectedEdges = 0;
+    struct CountOfVertices {   // 64 bit: perBatch sums over a whole HPRC genome exceed 2^31
+        long long countAffectedVertices = 0;        // positions in the reorder windows and moved blocks (affected edges: their out-degrees)
+        long long countExploredVertices = 0;        // vertices reached by the reorder's searches
+        long long currentcountAffectedVertices = 0;
+        long long currentcountExploredVertices = 0;
+        long long totalEdges = 0;
+        long long currentTotalEdges = 0;
+        long long totalExploredEdges = 0;
+        long long totalAffectedEdges = 0;
+        long long currentTotalExploredEdges = 0;
+        long long currentTotalAffectedEdges = 0;
     };
     IncrementalUpdateTimes latestTimes;
     BatchCounts counts;

@@ -50,17 +50,17 @@ public:
         int case1 = 0, case2 = 0, case3 = 0, case4 = 0, case5 = 0;
         int currentcase1 = 0, currentcase2 = 0, currentcase3 = 0, currentcase4 = 0, currentcase5 = 0;
     };
-    struct CountOfVertices {
-        int countAffectedVertices = 0;        // positions in the reorder window (case 4)
-        int countExploredVertices = 0;        // vertices reached by partialDFS
-        int currentcountAffectedVertices = 0;
-        int currentcountExploredVertices = 0;
-        int totalEdges = 0;
-        int currentTotalEdges = 0;
-        int totalExploredEdges = 0;
-        int totalAffectedEdges = 0;
-        int currentTotalExploredEdges = 0;
-        int currentTotalAffectedEdges = 0;
+    struct CountOfVertices {   // 64 bit: perBatch sums over a whole HPRC genome exceed 2^31
+        long long countAffectedVertices = 0;        // positions in the reorder window (case 4)
+        long long countExploredVertices = 0;        // vertices reached by partialDFS
+        long long currentcountAffectedVertices = 0;
+        long long currentcountExploredVertices = 0;
+        long long totalEdges = 0;
+        long long currentTotalEdges = 0;
+        long long totalExploredEdges = 0;
+        long long totalAffectedEdges = 0;
+        long long currentTotalExploredEdges = 0;
+        long long currentTotalAffectedEdges = 0;
     };
     IncrementalUpdateTimes latestTimes;
     TypeOfEdgeInsertion edgeTypes;

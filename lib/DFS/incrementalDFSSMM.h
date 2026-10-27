@@ -36,17 +36,17 @@ public:
     	int totalEdges = 0;
     	int currentTotalEdges =0;
     };
-    struct CountOfVertices {
-    	int countAffectedVertices = 0;
-    	int countExploredVertices = 0;
-    	int currentcountAffectedVertices = 0;
-    	int currentcountExploredVertices = 0;
-    	int totalEdges = 0;
-    	int currentTotalEdges =0;
-    	int totalExploredEdges = 0;
-    	int totalAffectedEdges = 0;
-    	int currentTotalExploredEdges =0;
-    	int currentTotalAffectedEdges =0;
+    struct CountOfVertices {   // 64 bit: perBatch sums over a whole HPRC genome exceed 2^31
+    	long long countAffectedVertices = 0;
+    	long long countExploredVertices = 0;
+    	long long currentcountAffectedVertices = 0;
+    	long long currentcountExploredVertices = 0;
+    	long long totalEdges = 0;
+    	long long currentTotalEdges =0;
+    	long long totalExploredEdges = 0;
+    	long long totalAffectedEdges = 0;
+    	long long currentTotalExploredEdges =0;
+    	long long currentTotalAffectedEdges =0;
     };
     IncrementalUpdateTimes latestTimes;
     TypeOfEdgeInsertion edgeTypes;
