@@ -691,7 +691,10 @@ def build_activity_table(csv_paths: list):
             label = "Batch" if a == "incBSTBatch" else "Edge-by-edge"
             def total(col):
                 c = f"{a}{col}" if a else None
-                return float(pd.to_numeric(df[c], errors="coerce").fillna(0).sum()) if c in df.columns else None
+                if c not in df.columns:
+                    return None
+                v = pd.to_numeric(df[c], errors="coerce").fillna(0)
+                return None if (v < 0).any() else float(v.sum())   # negative: overflowed count
             row[f"Affected V {label}"] = cell(total("AffectedVertices"), vsum, updates)
             row[f"Affected E {label}"] = cell(total("TotalAffectedEdges"), esum, updates)
             row[f"Explored V {label}"] = cell(total("ExploredVertices"), vsum, updates)
@@ -708,6 +711,107 @@ def build_activity_table(csv_paths: list):
     for what in ["Affected V", "Affected E", "Explored V", "Explored E"]:
         columns += [f"{what} {l}" for l in labels]
     return pd.DataFrame(rows), columns, mode, algos_used
+
+
+def big_number(x):
+    """19170000 -> 19.17M, 5.08e9 -> 5.08B, small numbers with thousands separators."""
+    if x >= 1e9:
+        return f"{x / 1e9:.2f}B"
+    if x >= 1e6:
+        return f"{x / 1e6:.2f}M"
+    return f"{x:,.0f}".replace(",", "{,}")
+
+
+def ratio_text(r):
+    """Ratios: two decimals below 1000, whole numbers with separators above."""
+    return f"{r:.2f}" if r < 1000 else f"{r:,.0f}".replace(",", "{,}")
+
+
+def build_activity_totals(csv_paths: list, what: str):
+    """
+    Transposed activity table, one column per dataset plus Total, all values
+    summed over all updates (what = "V": vertices, "E": edges, i.e. the
+    out-degrees of those vertices):
+      Explored   reached by the searches (perEdge: the edge-by-edge
+                 algorithm; perBatch: the batch algorithm)
+      Affected   positions reordered; Ratio = Affected / Explored
+      Static per edge     sum over the edge updates of the graph size: what
+                          static touches in perEdge; Ratio = it / Explored
+      Static per genome   sum over the genomes of the graph size: what static
+                          touches in perBatch; Ratio = it / Explored
+    The graph sizes come from the perEdge and perbatch CSVs of the same
+    dataset (the other one is found next to the given one).
+    Returns (DataFrame, columns, algorithm ID).
+    """
+    mode = detect_mode_from_path(csv_paths[0]) if csv_paths else "perEdge"
+    explored_col = "ExploredVertices" if what == "V" else "TotalExploredEdges"
+    affected_col = "AffectedVertices" if what == "V" else "TotalAffectedEdges"
+    size_col = "TotalVertices" if what == "V" else "TotalEdges"
+
+    def column_sum(df, col):
+        """None if missing or overflowed (negative values: a 32-bit count in the program)"""
+        if col not in df.columns:
+            return None
+        v = pd.to_numeric(df[col], errors="coerce").fillna(0)
+        return None if (v < 0).any() else float(v.sum())
+
+    def graph_sum(path):
+        """sum of the graph size over the updates of that CSV (any algorithm that writes it)"""
+        if not os.path.exists(path):
+            return None
+        df = load_updates(path)
+        for a in ALGORITHMS:
+            if f"{a}{size_col}" in df.columns:
+                return column_sum(df, f"{a}{size_col}")
+        return None
+
+    names, cols = [], {}
+    totals = {"explored": 0.0, "affected": 0.0, "per_edge": 0.0, "per_genome": 0.0}
+    algo_used = None
+    for path in csv_paths:
+        df = load_updates(path)
+        name = infer_dataset_name_from_path(path)
+        if mode == "perBatch":
+            algo = "incBSTBatch" if f"incBSTBatch{explored_col}" in df.columns else None
+        else:
+            algo = next((a for a in EDGE_BY_EDGE_FOR_ACTIVITY if f"{a}{explored_col}" in df.columns), None)
+        if algo is None:
+            continue
+        algo_used = algo
+        explored = column_sum(df, f"{algo}{explored_col}")
+        affected = column_sum(df, f"{algo}{affected_col}")
+        edge_path = path.replace("/perbatch/", "/perEdge/")
+        batch_path = path.replace("/perEdge/", "/perbatch/")
+        per_edge = graph_sum(edge_path)
+        per_genome = graph_sum(batch_path)
+        names.append(name)
+        cols[name] = (explored, affected, per_edge, per_genome)
+        for k, v in zip(totals, (explored, affected, per_edge, per_genome)):
+            totals[k] += v or 0.0
+    cols["Total"] = tuple(totals.values())
+
+    def r(a, b):
+        return ratio_text(a / b) if a and b else "-"
+
+    label = "V" if what == "V" else "E"
+    rows = [
+        {"Dataset": f"Explored {label}"},
+        {"Dataset": f"Affected {label}"},
+        {"Dataset": "Ratio (Affected / Explored)"},
+        {"Dataset": f"Static per edge ($\\sum$ {label})"},
+        {"Dataset": "Ratio (Static per edge / Explored)"},
+        {"Dataset": f"Static per genome ($\\sum$ {label})"},
+        {"Dataset": "Ratio (Static per genome / Explored)"},
+    ]
+    for name, (explored, affected, per_edge, per_genome) in cols.items():
+        rows[0][name] = big_number(explored) if explored is not None else "-"
+        rows[1][name] = big_number(affected) if affected is not None else "-"   # "-": missing or overflowed
+        rows[2][name] = r(affected, explored)
+        rows[3][name] = big_number(per_edge) if per_edge else "-"
+        rows[4][name] = r(per_edge, explored)
+        rows[5][name] = big_number(per_genome) if per_genome else "-"
+        rows[6][name] = r(per_genome, explored)
+    return pd.DataFrame(rows), ["Dataset"] + names + ["Total"], algo_used
 
 
 def main():
@@ -883,6 +987,24 @@ def main():
         label="tab:activity",
         out_tex=os.path.join(args.outdir, "table_activity.tex")
     )
+
+    # -------- the same totals, transposed: one table for vertices, one for edges --------
+    for what, word in (("V", "vertices"), ("E", "edges")):
+        tot_df, tot_cols, tot_algo = build_activity_totals(csv_paths, what)
+        if tot_algo is None:
+            continue
+        who = ("the batch algorithm (perBatch, once per genome)" if tot_algo == "incBSTBatch"
+               else "the edge-by-edge algorithms (perEdge; all give the same counts)")
+        unit = "vertices" if what == "V" else "edges (the out-degrees of those vertices)"
+        generate_latex_table(
+            tot_df, tot_cols,
+            caption=(f"Total {word} touched, summed over all updates, by {who}: Explored = {unit} "
+                     "reached by the searches, Affected = positions reordered. Static per edge / per "
+                     f"genome = the graph's {word} summed over the edge updates / over the genomes, i.e. "
+                     "what static processes in perEdge / perBatch mode. Ratios: relative to Explored. "
+                     "M = million, B = billion."),
+            label=f"tab:activity_totals_{word}",
+            out_tex=os.path.join(args.outdir, f"table_activity_totals_{word}.tex"))
 
 if __name__ == "__main__":
     main()

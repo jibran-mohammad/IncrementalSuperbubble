@@ -159,6 +159,15 @@ def plot_activity(df, output_dir, dataset_name, mode, scale):
     df_plot = df[df["Step"] != 0].copy()
     ebe = next((a for a in EDGE_BY_EDGE_FOR_ACTIVITY if f"{a}AffectedVertices" in df_plot.columns), None)
     algos = [a for a in [ebe] if a]
+    # a count column with negative values overflowed in the program (32-bit
+    # sum over a whole HPRC genome): such an algorithm is not plotted
+    def overflowed(a):
+        cols = [c for c in df_plot.columns if c.startswith(a) and c[len(a):] in
+                ("AffectedVertices", "ExploredVertices", "TotalAffectedEdges", "TotalExploredEdges")]
+        return any((pd.to_numeric(df_plot[c], errors="coerce") < 0).any() for c in cols)
+    if ebe and overflowed(ebe):
+        print(f"  [!] {dataset_name}: counts of {ebe} overflowed (negative), not plotted")
+        algos = []
     if mode == "perbatch" and "incBSTBatchAffectedVertices" in df_plot.columns:
         algos.append("incBSTBatch")
     if not algos:

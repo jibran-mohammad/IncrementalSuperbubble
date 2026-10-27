@@ -630,10 +630,14 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         non_base_df = merged_df[merged_df['Step'] != 'Base'].copy()
         base_df = merged_df[merged_df['Step'] == 'Base'].copy()
         
-        # 5. Filter non-base rows: convert time columns to numeric and sum
-        valid_time_cols = [col for col in metric_cols if col in non_base_df.columns]
+        # 5. Filter non-base rows: a genome/edge without any time is dropped.
+        # Only the TIME columns decide (not the vertex/edge counts: a count
+        # that overflowed in a program, e.g. a 32-bit sum over a whole HPRC
+        # genome, is negative and must not cancel the times).
+        valid_time_cols = [col for col in metric_cols
+                           if col in non_base_df.columns and col.endswith('_Time')]
 
-        for col in valid_time_cols:
+        for col in [c for c in metric_cols if c in non_base_df.columns]:
              non_base_df[col] = pd.to_numeric(non_base_df[col], errors='coerce').fillna(0.0)
 
         # Calculate the sum and filter
