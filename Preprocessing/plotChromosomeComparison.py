@@ -29,9 +29,10 @@ Options:
     -m / --mode        perEdge | perBatch                                   (required)
     -d / --datasets    ecoli; a human chromosome: 11, chr11, X, chrX, ...;
                        an HPRC chromosome: hprc11, hprcX, ...                (required)
-    -a / --algorithms  algorithm IDs (ALGORITHMS.md); default perEdge:
-                       static incRecompute incMinIBSTH1, perBatch: static
-                       incMinIBSTH1 incBSTBatch
+    -a / --algorithms  algorithm IDs (ALGORITHMS.md); default: every
+                       algorithm with data in this mode, in the order of
+                       the tables (perEdge: static ... incMinIBSTH1,
+                       perBatch: static ... incBSTBatch)
     -o / --output      folder of the PNG        (default: output/plots/comparison)
 
 More than about six datasets make the bars narrow. Datasets of very
@@ -58,11 +59,9 @@ import pandas as pd
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "Preprocessing"))
-from plotcsv import DISPLAY_NAMES, SHORT_NAMES, STACK_COLORS, ZOOM_RATIO, small_algorithms   # as in the other plots
+from plotcsv import ALL_ALGORITHMS, DISPLAY_NAMES, SHORT_NAMES, STACK_COLORS, ZOOM_RATIO, small_algorithms   # as in the other plots
 
 COMPONENTS = ["UpdateDS", "DFS", "TopologicalOrder", "MinI", "MaxO", "SBCompute"]
-DEFAULT_ALGORITHMS = {"perEdge": ["static", "incRecompute", "incMinIBSTH1"],
-                      "perBatch": ["static", "incMinIBSTH1", "incBSTBatch"]}
 MODE_DIR = {"perEdge": "perEdge", "perBatch": "perbatch"}
 
 
@@ -84,7 +83,7 @@ def dataset_folder(name, mode):
     raise ValueError(f"unknown dataset name: {name}")
 
 
-def load_steps(folder, algorithms):
+def load_steps(folder, algorithms, quiet=False):
     """time of every step (s), summed over all updates, per algorithm; None if the CSV is missing"""
     csv = folder / "haplotype_build_comparison.csv"
     if not csv.exists():
@@ -97,7 +96,8 @@ def load_steps(folder, algorithms):
     for a in algorithms:
         cols = [f"{a}{c}Time" for c in COMPONENTS]
         if not any(c in df.columns for c in cols):
-            print(f"[!] {csv}: no data of {a}")
+            if not quiet:
+                print(f"[!] {csv}: no data of {a}")
             out[a] = None
             continue
         out[a] = [float(pd.to_numeric(df[c], errors="coerce").fillna(0).sum()) if c in df.columns else 0.0
@@ -112,15 +112,18 @@ def main():
     ap.add_argument("-a", "--algorithms", nargs="+")
     ap.add_argument("-o", "--output", default=str(REPO / "output" / "plots" / "comparison"))
     args = ap.parse_args()
-    algorithms = args.algorithms or DEFAULT_ALGORITHMS[args.mode]
+    algorithms = args.algorithms or list(ALL_ALGORITHMS)
 
     labels, steps = [], []
     for name in args.datasets:
         label, folder = dataset_folder(name, args.mode)
-        s = load_steps(folder, algorithms)
+        s = load_steps(folder, algorithms, quiet=not args.algorithms)
         if s is not None:
             labels.append(label)
             steps.append(s)
+    if not args.algorithms:
+        # default: only the algorithms that have data in this mode
+        algorithms = [a for a in algorithms if any(s[a] is not None for s in steps)]
     if not labels:
         print("No data found.")
         return 1
