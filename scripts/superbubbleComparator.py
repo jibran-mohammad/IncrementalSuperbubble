@@ -57,6 +57,12 @@ Options:
                  bubbles and are slower).
                  Memory and the bubble lists (after every haplotype) are
                  complete.                                        (default: 1)
+    --final-superbubbles-only
+                 write only the bubbles of the final graph (after the last
+                 haplotype) to <tool>_superbubbles.txt, not those of the base
+                 graph and after every haplotype: on HPRC the full lists are
+                 several GB per run. The tool runs and is timed exactly as
+                 without the option; only the file is smaller.
 
     # HPRC chromosome 22 (Minigraph-Cactus, ~1 million edge updates):
     # about 100 sampled graphs plus one per haplotype
@@ -247,7 +253,7 @@ def write_superbubbles(sbfile,title,result):
     sbfile.write("\n")
 
 
-def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile,every=1):
+def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile,every=1,final_only=False):
     """
     Runs the tool on the base graph and after every update. perEdge with
     every > 1 (sampling, for graphs too large to run the tool after every
@@ -281,7 +287,8 @@ def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile,every=1):
 
     write_time_row(timefile,"Base","-","-",result,measure_memory(tool,gfa,memories))
 
-    write_superbubbles(sbfile,"Base graph",result)
+    if not final_only:
+        write_superbubbles(sbfile,"Base graph",result)
 
     print("Base completed")
 
@@ -351,11 +358,13 @@ def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile,every=1):
 
             write_time_row(timefile,step,hap,len(edges),result,measure_memory(tool,gfa,memories))
 
-        write_superbubbles(
-            sbfile,
-            f"After haplotype {h}/{len(hap_order)}: {hap} (step {step})",
-            result
-        )
+        # --final-superbubbles-only: only the final graph (after the last haplotype)
+        if not final_only or h == len(hap_order):
+            write_superbubbles(
+                sbfile,
+                f"After haplotype {h}/{len(hap_order)}: {hap} (step {step})",
+                result
+            )
 
         print(f"Haplotype {h}/{len(hap_order)} completed: {hap}")
 
@@ -408,7 +417,7 @@ def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile,every=1):
 
 #######################################################
 
-def run_dataset(repo, dataset_path, mode, tool_name, every=1):
+def run_dataset(repo, dataset_path, mode, tool_name, every=1, final_only=False):
     """Run the tool after every update of one dataset; write its two output files."""
 
     graph_dir = repo / "input" / dataset_path / "Graphs"
@@ -449,7 +458,8 @@ def run_dataset(repo, dataset_path, mode, tool_name, every=1):
                 tool,
                 timefile,
                 sbfile,
-                every
+                every,
+                final_only
             )
 
     finally:
@@ -535,6 +545,13 @@ if __name__=="__main__":
              "run the tool after every edge (default: 1 = every edge)"
     )
 
+    parser.add_argument(
+        "--final-superbubbles-only",
+        action="store_true",
+        help="write only the bubbles of the final graph to <tool>_superbubbles.txt "
+             "(timing unchanged; the full lists are several GB on HPRC)"
+    )
+
     args=parser.parse_args()
 
     if args.every > 1 and args.m != "perEdge":
@@ -556,7 +573,7 @@ if __name__=="__main__":
         start = time.time()
 
         try:
-            run_dataset(repo, dataset_path, args.m, args.tool, args.every)
+            run_dataset(repo, dataset_path, args.m, args.tool, args.every, args.final_superbubbles_only)
             status[dataset_path] = f"ok ({time.time() - start:.0f} s)"
         except (Exception, SystemExit) as e:
             status[dataset_path] = f"FAILED: {e}"
