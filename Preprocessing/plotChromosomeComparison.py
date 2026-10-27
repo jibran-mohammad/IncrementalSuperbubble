@@ -179,6 +179,11 @@ def main():
 
     os.makedirs(args.output, exist_ok=True)
     tag = "_".join(l.replace(" ", "") for l in labels)
+    if len(tag) > 60:
+        # long names break uploads (Overleaf): group and number of datasets instead
+        group = "HPRC" if all(l.startswith("HPRC") for l in labels) else \
+                ("small" if not any(l.startswith("HPRC") for l in labels) else "mixed")
+        tag = f"{group}_{len(labels)}datasets"
     path = os.path.join(args.output, f"comparison_{args.mode}_{tag}.png")
     plt.savefig(path, dpi=300, bbox_inches="tight")
     plt.close(fig)

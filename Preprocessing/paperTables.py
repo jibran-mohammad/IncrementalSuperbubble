@@ -124,6 +124,9 @@ def main():
     ap.add_argument("--csv", nargs="+", required=True, help="haplotype_build_comparison.csv, one per dataset")
     ap.add_argument("--outdir", required=True)
     ap.add_argument("--tag", help="label suffix, e.g. perbatch_hprc (default: the mode)")
+    ap.add_argument("--algorithms", nargs="+",
+                    help="only these algorithm IDs (default: every algorithm with data), "
+                         "e.g. static incBSTBatch for all HPRC chromosomes")
     args = ap.parse_args()
     os.makedirs(args.outdir, exist_ok=True)
 
@@ -133,6 +136,8 @@ def main():
     names = [infer_dataset_name_from_path(p) for p in args.csv]
     frames = [normalize_dataframe(pd.read_csv(p, low_memory=False), p) for p in args.csv]
     algos = [a for a in ALGORITHMS if any(not pd.isna(sum_metric(df, a, "TotalTime")) for df in frames)]
+    if args.algorithms:
+        algos = [a for a in algos if a in args.algorithms]
     notes = abbreviation_note([SHORT_NAMES.get(a, a) for a in algos])
 
     finished = {(a, n): run_finished(p, a) for a in algos for p, n in zip(args.csv, names)}
