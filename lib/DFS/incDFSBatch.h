@@ -168,6 +168,8 @@ private:
     std::vector<std::vector<int>> afterList;    // per anchor: new vertices noted after it
     std::vector<std::vector<int>> beforeList;   // per anchor: new vertices noted before it
     std::vector<int> anchors;                   // anchors with a non-empty list (to clear them)
+    std::vector<char> isAnchor;                 // per vertex: 1 = in anchors (materialize skips all others quickly)
+    std::vector<int> suffix;                    // materialize: the new order from the first anchor on
 
     // stamps: set membership per batch without clearing
     std::vector<unsigned> stampLater, stampEarlier, stampIn, stampOut, stampNew, stampParent, stampDetached;

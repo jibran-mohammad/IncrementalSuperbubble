@@ -44,6 +44,7 @@
             this->tailLast.resize(n, -1);
             this->afterList.resize(n);
             this->beforeList.resize(n);
+            this->isAnchor.resize(n, 0);
         }
 #ifndef BATCH_MINI_SCAN
         if ((int)this->minIbst.size() < n) {
@@ -334,7 +335,7 @@
     // Step 1: a new vertex is noted next to its anchor (before or after it);
     // materialize() builds the noted vertices into the order in step 2
     void IncrementalDFSTREEBatch::noteVertex(int x, int anchor, bool before) {
-        if (this->afterList[anchor].empty() && this->beforeList[anchor].empty()) this->anchors.push_back(anchor);
+        if (!this->isAnchor[anchor]) { this->anchors.push_back(anchor); this->isAnchor[anchor] = 1; }
         (before ? this->beforeList[anchor] : this->afterList[anchor]).push_back(x);
     }
 
@@ -344,29 +345,37 @@
       every vertex x is emitted as  (its before-list, in noting order), x,
       (its after-list, newest first); a listed vertex is emitted the same way
       (chains of new vertices). Every new vertex is in exactly one list (that
-      of its anchor), so every vertex is emitted once: O(n + new vertices).
-      This is the order that inserting them one at a time gives. The new
-      order is written into topOrd and reverseTopologicalOrder from the first
-      new vertex on (the positions before it do not change).
+      of its anchor), so every vertex is emitted once. This is the order that
+      inserting them one at a time gives.
+      Only the anchors (vertices with new vertices noted before or after
+      them, marked in isAnchor) need the lists; every other vertex is just
+      copied. The pass starts at the first old anchor: the positions before it
+      do not change. O(n - first anchor position + new vertices).
     */
     void IncrementalDFSTREEBatch::materialize(int nBefore, int nAfter) {
         if (nAfter == nBefore) return;
         BATCH_TIMER_START
-        std::vector<int> order;
-        order.reserve(nAfter);
-        int firstNew = nAfter;
+        // the first position that changes: the earliest old anchor
+        int first = nBefore;
+        for (int a : this->anchors) {
+            if (a < nBefore && this->reverseTopologicalOrder[a] < first) first = this->reverseTopologicalOrder[a];
+        }
+        std::vector<int> &out = this->suffix;
+        out.clear();
+        out.reserve(nAfter - first);
         struct Frame { int v; int phase; int i; };
         std::vector<Frame> st;
-        for (int p = 0; p < nBefore; p++) {
-            st.push_back({this->topOrd[p], 0, 0});
+        for (int p = first; p < nBefore; p++) {
+            int x = this->topOrd[p];
+            if (!this->isAnchor[x]) { out.push_back(x); continue; }    // the common case: nothing noted here
+            st.push_back({x, 0, 0});
             while (!st.empty()) {
                 Frame &f = st.back();
                 const std::vector<int> &before = this->beforeList[f.v];
                 const std::vector<int> &after = this->afterList[f.v];
                 if (f.phase == 0) {                                // before-list, in noting order
                     if (f.i < (int)before.size()) { int c = before[f.i++]; st.push_back({c, 0, 0}); continue; }
-                    if (f.v >= nBefore && firstNew == nAfter) firstNew = (int)order.size();
-                    order.push_back(f.v);                          // the vertex itself
+                    out.push_back(f.v);                            // the vertex itself
                     f.phase = 1;
                     f.i = (int)after.size() - 1;
                 }
@@ -374,15 +383,15 @@
                 st.pop_back();
             }
         }
-        if ((int)order.size() != nAfter) {
-            std::cerr << "incDFSBatch: building in the new vertices lost some (" << order.size() << " of " << nAfter << ")" << std::endl;
+        if ((int)out.size() != nAfter - first) {
+            std::cerr << "incDFSBatch: building in the new vertices lost some (" << out.size() << " of " << nAfter - first << ")" << std::endl;
             std::exit(1);
         }
-        for (int p = firstNew; p < nAfter; p++) {
-            this->topOrd[p] = order[p];
-            this->reverseTopologicalOrder[order[p]] = p;
+        for (int k = 0; k < (int)out.size(); k++) {
+            this->topOrd[first + k] = out[k];
+            this->reverseTopologicalOrder[out[k]] = first + k;
         }
-        for (int a : this->anchors) { this->afterList[a].clear(); this->beforeList[a].clear(); }
+        for (int a : this->anchors) { this->afterList[a].clear(); this->beforeList[a].clear(); this->isAnchor[a] = 0; }
         this->anchors.clear();
         BATCH_TIMER_ADD(this->latestTimes.currenttopologicalOrderTime)
     }
