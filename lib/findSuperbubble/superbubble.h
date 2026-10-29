@@ -21,6 +21,10 @@
 class SuperbubbleCalculation {
 public:
     std::list<pii> SB;
+    // time of clearing SB in the last insertE / insertBatch (normal build):
+    // the incremental programs add it to UpdateDS; static times the whole
+    // insertE as UpdateDS, so there it is already included
+    double clearTime = 0.0;
 public:    
     void computeSB(DFSCONTEXT *sdfs,GraphContext *g);
     void printSuperbubbles(GraphContext *g) ;

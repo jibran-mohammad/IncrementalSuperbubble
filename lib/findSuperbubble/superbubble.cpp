@@ -1,4 +1,5 @@
 #include"superbubble.h"
+#include<chrono>
 
     void SuperbubbleCalculation::computeSB(DFSCONTEXT *sdfs,GraphContext *g){
 	    int t1,t;
@@ -101,14 +102,26 @@
 
     void SuperbubbleCalculation::insertE(DFSCONTEXT *sdfs,GraphContext *g,int u, int v) {
     	sdfs->updateEdge(g,u,v);
+        #ifndef BENCHMARK
+        auto start = std::chrono::high_resolution_clock::now();
+        #endif
         this->SB.clear();
+        #ifndef BENCHMARK
+        this->clearTime = std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - start).count();
+        #endif
     }
  
     // a batch of edges (input ids): the DFS strategy updates the order, minI
     // and maxO once for all of them
     void SuperbubbleCalculation::insertBatch(DFSCONTEXT *sdfs, GraphContext *g, const std::vector<std::pair<int,int>> &edges) {
 	    sdfs->updateEdgeBatch(g, edges);
+        #ifndef BENCHMARK
+        auto start = std::chrono::high_resolution_clock::now();
+        #endif
 	    this->SB.clear();
+        #ifndef BENCHMARK
+        this->clearTime = std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - start).count();
+        #endif
 	}
 
 

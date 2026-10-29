@@ -219,6 +219,10 @@ public:
                 #endif
                 superbubble.insertBatch(&d,&g,edges);
                 #ifndef BENCHMARK
+                // clearing the superbubble list (in insertBatch) counts to UpdateDS, as in static
+                incdfs.latestTimes.insertTime += superbubble.clearTime;
+                #endif
+                #ifndef BENCHMARK
                 start = std::chrono::high_resolution_clock::now();
                 #endif
                 superbubble.computeSB(&d, &g);

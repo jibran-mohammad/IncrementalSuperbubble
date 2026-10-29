@@ -204,6 +204,11 @@ public:
                 std::cin >> x >> y;
                 //std::cout << x << " " << y << std::endl;
                 superbubble.insertE(&d,&g,x, y);
+                #ifndef BENCHMARK
+                // clearing the superbubble list (in insertE) counts to UpdateDS, as in static
+                incdfs.latestTimes.currentinsertTime += superbubble.clearTime;
+                incdfs.latestTimes.insertTime += superbubble.clearTime;
+                #endif
 
                 //d.displayTopologicalOrder();
                 //d.displayReverseTopologicalOrder();

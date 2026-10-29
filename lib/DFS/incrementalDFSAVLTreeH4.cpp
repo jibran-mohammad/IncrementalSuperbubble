@@ -409,17 +409,16 @@
         std::chrono::duration<double> elapsed = end - start;
 
 
+        // the window's vertices and edges (affected) are counted before the
+        // timer starts: counting is measurement, not part of the relabeling
+        for(int i = this->reverseTopologicalOrder[this->u]; i >= this->reverseTopologicalOrder[this->v]; i--) {
+            this->vertexCount.currentTotalAffectedEdges += g->getOutDegree(this->topOrd[i]);
+            this->vertexCount.currentcountAffectedVertices ++;
+        }
         start = std::chrono::high_resolution_clock::now();
         #endif
         
         for(int i = this->reverseTopologicalOrder[this->u]; i >= this->reverseTopologicalOrder[this->v]; i--) {
-            #ifndef BENCHMARK
-            // i is a position: the vertex there is topOrd[i] (reverseTopologicalOrder
-            // maps a vertex to its position; it used to be read with i, i.e. the
-            // out-degree of an arbitrary vertex was added)
-            this->vertexCount.currentTotalAffectedEdges += g->getOutDegree(this->topOrd[i]);
-            this->vertexCount.currentcountAffectedVertices ++;
-            #endif
             index = this->topOrd[i];
             this->windowList.push_back(index);
             

@@ -201,6 +201,11 @@ public:
             for (int i = 0; i < hap_edge_count; ++i) {
                 std::cin >> x >> y;
                 superbubble.insertE(&d,&g,x, y);
+                #ifndef BENCHMARK
+                // clearing the superbubble list (in insertE) counts to UpdateDS, as in static
+                incdfs.latestTimes.currentinsertTime += superbubble.clearTime;
+                incdfs.latestTimes.insertTime += superbubble.clearTime;
+                #endif
                 
                 //d.displayTopologicalOrder();
                 //d.displayReverseTopologicalOrder();

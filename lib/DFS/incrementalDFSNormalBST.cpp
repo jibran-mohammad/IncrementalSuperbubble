@@ -255,13 +255,17 @@ void IncrementalDFSNormalBST::partialDFS(GraphContext *g, int z) {
 // the new positions of the window [v .. u] (the same as incBST's update):
 // the reached vertices go behind u in postorder, the others move forward
 void IncrementalDFSNormalBST::relabelWindow(GraphContext *g) {
+    // the window's vertices and edges (affected) are counted before the
+    // timer starts: counting is measurement, not part of the relabeling
+    COUNT(for (int i = this->reverseTopologicalOrder[u]; i >= this->reverseTopologicalOrder[v]; i--) {
+              this->vertexCount.currentcountAffectedVertices++;
+              this->vertexCount.currentTotalAffectedEdges += g->getOutDegree(this->topOrd[i]);
+          });
     TIMED(topologicalOrder);
     int top = this->reverseTopologicalOrder[u];
     int shift = this->m;
     for (int i = top; i >= this->reverseTopologicalOrder[v]; i--) {
         int x = this->topOrd[i];
-        COUNT(this->vertexCount.currentcountAffectedVertices++);
-        COUNT(this->vertexCount.currentTotalAffectedEdges += g->getOutDegree(x));
         if (this->marked[x] == 1) {
             this->intermediatepostorder[x] = top - this->postorderChanged[x] + 1;
             this->marked[x] = 0;
