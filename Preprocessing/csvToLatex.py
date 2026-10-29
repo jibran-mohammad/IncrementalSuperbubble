@@ -76,7 +76,9 @@ ALGORITHMS = {
     "incBST": "incBST",
     "incMinIBST": "incMinIBST",
     "incMinIBSTH1": "incMinIBSTH1",
-    "incBSTBatch": "incBSTBatch"
+    "incRecomputeBatch": "incRecomputeBatch",
+    "incBSTBatch": "incBSTBatch",
+    "incBSTBatchH1": "incBSTBatchH1"
 }
 
 # Names shown in table headers (IDs and meanings: see ALGORITHMS.md)
@@ -87,7 +89,9 @@ DISPLAY_NAMES = {
     "incBST": "Inc-BST",
     "incMinIBST": "Inc-MinI-BST",
     "incMinIBSTH1": "Inc-MinI-BST-H1",
+    "incRecomputeBatch": "Inc-Recompute-Batch",
     "incBSTBatch": "Inc-BST-Batch",
+    "incBSTBatchH1": "Inc-BST-Batch-H1",
 }
 
 
@@ -101,7 +105,9 @@ SHORT_NAMES = {
     "incBST": "BST",
     "incMinIBST": "MinI",
     "incMinIBSTH1": "H1",
+    "incRecomputeBatch": "BRec",
     "incBSTBatch": "Batch",
+    "incBSTBatchH1": "BatchH1",
 }
 SHORT_BY_DISPLAY = {DISPLAY_NAMES[a]: SHORT_NAMES[a] for a in SHORT_NAMES}
 # other long headers / words in headers

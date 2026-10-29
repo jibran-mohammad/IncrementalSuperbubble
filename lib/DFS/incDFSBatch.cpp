@@ -47,7 +47,7 @@
             this->isAnchor.resize(n, 0);
         }
 #ifndef BATCH_MINI_SCAN
-        if ((int)this->minIbst.size() < n) {
+        if (!this->recomputeMinIMaxO && (int)this->minIbst.size() < n) {
             // empty trees ordered by the positions of this algorithm
             this->minIbst.resize(n, DifferentBalancedBinaryTree(this->reverseTopologicalOrder));
         }
@@ -80,6 +80,10 @@
     void IncrementalDFSTREEBatch::calculateMinI(GraphContext *g) {
         this->minI[0] = INT_MAX;
         this->minI[1] = 0;
+        if (this->recomputeMinIMaxO) {          // no trees (incRecomputeBatch)
+            for (int i = 2; i < this->n; i++) this->minIOf(g, i);
+            return;
+        }
 #ifndef BATCH_MINI_SCAN
         // trees of the base graph: every vertex gets its real parents
         for (int i = 2; i < this->n; i++) {
@@ -589,6 +593,7 @@
     */
     void IncrementalDFSTREEBatch::detachFromTrees(GraphContext *g, int x) {
 #ifndef BATCH_MINI_SCAN
+        if (this->recomputeMinIMaxO) return;    // no trees (incRecomputeBatch)
         if (this->stampNew[x] == this->stamp || this->stampDetached[x] == this->stamp) return;
         BATCH_TIMER_START
         this->stampDetached[x] = this->stamp;
@@ -618,6 +623,20 @@
             (a child that moved later can only become the latest)
     */
     void IncrementalDFSTREEBatch::updateMinIMaxO(GraphContext *g) {
+        if (this->recomputeMinIMaxO) {
+            // incRecomputeBatch: minI and maxO of every vertex from scratch
+            {
+            BATCH_TIMER_START
+            for (int i = 2; i < this->n; i++) this->minIOf(g, i);
+            BATCH_TIMER_ADD(this->latestTimes.currentminITime)
+            }
+            {
+            BATCH_TIMER_START
+            for (int i = 2; i < this->n; i++) this->maxOOf(g, i);
+            BATCH_TIMER_ADD(this->latestTimes.currentmaxOTime)
+            }
+            return;
+        }
 #ifndef BATCH_MINI_SCAN
         {   // ---- minI (trees, as in incMinIBST)
         BATCH_TIMER_START

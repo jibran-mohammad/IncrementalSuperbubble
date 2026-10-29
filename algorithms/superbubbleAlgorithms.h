@@ -10,6 +10,7 @@
 //#include "../lib/DFS/incrementalDFS.h"
 #include "../lib/DFS/incDFSBatch.h"
 #include "../lib/findSuperbubble/superbubbleh1.h"
+#include "../lib/findSuperbubble/superbubbleBatchH1.h"
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -23,7 +24,7 @@
   *_time.txt (e.g. /dev/null). Called after all updates, outside the timed
   sections, in normal (non-BENCHMARK) builds only.
 */
-template <class SuperbubbleClass>   // SuperbubbleCalculation or SuperbubbleCalculationH1
+template <class SuperbubbleClass>   // SuperbubbleCalculation, SuperbubbleCalculationH1 or SuperbubbleCalculationBatchH1
 inline void writeFinalSuperbubbles(const std::string &timePath,
                                    SuperbubbleClass &superbubble,
                                    GraphContext &g) {

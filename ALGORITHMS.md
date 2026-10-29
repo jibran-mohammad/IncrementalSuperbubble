@@ -11,7 +11,9 @@ column or a plot always points to the same code.
 | `incNormalBST` | Inc-Normal-BST | incremental DFS (the same as incBST); perEdge only (in perBatch it re-keys after every edge and is far slower than every other algorithm) | both maintained in normal balanced binary search trees keyed by the position number (`lib/tree/avlTree.h`): every vertex whose position changes (cases 1 and 2: all vertices after the new one; case 4: the whole window) is taken out of its neighbours' trees and put back with its new position |
 | `incBST` | Inc-BST | incremental DFS | both maintained in modified balanced binary search trees (`lib/tree/differentAVLTree.h`): they store vertex ids and compare by the current positions, so vertices that move without changing their relative order need no update |
 | `incMinIBST` | Inc-MinI-BST | incremental DFS | minI maintained in an AVL tree; maxO updated directly, without a tree |
+| `incRecomputeBatch` | Inc-Recompute-Batch | batch DFS as in incBSTBatch (perBatch only) | recomputed from scratch after every genome (`IncrementalDFSTREEBatch(g, true)`), as incRecompute after every edge; superbubbles once per batch |
 | `incBSTBatch` | Inc-BST-Batch | batch DFS, one batch per haplotype (perBatch only; base graph: static DFS): new vertices placed as in incMinIBST in one pass (a source of the genome directly under its first parent in the genome), then one reorder for all backward edges of the batch (bounded searches, one relabel), plus one per adoption of an old source (`lib/DFS/incDFSBatch.h`); its time file has NewVertices SourcesPlaced BackwardEdges Rounds Adoptions per genome instead of the per-edge cases | updated per batch for the vertices whose relative order changed: minI in AVL trees, maxO by comparison (as in incMinIBST); superbubbles once per batch |
+| `incBSTBatchH1` | Inc-BST-Batch-H1 | batch DFS as in incBSTBatch (perBatch only) | as incBSTBatch; superbubbles with the heuristic per batch (`lib/findSuperbubble/superbubbleBatchH1.cpp`, `SuperbubbleTree::updateBatch`): groups of new vertices, P = LCA on the old tree, rescan of the outermost P's, otherwise a full rebuild. Correct, but no real speedup: P = root in almost every genome |
 
 All algorithms compute the superbubbles themselves with the same code,
 `SuperbubbleCalculation::computeSB` (`lib/findSuperbubble/superbubble.cpp`);
@@ -19,7 +21,18 @@ they differ only in how the topological order and minI/maxO are kept up to date.
 
 Tables and plots list the algorithms in the order in which they were
 developed (static, incRecompute, incNormalBST, incBST, incMinIBST,
-incMinIBSTH1, incBSTBatch).
+incMinIBSTH1, incRecomputeBatch, incBSTBatch, incBSTBatchH1).
+
+Which algorithms run in which mode (`BATCH_ONLY` / `PEREDGE_ONLY` in
+`scripts/superbubbleRunner.py`; the parser reads the same):
+- perEdge: static, incRecompute, incNormalBST, incBST, incMinIBST, incMinIBSTH1
+- perBatch: static, incMinIBSTH1 (the best edge-by-edge algorithm, run per
+  genome), incRecomputeBatch, incBSTBatch, incBSTBatchH1
+
+The data structures for minI / maxO (incNormalBST, incBST, incMinIBST) are
+also compared on their own (perEdge): `table_datastructures.tex` of
+`Preprocessing/paperTables.py` and
+`plotChromosomeComparison.py -m perEdge -a incNormalBST incBST incMinIBST -t datastructures`.
 
 `static` is the baseline. The best edge-by-edge algorithm at the moment is
 `incMinIBSTH1` (incMinIBST with the superbubble heuristic); it is the one

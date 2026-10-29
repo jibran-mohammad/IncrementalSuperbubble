@@ -105,15 +105,15 @@ def write_table(path, header, rows, caption, label):
     print(f"wrote {path}")
 
 
-def algorithm_rows(algos, value_of, columns, digits, ratio_fn):
-    """static first, then every other algorithm with a Speedup row below it.
-    value_of(algo, column) -> number; ratio(base, value) -> speedup."""
+def algorithm_rows(algos, value_of, columns, digits, ratio_fn, base_algo="static"):
+    """base_algo (static) first, then every other algorithm with a Speedup row
+    below it. value_of(algo, column) -> number; ratio(base, value) -> speedup."""
     rows = []
     for a in algos:
         vals = [value_of(a, c) for c in columns]
         rows.append([rf"\texttt{{{SHORT_NAMES.get(a, a)}}}"] + [fmt(v, digits) for v in vals])
-        if a != "static":
-            base = [value_of("static", c) for c in columns]
+        if a != base_algo:
+            base = [value_of(base_algo, c) for c in columns]
             rows.append(["Speedup"] + [fmt(ratio_fn(b, v), 2) for b, v in zip(base, vals)])
         rows.append(None)
     return rows
@@ -195,7 +195,32 @@ def main():
             label=f"tab:paper_{word}_processed_{tag}",
             out_tex=os.path.join(args.outdir, fname))
 
-    # 4. external tools: tool time vs every algorithm's BENCHMARK wall time
+    # 4. the data structures for minI / maxO (perEdge): normal BST (NBST),
+    # modified BST for both (BST), modified BST for minI and maxO by
+    # comparison (MinI); speedup relative to NBST
+    ds_algos = ["incNormalBST", "incBST", "incMinIBST"]
+    if mode == "perEdge" and all(a in algos for a in ds_algos):
+        ds_cols = [("MinI", "MinITime"), ("MaxO", "MaxOTime"), ("MinI+MaxO", None), ("Total", "TotalTime")]
+
+        def ds_value(a, c):
+            if c == "MinI+MaxO":
+                mi, mo = total(a, "MinITime"), total(a, "MaxOTime")
+                return DNF if DNF in (mi, mo) else mi + mo
+            return total(a, dict(ds_cols)[c])
+        write_table(
+            os.path.join(args.outdir, "table_datastructures.tex"),
+            ["Data structure"] + [c for c, _ in ds_cols],
+            algorithm_rows(ds_algos, ds_value, [c for c, _ in ds_cols], 4, ratio, base_algo="incNormalBST"),
+            f"The data structures for minI and maxO: time (s) of maintaining minI and maxO and the total "
+            f"time, summed over {mode_text} of all {len(names)} datasets; below each its speedup = "
+            f"NBST / algorithm. NBST: normal balanced binary search trees keyed by position (every "
+            f"vertex that moves is re-keyed); BST: modified trees that compare by the current positions, "
+            f"for minI and maxO; MinI: modified tree for minI, maxO by comparison. All three use the same "
+            f"incremental DFS and superbubble computation. {TIME_NOTE}{DNF_NOTE}"
+            + abbreviation_note([SHORT_NAMES.get(a, a) for a in ds_algos]),
+            f"tab:paper_datastructures_{tag}")
+
+    # 5. external tools: tool time vs every algorithm's BENCHMARK wall time
     mode_dir = MODE_DIRS[mode]
     for tool in TOOLS:
         tool_time, ours = {}, {}

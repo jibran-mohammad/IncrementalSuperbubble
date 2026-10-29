@@ -43,13 +43,11 @@ DETAILED = [("perEdge", OUT / "latexTablesperEdge"),
             ("perBatchHPRC", OUT / "latexTablesperBatch_HPRC")]
 PAPER = [("perEdge", OUT / "paperTables" / "perEdge"),
          ("perBatch", OUT / "paperTables" / "perBatch"),
-         ("perBatchHPRC", OUT / "paperTables" / "perBatch_HPRC"),
-         ("perBatchHPRCall", OUT / "paperTables" / "perBatch_HPRC_all")]
+         ("perBatchHPRC", OUT / "paperTables" / "perBatch_HPRC")]
 TOOL_DIRS = ["bubblegun", "bubblefinder", "bubblegun_hprc22", "bubblefinder_hprc22",
              "bubblegun_hprc22_H1", "bubblefinder_hprc22_H1"]
 MODE_TITLE = {"perEdge": "perEdge, 11 datasets", "perBatch": "perBatch, 11 datasets",
-              "perBatchHPRC": "perBatch, HPRC chromosomes",
-              "perBatchHPRCall": "perBatch, all HPRC chromosomes, static vs batch"}
+              "perBatchHPRC": "perBatch, HPRC chromosomes"}
 
 # plots: (folder in the Overleaf project, source folder of output/plots, mode text)
 FIGURE_SETS = [("perEdge", OUT / "plots" / "perEdge", "perEdge"),

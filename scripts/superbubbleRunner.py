@@ -40,19 +40,22 @@ Options:
                          HPRC: Minigraph-Cactus graphs prepared by
                          Preprocessing/mcToDag.py, experimental)
     -a / --algorithms    algorithm IDs: static incRecompute incNormalBST incBST incMinIBST
-                         incBSTBatch                              (default: all)
+                         incMinIBSTH1 incRecomputeBatch incBSTBatch incBSTBatchH1
+                                                                  (default: all of the mode)
     -c / --chromosomes   Human only: chromosome_1 chromosome_X ... (default: all)
     -m / --mode          perEdge: recompute after every edge;
                          perBatch: after every haplotype           (default: perBatch)
 
 Notes:
 
-  - incBSTBatch (the batch algorithm) only runs in perBatch mode (skipped
-    in perEdge): it processes a whole haplotype at once.
-  - incNormalBST only runs in perEdge mode (skipped in perBatch): it
-    re-keys its trees after every edge, so in perBatch it is far slower
-    than every other algorithm (Ecoli: 55 s vs 0.4 s static) and adds
-    nothing there.
+  - The batch algorithms (BATCH_ONLY: incRecomputeBatch, incBSTBatch,
+    incBSTBatchH1) only run in perBatch mode (skipped in perEdge): they
+    process a whole haplotype at once.
+  - PEREDGE_ONLY algorithms are skipped in perBatch mode, where the
+    comparison is static, incMinIBSTH1 (the best edge-by-edge algorithm)
+    and the batch algorithms: incNormalBST (it re-keys its trees after
+    every edge, so in perBatch it is far slower than every other algorithm:
+    Ecoli 55 s vs 0.4 s static), incRecompute, incBST and incMinIBST.
   - Every run starts with "make clean" and uses one _tmp_runs/ folder in
     the repository root, so run only one superbubbleRunner.py at a time
     per copy of the repository.
@@ -186,11 +189,30 @@ ALGORITHMS = [
     #},
 
     {
+        # the batch DFS of incBSTBatch, minI and maxO from scratch after
+        # every genome (as incRecompute after every edge)
+        "name": "incRecomputeBatch",
+        "target": "incRecomputeBatch",
+        "output_filename": "incRecomputeBatch_time.txt"
+    },
+
+    {
         "name": "incBSTBatch",
         "target": "incBSTBatch",
         "output_filename": "incBSTBatch_time.txt"
+    },
+
+    {
+        # incBSTBatch + superbubble heuristic per batch (negative result:
+        # P = root in almost every genome; lib/findSuperbubble/superbubbleBatchH1.cpp)
+        "name": "incBSTBatchH1",
+        "target": "incBSTBatchH1",
+        "output_filename": "incBSTBatchH1_time.txt"
     }
 ]
+# perBatch only / perEdge only (skipped in the other mode)
+BATCH_ONLY = {"incRecomputeBatch", "incBSTBatch", "incBSTBatchH1"}
+PEREDGE_ONLY = {"incNormalBST", "incRecompute", "incBST", "incMinIBST"}
 # ---------------------
 
 def run_make_clean(cpp_dir):
@@ -406,18 +428,11 @@ def main():
         algorithms_to_run = ALGORITHMS
         print("--- Starting Superbubble Algorithm Pipeline (all algorithms) ---")
 
-    if args.mode == "perEdge":
-        removed = [algo['name'] for algo in algorithms_to_run if algo['name'] == "incBSTBatch"]
-        algorithms_to_run = [
-            algo for algo in algorithms_to_run
-            if algo['name'] != "incBSTBatch"
-        ]
-        if removed:
-            print("[INFO] Skipping incBSTBatch (only valid for perBatch mode)")
-    else:
-        if any(algo['name'] == "incNormalBST" for algo in algorithms_to_run):
-            print("[INFO] Skipping incNormalBST (perEdge only)")
-        algorithms_to_run = [algo for algo in algorithms_to_run if algo['name'] != "incNormalBST"]
+    skip = BATCH_ONLY if args.mode == "perEdge" else PEREDGE_ONLY
+    removed = [algo['name'] for algo in algorithms_to_run if algo['name'] in skip]
+    algorithms_to_run = [algo for algo in algorithms_to_run if algo['name'] not in skip]
+    if removed:
+        print(f"[INFO] Skipping {', '.join(removed)} (not run in {args.mode} mode)")
 
     print(f"--- Target Dataset: {args.dataset} ---")
 

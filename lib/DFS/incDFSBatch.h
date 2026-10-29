@@ -79,6 +79,10 @@
   of its children's trees before its relative order changes (searched in a
   round, or in an adopted block) and put back after step 3. Building in new
   vertices keeps every relative order.
+  incRecomputeBatch: IncrementalDFSTREEBatch(g, true) keeps no minI trees;
+  after every batch minI and maxO of all vertices are computed from scratch
+  (minIOf / maxOOf, the rules of the base graph), as incRecompute does after
+  every edge. The order is the same as in incBSTBatch.
   Compile switch: with -DBATCH_MINI_SCAN (make ... MINI_SCAN=1) minI is kept
   without trees: a child's parents are scanned only when its earliest
   parent moved later or a parent moved earlier.
@@ -133,7 +137,8 @@ public:
 #endif
 
 public:
-    IncrementalDFSTREEBatch(GraphContext *g) : BaseDFS(g) {
+    // recompute = true: minI / maxO from scratch after every batch (incRecomputeBatch)
+    IncrementalDFSTREEBatch(GraphContext *g, bool recompute = false) : BaseDFS(g), recomputeMinIMaxO(recompute) {
         cases = 0;
         g->insertEdge(0, 1);
         n = g->displayNumberVertices();
@@ -153,6 +158,7 @@ public:
     void printMaxO() const override;
 
 private:
+    const bool recomputeMinIMaxO;               // incRecomputeBatch: no trees, minI / maxO from scratch per batch
     struct OldEdge { int x, y, u, v; bool vOnly0; };   // input ids, internal ids
 
     // ---- per batch

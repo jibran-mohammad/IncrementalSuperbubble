@@ -120,28 +120,29 @@ void SuperbubbleTree::killPath(int from, int to) {
 // ---------------------------------------------------------------------------
 // Replace everything strictly inside 'owner' by a fresh scan of its range.
 // Requires: owner's interval is closed in the current graph (range lemma).
+// Returns false, and changes nothing, if owner is no longer a superbubble
+// (only possible in updateBatch; the per-edge cases guarantee it).
 // ---------------------------------------------------------------------------
-void SuperbubbleTree::rescan(const SBView& V, int owner) {
+bool SuperbubbleTree::rescan(const SBView& V, int owner) {
     int L = V.pos[ns[owner]], R = V.pos[nt[owner]];
-    assert(L < R);
+    if (L >= R) return false;
 
-    // 1. kill the old superbubbles inside (every one has its entrance strictly inside)
-    for (int p = L + 1; p < R; ++p) {
-        int x = V.at[p];
-        if (byEntrance[x] >= 0) kill(byEntrance[x]);
-    }
-
-    // 2. scan
+    // 1. scan
     std::vector<std::pair<int,int>> pairs = scanRange(V, L, R);
     std::vector<int> exitAt(R - L + 1, -1);      // indexed by entrance position - L
     bool ownerFound = false;
     for (auto& pr : pairs) {
         if (pr.first == L && pr.second == R) { ownerFound = true; continue; }
-        assert(pr.first > L);                    // otherwise owner was not a superbubble
+        if (pr.first <= L) return false;         // owner is not a superbubble
         exitAt[pr.first - L] = pr.second;
     }
-    assert(ownerFound);
-    (void)ownerFound;
+    if (!ownerFound) return false;
+
+    // 2. kill the old superbubbles inside (every one has its entrance strictly inside)
+    for (int p = L + 1; p < R; ++p) {
+        int x = V.at[p];
+        if (byEntrance[x] >= 0) kill(byEntrance[x]);
+    }
 
     // 3. sweep left to right: create nodes, set parents and encl
     std::vector<int> st;                         // open nodes, innermost on top
@@ -157,6 +158,7 @@ void SuperbubbleTree::rescan(const SBView& V, int owner) {
     }
     ++stats.rescans;
     stats.rescanVertices += R - L + 1;
+    return true;
 }
 
 void SuperbubbleTree::build(const SBView& V) {
@@ -167,12 +169,18 @@ void SuperbubbleTree::build(const SBView& V) {
     encl.assign(V.n, ROOT);
     newNode(0, 1, -1);                          // ROOT
     assert(V.pos[0] == 0 && V.pos[1] == V.n - 1);
-    rescan(V, ROOT);
+    bool ok = rescan(V, ROOT);
+    assert(ok);
+    (void)ok;
 }
 
 void SuperbubbleTree::rescanOrFull(const SBView& V, int P) {
     if (P == ROOT) { ++stats.fullRecomputes; ++stats.fullRootP; build(V); }
-    else rescan(V, P);
+    else {
+        bool ok = rescan(V, P);
+        assert(ok);
+        (void)ok;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -224,6 +232,89 @@ void SuperbubbleTree::update(const SBView& V, int caseNo, int u, int v,
     default:
         assert(false && "unknown case");
     }
+}
+
+// ---------------------------------------------------------------------------
+// A batch (one genome) at once, incBSTBatchH1. The groups are read from the
+// graph before the batch (SuperbubbleCalculationBatchH1::insertBatch); the
+// tree is still the one before the batch, V is the order after it.
+//   closed group (old tails and old heads): a tail was a sink or a head a
+//       source -> full (as 4b / 5c / 5d); P = LCA of innerOut(tails) and
+//       innerIn(heads) on the old tree; P = root -> full (as 5a);
+//       otherwise P is rescanned
+//   dangling group (no old head or no old tail): edge by edge it is cases
+//       1-3, so it must be a simple path of new vertices (otherwise full):
+//       a tail that was not a sink loses every superbubble around it up to
+//       the root, a head that was not a source the same (killPath, cases 1
+//       and 2); consecutive path vertices are new superbubbles (case 3), and
+//       so are (tail, front) / (back, head) if tailPair / headPair
+//   then: a P killed by a dangling group -> full; only the outermost P's are
+//   rescanned (a P inside another one is rebuilt by its rescan); a P that is
+//   no longer a superbubble after the batch -> full
+// ---------------------------------------------------------------------------
+void SuperbubbleTree::updateBatch(const SBView& V, const std::vector<BatchGroup>& groups) {
+    ensureSize(V.n);
+    ++stats.batches;
+
+    // 1. closed groups: their region P on the old tree
+    std::vector<int> regions;
+    bool dangling = false;
+    for (const BatchGroup& gr : groups) {
+        if (gr.tails.empty() || gr.heads.empty()) {
+            if (!gr.isPath) { fullBuild(V, stats.fullDangling); return; }
+            dangling = true;
+            continue;
+        }
+        if (gr.tailWasSink || gr.headWasSource) { fullBuild(V, stats.fullSinkSource); return; }
+        int P = innerOut(gr.tails[0]);
+        for (size_t i = 1; i < gr.tails.size(); ++i) P = lca(P, innerOut(gr.tails[i]));
+        for (int h : gr.heads) P = lca(P, innerIn(h));
+        if (P == ROOT) { fullBuild(V, stats.fullRootP); return; }
+        regions.push_back(P);
+    }
+
+    // 2. dangling groups: the superbubbles around their old vertex die (cases 1, 2)
+    if (dangling) {
+        for (const BatchGroup& gr : groups) {
+            if (!gr.tails.empty() && !gr.heads.empty()) continue;
+            for (int t : gr.tails) if (!gr.tailWasSink) killPath(innerOut(t), ROOT);
+            for (int h : gr.heads) if (!gr.headWasSource) killPath(innerIn(h), ROOT);
+        }
+        for (int P : regions) if (!nalive[P]) { fullBuild(V, stats.fullDangling); return; }
+    }
+
+    // 3. rescan the outermost regions, from left to right in the new order
+    std::sort(regions.begin(), regions.end(), [&](int a, int b) { return V.pos[ns[a]] < V.pos[ns[b]]; });
+    regions.erase(std::unique(regions.begin(), regions.end()), regions.end());
+    int end = -1;                               // exit position of the last rescanned region
+    for (int P : regions) {
+        if (V.pos[ns[P]] < end) continue;       // inside that region: already rebuilt
+        if (!rescan(V, P)) { fullBuild(V, stats.fullNotClosed); return; }
+        end = V.pos[nt[P]];
+    }
+    if (regions.empty()) ++stats.batchesNoScan;
+
+    // 4. the superbubbles along the dangling paths (case 3; tailPair / headPair: case 2 / case 1)
+    if (dangling) {
+        for (const BatchGroup& gr : groups) {
+            if (!gr.tails.empty() && !gr.heads.empty()) continue;
+            const std::vector<int>& p = gr.path;
+            if (gr.tailPair) addLeaf(gr.tails[0], p.front());
+            for (size_t i = 0; i + 1 < p.size(); ++i) addLeaf(p[i], p[i + 1]);
+            if (gr.headPair) addLeaf(p.back(), gr.heads[0]);
+        }
+    }
+}
+
+void SuperbubbleTree::fullBuild(const SBView& V, long long& reason) {
+    ++stats.fullRecomputes;
+    ++reason;
+    build(V);
+}
+
+// a superbubble without inside vertices, directly under the root
+void SuperbubbleTree::addLeaf(int s, int t) {
+    if (byEntrance[s] < 0 && byExit[t] < 0) newNode(s, t, ROOT);
 }
 
 std::vector<std::pair<int,int>> SuperbubbleTree::superbubbles() const {

@@ -34,6 +34,8 @@ Options:
                        the tables (perEdge: static ... incMinIBSTH1,
                        perBatch: static ... incBSTBatch)
     -o / --output      folder of the PNG        (default: output/plots/comparison)
+    -t / --tag         added to the file name, e.g. datastructures for
+                       -a incNormalBST incBST incMinIBST
 
 More than about six datasets make the bars narrow. Datasets of very
 different size (e.g. a small human chromosome next to an HPRC one) are
@@ -43,7 +45,7 @@ better plotted separately: the y axis is linear.
 OUTPUT
 =====================================================================
 
-    <output>/comparison_<mode>_<datasets>.png
+    <output>/comparison_<mode>_<datasets>[_<tag>].png
 """
 import argparse
 import os
@@ -111,6 +113,7 @@ def main():
     ap.add_argument("-d", "--datasets", nargs="+", required=True)
     ap.add_argument("-a", "--algorithms", nargs="+")
     ap.add_argument("-o", "--output", default=str(REPO / "output" / "plots" / "comparison"))
+    ap.add_argument("-t", "--tag", help="added to the file name")
     args = ap.parse_args()
     algorithms = args.algorithms or list(ALL_ALGORITHMS)
 
@@ -184,6 +187,8 @@ def main():
         group = "HPRC" if all(l.startswith("HPRC") for l in labels) else \
                 ("small" if not any(l.startswith("HPRC") for l in labels) else "mixed")
         tag = f"{group}_{len(labels)}datasets"
+    if args.tag:
+        tag += f"_{args.tag}"
     path = os.path.join(args.output, f"comparison_{args.mode}_{tag}.png")
     plt.savefig(path, dpi=300, bbox_inches="tight")
     plt.close(fig)

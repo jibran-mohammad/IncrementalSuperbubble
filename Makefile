@@ -18,8 +18,9 @@ ifeq ($(DEBUG),1)
 CFLAGS += -DDEBUG_OUTPUT
 endif
 
-# incMinIBSTH1 only: after every perEdge update, compare the superbubbles
-# (with their nesting tree) with a full recomputation and report differences.
+# incMinIBSTH1 / incBSTBatchH1 only: after every perEdge update / every
+# genome, compare the superbubbles (with their nesting tree) with a full
+# recomputation and report differences.
 # Slow (a full recomputation per update), for testing the heuristic:
 #   make clean && make TARGET=incMinIBSTH1 VERIFY=1
 ifeq ($(VERIFY),1)
@@ -95,6 +96,8 @@ SIMPLESUPERBUBBLEH1_OBJS = $(ALGORITHM_DIR)/superbubbledfsh1.o
 INCSUPERBUBBLE_OBJS = $(ALGORITHM_DIR)/superbubbleIncdfs.o
 INCRECOMPUTE_OBJS = $(ALGORITHM_DIR)/incRecompute.o
 INCBSTBATCH_OBJS = $(ALGORITHM_DIR)/incBSTBatch.o
+INCRECOMPUTEBATCH_OBJS = $(ALGORITHM_DIR)/incRecomputeBatch.o
+INCBSTBATCHH1_OBJS = $(ALGORITHM_DIR)/incBSTBatchH1.o
 INCMINIBST_OBJS = $(ALGORITHM_DIR)/incMinIBST.o
 INCMINIBSTH1_OBJS = $(ALGORITHM_DIR)/incMinIBSTH1.o
 INCBST_OBJS = $(ALGORITHM_DIR)/incBST.o
@@ -128,6 +131,8 @@ INCBST_SRCS = $(ALGORITHM_DIR)/incBST.cpp
 INCNORMALBST_SRCS = $(ALGORITHM_DIR)/incNormalBST.cpp
 INCRECOMPUTE_SRCS = $(ALGORITHM_DIR)/incRecompute.cpp
 INCBSTBATCH_SRCS = $(ALGORITHM_DIR)/incBSTBatch.cpp
+INCRECOMPUTEBATCH_SRCS = $(ALGORITHM_DIR)/incRecomputeBatch.cpp
+INCBSTBATCHH1_SRCS = $(ALGORITHM_DIR)/incBSTBatchH1.cpp
 INCMINIBST_SRCS = $(ALGORITHM_DIR)/incMinIBST.cpp
 INCMINIBSTH1_SRCS = $(ALGORITHM_DIR)/incMinIBSTH1.cpp
 H1SUPERBUBBLE_SRCS = $(ALGORITHM_DIR)/mnlognH1.cpp
@@ -156,6 +161,8 @@ SIMPLESUPERBUBBLEH1_EXEC = $(TEST_DIR)/superbubbledfsh1
 INCSUPERBUBBLE_EXEC = $(TEST_DIR)/superbubbleIncdfs
 INCRECOMPUTE_EXEC = $(TEST_DIR)/incRecompute
 INCBSTBATCH_EXEC = $(TEST_DIR)/incBSTBatch
+INCRECOMPUTEBATCH_EXEC = $(TEST_DIR)/incRecomputeBatch
+INCBSTBATCHH1_EXEC = $(TEST_DIR)/incBSTBatchH1
 INCMINIBST_EXEC = $(TEST_DIR)/incMinIBST
 INCMINIBSTH1_EXEC = $(TEST_DIR)/incMinIBSTH1
 INCBST_EXEC = $(TEST_DIR)/incBST
@@ -287,6 +294,30 @@ else ifeq ($(TARGET),incBSTBatch)
 	              $(GRAPH_DIR)/adjacencyListGraph.o \
 	              $(GRAPH_DIR)/contextGraph.o \
 	              $(TREE_DIR)/differentAVLTree.o
+else ifeq ($(TARGET),incRecomputeBatch)
+	# incBSTBatch's batch DFS, minI and maxO from scratch after every genome
+	TARGET_EXEC = $(INCRECOMPUTEBATCH_EXEC)
+	TARGET_DEPS = $(INCRECOMPUTEBATCH_OBJS) \
+	              $(SUPERBUBBLE_DIR)/superbubble.o \
+	              $(DFS_DIR)/incDFSBatch.o \
+	              $(DFS_DIR)/contextdfs.o \
+	              $(DFS_DIR)/baseDFS.o \
+	              $(GRAPH_DIR)/adjacencyListGraph.o \
+	              $(GRAPH_DIR)/contextGraph.o \
+	              $(TREE_DIR)/differentAVLTree.o
+else ifeq ($(TARGET),incBSTBatchH1)
+	# incBSTBatch's batch DFS, minI and maxO + the superbubble heuristic per batch
+	TARGET_EXEC = $(INCBSTBATCHH1_EXEC)
+	TARGET_DEPS = $(INCBSTBATCHH1_OBJS) \
+	              $(SUPERBUBBLE_DIR)/superbubbleBatchH1.o \
+	              $(SUPERBUBBLE_DIR)/superbubbleTree.o \
+	              $(SUPERBUBBLE_DIR)/superbubble.o \
+	              $(DFS_DIR)/incDFSBatch.o \
+	              $(DFS_DIR)/contextdfs.o \
+	              $(DFS_DIR)/baseDFS.o \
+	              $(GRAPH_DIR)/adjacencyListGraph.o \
+	              $(GRAPH_DIR)/contextGraph.o \
+	              $(TREE_DIR)/differentAVLTree.o
 else ifeq ($(TARGET),incMinIBST)
 	TARGET_EXEC = $(INCMINIBST_EXEC)
 	TARGET_DEPS = $(INCMINIBST_OBJS) \
@@ -349,6 +380,12 @@ $(SUPERBUBBLE_DIR)/Superbubble.o: $(SUPERBUBBLE_SRCS)
 
 $(ALGORITHM_DIR)/incBSTBatch.o: $(INCBSTBATCH_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@	
+
+$(ALGORITHM_DIR)/incRecomputeBatch.o: $(INCRECOMPUTEBATCH_SRCS)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(ALGORITHM_DIR)/incBSTBatchH1.o: $(INCBSTBATCHH1_SRCS)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(SUPERBUBBLEH1_DIR)/Superbubbleh1.o: $(SUPERBUBBLEH1_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@	
@@ -482,7 +519,7 @@ clean:
 	 $(EXTRACTDAGS_OBJS) $(EXTRACTDAGS_EXEC) $(SUPERBUBBLEPROBABILITY_EXEC) \
 	 $(SUPERBUBBLEPROBABILITY_OBJS) $(NEWINCH1_OBJS) $(NEWINCH1_EXEC) \
 	 $(INCRECOMPUTE_EXEC) $(INCRECOMPUTE_OBJS) $(INCDFSSMM_OBJS) \
-	 $(INCBSTBATCH_OBJS) $(INCBSTBATCH_EXEC) $(INCMINIBST_OBJS) \
+	 $(INCBSTBATCH_OBJS) $(INCBSTBATCH_EXEC) $(INCRECOMPUTEBATCH_OBJS) $(INCRECOMPUTEBATCH_EXEC) $(INCBSTBATCHH1_OBJS) $(INCBSTBATCHH1_EXEC) $(INCMINIBST_OBJS) \
 	 $(INCMINIBST_EXEC) $(INCNORMALBST_OBJS) $(INCNORMALBST_EXEC)
 	# every object file of the algorithms and libraries, also those without
 	# an *_OBJS variable above (e.g. lib/DFS/incrementalDFSAVLTreeH4.o of
