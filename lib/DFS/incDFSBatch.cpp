@@ -116,12 +116,23 @@
         {   // ---- step 1: classify (the graph is not changed)
         BATCH_TIMER_START
         std::unordered_set<unsigned long long> batchEdges;  // edges seen in this batch (input ids)
+        batchEdges.reserve(2 * edges.size());               // no rehashing during the pass
+        newId.reserve(2 * edges.size());
+        // a genome's edges often continue where the previous one ended: the
+        // last vertex looked up is kept (a vertex never changes its id)
+        int lastInput = -1, lastId = -1;
         auto known = [&](int x, int &id) -> bool {
+            if (x == lastInput) { id = lastId; return true; }
             std::map<int,int>::const_iterator it = G->reverseMapping.find(x);
-            if (it != G->reverseMapping.end()) { id = it->second; return true; }
-            std::unordered_map<int,int>::const_iterator jt = newId.find(x);
-            if (jt != newId.end()) { id = jt->second; return true; }
-            return false;
+            if (it != G->reverseMapping.end()) id = it->second;
+            else {
+                std::unordered_map<int,int>::const_iterator jt = newId.find(x);
+                if (jt == newId.end()) return false;
+                id = jt->second;
+            }
+            lastInput = x;
+            lastId = id;
+            return true;
         };
         // the graph numbers new vertices consecutively, in order of first appearance
         auto fresh = [&](int x) -> int {
@@ -228,12 +239,15 @@
         // E_new into the graph, in order: the graph gives the new vertices
         // exactly the ids of step 1
         for (const std::pair<int,int> &e : this->newInputEdges) g->insertEdge(e.first, e.second);
+        #ifdef VERIFY_SB
+        // check (make ... VERIFY=1): the graph gave every new vertex the id of step 1
         for (const std::pair<const int,int> &p : newId) {
             if (G->reverseMapping[p.first] != p.second) {
                 std::cerr << "incDFSBatch: vertex ids of the graph and the order are out of step" << std::endl;
                 std::exit(1);
             }
         }
+        #endif
         this->n = nAfter;
         this->fitSize(this->n);
         BATCH_TIMER_ADD(this->latestTimes.currentinsertTime)
