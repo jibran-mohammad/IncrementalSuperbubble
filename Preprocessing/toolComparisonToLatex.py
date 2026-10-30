@@ -353,7 +353,8 @@ def dataset_label(dataset_path):
 
     name = dataset_path.name
     label = "chr" + name.split("_", 1)[1] if name.startswith("chromosome_") else name
-    return f"HPRC {label}" if dataset_path.parts[0] == "HPRC" else label
+    group = dataset_path.parts[0]
+    return {"HPRC": f"HPRC {label}", "HPRC2": f"HPRC v2 {label}"}.get(group, label)
 
 
 def performance_rows(datasets, mode, algorithm, tool):
@@ -477,7 +478,7 @@ def discover_datasets(names, chromosomes, tool):
 
         # Ecoli (or any other dataset without chromosomes): one folder output/<name>/.
         # Human and HPRC (Minigraph-Cactus, experimental): one per chromosome.
-        if name not in ("Human", "HPRC"):
+        if name not in ("Human", "HPRC", "HPRC2"):
             datasets.append(pathlib.Path(name))
             continue
 

@@ -203,13 +203,15 @@ def latex_escape(s: str) -> str:
 
 def infer_dataset_name_from_path(csv_path: str) -> str:
     parts = csv_path.replace("\\", "/").split("/")
+    # HPRC release 2 (dataset HPRC2): "chr22 v2", next to release 1's "chr22"
+    v2 = " v2" if "HPRC2" in parts else ""
 
     # 1) Handle chromosome_13, chromosome_1, ...
     for p in parts:
         pl = p.lower()
         m = re.match(r"chromosome_([0-9]+|x|y)$", pl)
         if m:
-            return f"chr{m.group(1).upper()}"
+            return f"chr{m.group(1).upper()}{v2}"
 
     # 2) Handle chr1, chr2, chrX, ...
     for p in parts:

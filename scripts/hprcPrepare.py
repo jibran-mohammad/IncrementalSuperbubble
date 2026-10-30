@@ -6,10 +6,15 @@ GFA, normalizes it into a DAG with this repository's preprocessing
 (Preprocessing/mcToDag.py) and writes a report of what the normalization
 changed, over all chromosomes.
 
-Source: HPRC release 1.1, Minigraph-Cactus graph on GRCh38 (the same graph
-as chromosome 22 so far), one file per chromosome:
-  https://human-pangenomics.s3.amazonaws.com/pangenomes/freeze/freeze1/
+Source (--release): the HPRC Minigraph-Cactus graph on GRCh38, one file per
+chromosome:
+  1 (default) release 1.1, 44 samples (88 haplotypes + CHM13), dataset HPRC:
+      https://human-pangenomics.s3.amazonaws.com/pangenomes/freeze/freeze1/
       minigraph-cactus/hprc-v1.1-mc-grch38/hprc-v1.1-mc-grch38.chroms/chr<N>.vg
+  2 release 2.1, about 232 samples (464 haplotypes + CHM13), dataset HPRC2
+      (input/HPRC2/, output/HPRC2/, so release 1 stays untouched):
+      https://human-pangenomics.s3.amazonaws.com/pangenomes/freeze/release2/
+      minigraph-cactus/v2.1/hprc-v2.1-mc-grch38/hprc-v2.1-mc-grch38.chroms/chr<N>.vg
 
 =====================================================================
 HOW TO RUN
@@ -24,6 +29,10 @@ static binary from https://github.com/vgteam/vg/releases):
     # some chromosomes, vg not on the PATH, 8 threads for vg convert
     python3 -u scripts/hprcPrepare.py -c 21 22 X --vg ~/tools/vg --threads 8
 
+    # release 2 (dataset HPRC2), chromosome 22
+    nohup python3 -u scripts/hprcPrepare.py --release 2 -c 22 --vg ~/tools/vg --threads 16 \
+        > hprc2_prepare.log 2>&1 &
+
     # only list what would be done (sizes, free disk space)
     python3 scripts/hprcPrepare.py --dry-run
 
@@ -32,6 +41,8 @@ static binary from https://github.com/vgteam/vg/releases):
 
 Options:
     -c / --chromosomes  1 ... 22 X Y (also chr1 / c1)      (default: all 24)
+    --release           1 (HPRC release 1.1, dataset HPRC) or 2 (release
+                        2.1, dataset HPRC2)                (default: 1)
     --variant           default (chr<N>.vg) or d9 (chr<N>.d9.vg)  (default: default)
     --ref               reference sample in the walks      (default: GRCh38)
     --vg                vg program                         (default: vg)
@@ -48,7 +59,8 @@ Options:
     --report-only       only write the report
 
 =====================================================================
-WHAT IT DOES (per chromosome, in input/HPRC/chromosome_<N>/Graphs/)
+WHAT IT DOES (per chromosome, in input/<dataset>/chromosome_<N>/Graphs/,
+dataset HPRC or HPRC2, see --release)
 =====================================================================
 
   1. download   chr<N>.vg with curl in --connections byte ranges at once
@@ -93,8 +105,16 @@ import sys
 import time
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
-BASE_URL = ("https://human-pangenomics.s3.amazonaws.com/pangenomes/freeze/freeze1/"
-            "minigraph-cactus/hprc-v1.1-mc-grch38/hprc-v1.1-mc-grch38.chroms/")
+# --release -> (URL of the per-chromosome graphs, dataset folder, text for the report)
+RELEASES = {
+    "1": ("https://human-pangenomics.s3.amazonaws.com/pangenomes/freeze/freeze1/"
+          "minigraph-cactus/hprc-v1.1-mc-grch38/hprc-v1.1-mc-grch38.chroms/",
+          "HPRC", "release 1.1"),
+    "2": ("https://human-pangenomics.s3.amazonaws.com/pangenomes/freeze/release2/"
+          "minigraph-cactus/v2.1/hprc-v2.1-mc-grch38/hprc-v2.1-mc-grch38.chroms/",
+          "HPRC2", "release 2.1"),
+}
+BASE_URL, DATASET, RELEASE_TEXT = RELEASES["1"]       # set by main() from --release
 ALL_CHROMOSOMES = [str(i) for i in range(1, 23)] + ["X", "Y"]
 
 
@@ -229,7 +249,7 @@ def convert(vg, vg_file, gfa_gz, threads):
 
 def prepare(c, args, python):
     name = f"chromosome_{c}"
-    graphs = REPO / "input" / "HPRC" / name / "Graphs"
+    graphs = REPO / "input" / DATASET / name / "Graphs"
     vg_name = f"chr{c}.vg" if args.variant == "default" else f"chr{c}.d9.vg"
     url = BASE_URL + vg_name
     vg_file = graphs / vg_name
@@ -310,7 +330,7 @@ REPORT_COLUMNS = [
 def write_report(chromosomes):
     rows = []
     for c in chromosomes:
-        f = REPO / "input" / "HPRC" / f"chromosome_{c}" / "Graphs" / f"chromosome_{c}.stats.json"
+        f = REPO / "input" / DATASET / f"chromosome_{c}" / "Graphs" / f"chromosome_{c}.stats.json"
         if not f.exists():
             continue
         st = json.load(open(f))
@@ -321,7 +341,7 @@ def write_report(chromosomes):
     if not rows:
         log("report: no stats.json found")
         return
-    out = REPO / "output" / "HPRC"
+    out = REPO / "output" / DATASET
     out.mkdir(parents=True, exist_ok=True)
     with open(out / "hprc_dag_report.csv", "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=[c for c, _ in REPORT_COLUMNS])
@@ -339,7 +359,7 @@ def write_report(chromosomes):
         lines.append(" & ".join(str(r[k]) for k, _ in tex_cols) + " \\\\")
         lines.append("\\hline")
     lines += ["\\end{tabular}",
-              "\\caption{HPRC Minigraph-Cactus graphs (release 1.1, GRCh38) normalized to DAGs: what the "
+              f"\\caption{{HPRC Minigraph-Cactus graphs ({RELEASE_TEXT}, GRCh38) normalized to DAGs: what the "
               "normalization removed (inversion links, cycle-breaking back edges, small components) and how "
               "many haplotype walk transitions it breaks.}",
               "\\label{tab:hprc_dag_report}", "\\end{table}"]
@@ -355,6 +375,7 @@ def write_report(chromosomes):
 def main():
     ap = argparse.ArgumentParser(description="Download HPRC Minigraph-Cactus chromosome graphs and make DAGs")
     ap.add_argument("-c", "--chromosomes", nargs="+", default=ALL_CHROMOSOMES)
+    ap.add_argument("--release", choices=sorted(RELEASES), default="1")
     ap.add_argument("--variant", choices=["default", "d9"], default="default")
     ap.add_argument("--ref", default="GRCh38")
     ap.add_argument("--vg", default="vg")
@@ -366,6 +387,10 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--report-only", action="store_true")
     args = ap.parse_args()
+    global BASE_URL, DATASET, RELEASE_TEXT
+    BASE_URL, DATASET, RELEASE_TEXT = RELEASES[args.release]
+    if args.release != "1" and args.variant != "default":
+        sys.exit("--variant d9 exists only for release 1")
     chromosomes = [chrom_name(c) for c in args.chromosomes]
     python = args.python or (shutil.which("pypy3") or "python3")
 
@@ -375,7 +400,7 @@ def main():
             missing.append(f"vg ({args.vg})")
         if missing:
             sys.exit("missing programs: " + ", ".join(missing))
-        log(f"chromosomes: {' '.join(chromosomes)}; mcToDag with {python}; "
+        log(f"HPRC {RELEASE_TEXT} (dataset {DATASET}); chromosomes: {' '.join(chromosomes)}; mcToDag with {python}; "
             f"free disk space: {human(shutil.disk_usage(REPO).free)}")
         status = {}
         for c in chromosomes:

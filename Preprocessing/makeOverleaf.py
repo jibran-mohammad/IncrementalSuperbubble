@@ -38,14 +38,19 @@ OUT = REPO / "output"
 DEST = OUT / "overleaf_tables"
 TABLES = DEST / "tables"
 
-DETAILED = [("perEdge", OUT / "latexTablesperEdge"),
-            ("perBatch", OUT / "latexTablesperBatch"),
-            ("perBatchHPRC", OUT / "latexTablesperBatch_HPRC")]
+# only the paper tables go into the Overleaf folder. The detailed tables
+# (csvToLatex.py) and the old tool comparison tables are left out; to
+# include them again, list them here as
+#   DETAILED = [("perEdge", OUT / "latexTablesperEdge"),
+#               ("perBatch", OUT / "latexTablesperBatch"),
+#               ("perBatchHPRC", OUT / "latexTablesperBatch_HPRC")]
+#   TOOL_DIRS = ["bubblegun", "bubblefinder", "bubblegun_hprc22", "bubblefinder_hprc22",
+#                "bubblegun_hprc22_H1", "bubblefinder_hprc22_H1"]
+DETAILED = []
 PAPER = [("perEdge", OUT / "paperTables" / "perEdge"),
          ("perBatch", OUT / "paperTables" / "perBatch"),
          ("perBatchHPRC", OUT / "paperTables" / "perBatch_HPRC")]
-TOOL_DIRS = ["bubblegun", "bubblefinder", "bubblegun_hprc22", "bubblefinder_hprc22",
-             "bubblegun_hprc22_H1", "bubblefinder_hprc22_H1"]
+TOOL_DIRS = []
 MODE_TITLE = {"perEdge": "perEdge, 11 datasets", "perBatch": "perBatch, 11 datasets",
               "perBatchHPRC": "perBatch, HPRC chromosomes"}
 
@@ -109,6 +114,17 @@ def build_figures():
             shrink(f, FIG / "comparison" / f.name)
             mode = "perEdge" if "_perEdge_" in f.name else "perBatch"
             sets = f.stem.split(f"_{mode}_", 1)[-1]
+            # a tag at the end (plotChromosomeComparison.py --tag): the data
+            # structures for minI / maxO get their own caption
+            subject = "one bar per algorithm"
+            if sets.endswith("_datastructures"):
+                sets = sets[:-len("_datastructures")]
+                subject = ("one bar per data structure for minI and maxO, only the time of maintaining "
+                           "minI and maxO (the other steps are the same in all three: the same incremental "
+                           "DFS and superbubble computation). NBST = normal balanced binary search trees "
+                           "keyed by position, BST = modified trees comparing by the current positions "
+                           "(minI and maxO), MinI = modified tree for minI and maxO by comparison. Lower "
+                           "panel: BST and MinI on their own scale")
             m = re.match(r"(HPRC|small|mixed)_(\d+)datasets$", sets)
             if m:   # short file name: describe the group
                 sets = {"HPRC": f"all {m.group(2)} HPRC chromosomes",
@@ -116,15 +132,16 @@ def build_figures():
                         "mixed": f"{m.group(2)} datasets"}[m.group(1)]
             else:
                 sets = sets.replace("_", ", ").replace("HPRCchr", "HPRC chr")
+            what = "Time of minI and maxO" if f.stem.endswith("_datastructures") else "Time of every step"
             figure(f"figures/comparison/{f.name}",
-                   f"Time of every step summed over all updates ({mode}), one group of bars per dataset "
-                   f"({sets}), one bar per algorithm.", f"fig:comparison:{f.stem}")
+                   f"{what} summed over all updates ({mode}), one group of bars per dataset "
+                   f"({sets}), {subject}.", f"fig:comparison:{f.stem}")
         lines.append(r"\clearpage")
 
     for key, src, mode_text in FIGURE_SETS:
         if not src.is_dir():
             continue
-        dsets = sorted([d for d in src.iterdir() if d.is_dir() and d.name != "HPRC"], key=lambda d: dataset_order(d.name))
+        dsets = sorted([d for d in src.iterdir() if d.is_dir() and d.name not in ("HPRC", "HPRC2")], key=lambda d: dataset_order(d.name))
         if not dsets:
             continue
         lines += [rf"\section{{Plots ({mode_text})}}", ""]

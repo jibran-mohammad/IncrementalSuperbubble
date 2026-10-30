@@ -37,7 +37,7 @@ must exist first (scripts/graphRunner.py).
 
 Options:
 
-    -d           Ecoli | Human | HPRC | all (= Ecoli + Human)    (required;
+    -d           Ecoli | Human | HPRC | HPRC2 | all (= Ecoli + Human)    (required;
                  HPRC: Minigraph-Cactus graphs prepared by
                  Preprocessing/mcToDag.py, experimental)
     -c           Human only: chromosomes, e.g. 14 X or chromosome_14
@@ -483,7 +483,7 @@ def datasets_to_run(repo, d, chromosomes):
 
     # Human and HPRC (Minigraph-Cactus graphs prepared by mcToDag.py): one
     # folder per chromosome; "all" = Ecoli + Human (HPRC is run on its own)
-    for group in (["Human"] if d == "all" else [d] if d in ("Human", "HPRC") else []):
+    for group in (["Human"] if d == "all" else [d] if d in ("Human", "HPRC", "HPRC2") else []):
         if chromosomes:
             names = [c if c.startswith("chromosome_") else f"chromosome_{c}" for c in chromosomes]
         else:
@@ -511,7 +511,7 @@ if __name__=="__main__":
 
     parser.add_argument(
         "-d",
-        choices=["Ecoli","Human","HPRC","all"],
+        choices=["Ecoli","Human","HPRC","HPRC2","all"],
         required=True,
         help="Dataset: Ecoli, Human, HPRC (Minigraph-Cactus, experimental), "
              "or all (= Ecoli + every human chromosome)"

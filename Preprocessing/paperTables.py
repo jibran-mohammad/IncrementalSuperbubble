@@ -58,8 +58,8 @@ TOOLS = ["bubblegun", "bubblefinder"]
 
 # Scalability rule: a run (ours, static or a tool) that needs more than
 # LIMIT_DAYS days - measured, stopped at the limit, or estimated - is shown
-# as DNF ("did not finish within 4 days") and gets no speedup.
-LIMIT_DAYS = 3
+# as DNF ("did not finish within LIMIT_DAYS days") and gets no speedup.
+LIMIT_DAYS = 2
 LIMIT_S = LIMIT_DAYS * 86400
 DNF = "DNF"
 DNF_NOTE = (f" DNF = did not finish within {LIMIT_DAYS} days (not scalable): stopped at the limit, or "

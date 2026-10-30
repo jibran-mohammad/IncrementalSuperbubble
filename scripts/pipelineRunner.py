@@ -185,7 +185,7 @@ def run_preprocessing(gfa_file, dataset, ref="GRCh38"):
 
     # HPRC (Minigraph-Cactus, experimental): one script normalizes the graph
     # to a DAG and writes the same pipeline files into the GFA's folder
-    if dataset == "HPRC":
+    if dataset in ("HPRC", "HPRC2"):
         gfa_dir = pathlib.Path(gfa_file).parent
         cmd = ["python3", PREPROCESS_DIR / "mcToDag.py", gfa_file, "--ref", ref,
                "--pipeline-dir", gfa_dir, "--name", gfa_dir.parent.name]
@@ -327,7 +327,7 @@ def discover_gfa_files(dataset, chromosomes):
 
                 gfas.append((gfa_dir / f, None))
 
-    elif dataset in ("Human", "HPRC"):
+    elif dataset in ("Human", "HPRC", "HPRC2"):
 
         base_dir = INPUT_DIR / dataset
 
@@ -345,7 +345,7 @@ def discover_gfa_files(dataset, chromosomes):
             gfa_dir = base_dir / c / "Graphs"
             expected = f"{c}.gfa"
             gfa_file = gfa_dir / expected
-            if dataset == "HPRC" and not gfa_file.exists() and (gfa_dir / f"{c}.gfa.gz").exists():
+            if dataset in ("HPRC", "HPRC2") and not gfa_file.exists() and (gfa_dir / f"{c}.gfa.gz").exists():
                 gfa_file = gfa_dir / f"{c}.gfa.gz"
 
             # Chromosomes without a graph are skipped (like graphRunner.py and
@@ -434,7 +434,7 @@ def main():
         description="End-to-end time of the best algorithm: GFA -> preprocessing -> "
                     "superbubbles. See the guide at the top of this file.")
 
-    parser.add_argument("-d",default="Ecoli",choices=["Ecoli","Human","HPRC","all"],
+    parser.add_argument("-d",default="Ecoli",choices=["Ecoli","Human","HPRC","HPRC2","all"],
                         help="Dataset; all = Ecoli and every human chromosome; HPRC = "
                              "Minigraph-Cactus chromosomes (experimental) (default: Ecoli)")
 
@@ -488,7 +488,7 @@ def main():
     jobs = []
     for dataset in datasets:
         try:
-            gfas = discover_gfa_files(dataset, chromosomes if dataset in ("Human", "HPRC") else None)
+            gfas = discover_gfa_files(dataset, chromosomes if dataset in ("Human", "HPRC", "HPRC2") else None)
         except RuntimeError as e:
             print(f"[!] {dataset}: {e}", file=sys.stderr)
             continue

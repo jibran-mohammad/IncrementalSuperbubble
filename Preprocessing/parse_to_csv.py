@@ -822,7 +822,7 @@ def main():
     )
     parser.add_argument(
         "-d", "--dataset",
-        choices=["ecoli", "human", "hprc", "all"],
+        choices=["ecoli", "human", "hprc", "hprc2", "all"],
         required=True,
         help="The dataset to process. 'ecoli', 'human', 'hprc' (Minigraph-Cactus, "
              "experimental), or 'all' (= ecoli + human)."
@@ -883,7 +883,8 @@ def main():
     """
     # --- 2. Process Human Dataset ---
     # (HPRC: Minigraph-Cactus chromosomes, same layout as Human)
-    groups = (["Human"] if args.dataset in ["human", "all"] else []) + (["HPRC"] if args.dataset == "hprc" else [])
+    groups = ((["Human"] if args.dataset in ["human", "all"] else []) + (["HPRC"] if args.dataset == "hprc" else [])
+              + (["HPRC2"] if args.dataset == "hprc2" else []))
     for group in groups:
         human_output_dir = OUTPUT_DIR / group
         if not human_output_dir.is_dir():

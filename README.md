@@ -325,6 +325,18 @@ grep "^W" input/HPRC/chromosome_22/Graphs/chromosome_22.gfa | cut -f2 | sort -u 
 python3 scripts/pipelineRunner.py -d HPRC -c c22 --ref GRCh38 --preprocess-only
 ```
 
+HPRC **release 2** (v2.1, about 232 samples / 464 haplotypes) is the separate
+dataset **`HPRC2`** (`input/HPRC2/`, `output/HPRC2/`, release 1 stays
+untouched); `scripts/hprcPrepare.py --release 2` downloads, converts and
+normalizes it in one step (needs `vg`; chr22: 8.7 GB download):
+
+```Bash
+nohup python3 -u scripts/hprcPrepare.py --release 2 -c 22 --vg ~/tools/vg --threads 16 > hprc2_prepare.log 2>&1 &
+python3 scripts/superbubbleRunner.py -d HPRC2 -c chromosome_22 -m perBatch -a static incBSTBatch --runs 1
+python3 scripts/superbubbleComparator.py -d HPRC2 -c 22 -t bubblegun -m perBatch --final-superbubbles-only
+python3 Preprocessing/parse_to_csv.py -d hprc2 -c 22 -m perbatch
+```
+
 On a graph of this size only the **best algorithm** is compared with
 BubbleGun, with **one run** each, and BubbleGun perEdge is **sampled**
 (`--every`): the method, its validation and suggested wording for the

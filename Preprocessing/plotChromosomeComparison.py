@@ -28,7 +28,8 @@ Options:
 
     -m / --mode        perEdge | perBatch                                   (required)
     -d / --datasets    ecoli; a human chromosome: 11, chr11, X, chrX, ...;
-                       an HPRC chromosome: hprc11, hprcX, ...                (required)
+                       an HPRC chromosome: hprc11, hprcX, ...; HPRC release 2
+                       (dataset HPRC2): hprc2-22, hprc2-X, ...              (required)
     -a / --algorithms  algorithm IDs (ALGORITHMS.md); default: every
                        algorithm with data in this mode, in the order of
                        the tables (perEdge: static ... incMinIBSTH1,
@@ -36,6 +37,8 @@ Options:
     -o / --output      folder of the PNG        (default: output/plots/comparison)
     -t / --tag         added to the file name, e.g. datastructures for
                        -a incNormalBST incBST incMinIBST
+    -s / --steps       only these steps in the bars (default: all), e.g.
+                       -s MinI MaxO for the data structures
 
 More than about six datasets make the bars narrow. Datasets of very
 different size (e.g. a small human chromosome next to an HPRC one) are
@@ -74,6 +77,10 @@ def dataset_folder(name, mode):
     mode_dir = MODE_DIR[mode]
     if low == "ecoli":
         return "Ecoli", REPO / "output" / "Ecoli" / "timeFile" / mode_dir
+    m = re.fullmatch(r"hprc2[_-](?:chr)?(\w+)", low)            # HPRC release 2: hprc2-22, hprc2_chrX
+    if m:
+        c = m.group(1).upper() if m.group(1).isalpha() else m.group(1)
+        return f"HPRC v2 chr{c}", REPO / "output" / "HPRC2" / f"chromosome_{c}" / "timeFile" / mode_dir
     m = re.fullmatch(r"hprc[_-]?(?:chr)?(\w+)", low)
     if m:
         c = m.group(1).upper() if m.group(1).isalpha() else m.group(1)
@@ -85,8 +92,8 @@ def dataset_folder(name, mode):
     raise ValueError(f"unknown dataset name: {name}")
 
 
-def load_steps(folder, algorithms, quiet=False):
-    """time of every step (s), summed over all updates, per algorithm; None if the CSV is missing"""
+def load_steps(folder, algorithms, components, quiet=False):
+    """time of every step in components (s), summed over all updates, per algorithm; None if the CSV is missing"""
     csv = folder / "haplotype_build_comparison.csv"
     if not csv.exists():
         print(f"[!] {csv} not found (run parse_to_csv.py), dataset left out")
@@ -96,7 +103,7 @@ def load_steps(folder, algorithms, quiet=False):
         df = df[df["Step"].astype(str) != "Base"]
     out = {}
     for a in algorithms:
-        cols = [f"{a}{c}Time" for c in COMPONENTS]
+        cols = [f"{a}{c}Time" for c in components]
         if not any(c in df.columns for c in cols):
             if not quiet:
                 print(f"[!] {csv}: no data of {a}")
@@ -114,13 +121,15 @@ def main():
     ap.add_argument("-a", "--algorithms", nargs="+")
     ap.add_argument("-o", "--output", default=str(REPO / "output" / "plots" / "comparison"))
     ap.add_argument("-t", "--tag", help="added to the file name")
+    ap.add_argument("-s", "--steps", nargs="+", choices=COMPONENTS, help="only these steps (default: all)")
     args = ap.parse_args()
     algorithms = args.algorithms or list(ALL_ALGORITHMS)
+    components = args.steps or COMPONENTS
 
     labels, steps = [], []
     for name in args.datasets:
         label, folder = dataset_folder(name, args.mode)
-        s = load_steps(folder, algorithms, quiet=not args.algorithms)
+        s = load_steps(folder, algorithms, components, quiet=not args.algorithms)
         if s is not None:
             labels.append(label)
             steps.append(s)
@@ -141,7 +150,7 @@ def main():
         groups = np.arange(len(labels))
         offsets = (np.arange(n) - (n - 1) / 2) * width
         tops = np.zeros((n, len(labels)))
-        for ci, comp in enumerate(COMPONENTS):
+        for ci, comp in enumerate(components):
             for k, a in enumerate(algos):
                 vals = np.array([s[a][ci] if s[a] is not None else 0.0 for s in steps])
                 ax.bar(groups + offsets[k], vals, width * 0.9, bottom=tops[k], color=STACK_COLORS[comp],
@@ -162,13 +171,18 @@ def main():
     totals = {a: sum(sum(s[a]) for s in steps if s[a] is not None) for a in algorithms}
     small = small_algorithms(totals)
     width = max(10, 2.2 * len(labels) + 4)
-    if small:
+    if small and len(labels) > 6:
+        # many datasets: the zoom panel below the main one (side by side the
+        # figure gets too wide for the text width)
+        fig, (ax, axz) = plt.subplots(2, 1, figsize=(width, 11))
+    elif small:
         fig, (ax, axz) = plt.subplots(1, 2, figsize=(width * 1.6, 6), gridspec_kw={"width_ratios": [3, 2]})
     else:
         fig, ax = plt.subplots(figsize=(width, 6))
     draw(ax, algorithms)
     ax.set_ylabel("Time (s), summed over all updates")
-    ax.set_title(f"Time per step and dataset ({args.mode})")
+    what = "step" if components == COMPONENTS else " and ".join(components)
+    ax.set_title(f"Time per {what} and dataset ({args.mode})")
     legend_ax = ax
     if small:
         draw(axz, small)

@@ -36,8 +36,9 @@ Options:
 
     --runs N             runs per algorithm, averaged             (default: 100;
                          1 for very large graphs such as HPRC chromosomes)
-    -d / --dataset       Ecoli | Human | HPRC                     (default: Ecoli;
-                         HPRC: Minigraph-Cactus graphs prepared by
+    -d / --dataset       Ecoli | Human | HPRC | HPRC2             (default: Ecoli;
+                         HPRC / HPRC2 (release 1.1 / 2.1, scripts/hprcPrepare.py
+                         --release): Minigraph-Cactus graphs prepared by
                          Preprocessing/mcToDag.py, experimental)
     -a / --algorithms    algorithm IDs: static incRecompute incNormalBST incBST incMinIBST
                          incMinIBSTH1 incRecomputeBatch incBSTBatch incBSTBatchH1
@@ -374,8 +375,8 @@ def main():
         '-d', '--dataset',
         type=str,
         default='Ecoli',
-        choices=['Ecoli', 'Human', 'HPRC'], # Added choices for clarity
-        help="Specify which dataset to run (e.g., 'Ecoli', 'Human', 'HPRC'). Default: Ecoli"
+        choices=['Ecoli', 'Human', 'HPRC', 'HPRC2'], # Added choices for clarity
+        help="Specify which dataset to run (e.g., 'Ecoli', 'Human', 'HPRC', 'HPRC2'). Default: Ecoli"
     )
     
     # Add a new argument for specifying chromosomes
@@ -470,8 +471,8 @@ def main():
                 "job_name": f"{algo['name']} on Ecoli" # Added job_name
             })
             
-    elif args.dataset in ('Human', 'HPRC'):
-        # --- HUMAN / HPRC DATASET (one folder per chromosome) ---
+    elif args.dataset in ('Human', 'HPRC', 'HPRC2'):
+        # --- HUMAN / HPRC / HPRC2 DATASET (one folder per chromosome) ---
         # HPRC = Minigraph-Cactus graphs prepared by Preprocessing/mcToDag.py
         # (experimental), input/HPRC/chromosome_<X>/, same layout as Human
         
