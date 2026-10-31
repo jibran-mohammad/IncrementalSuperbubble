@@ -67,6 +67,17 @@ appears again later has two rows):
                      NA if it survives to the end; absorbed_by: the
                      innermost superbubble containing its former entrance
                      and exit after it died ("-": none)
+    ref_exact        with --nodemap: 1 if entrance and exit lie on the
+                     reference walk (coordinates exact), else 0
+    final_n_inner, inner_bp, depth
+                     with --graph (the final graph, numeric_edgelist.txt),
+                     only for the superbubbles of the final graph (NA for
+                     those that died): inner vertices in the final graph,
+                     their total length in bp (needs --nodemap), and the
+                     nesting depth (0 = top level, not inside another
+                     superbubble). Computed in a DFS order of the final
+                     graph, in which every superbubble is the contiguous
+                     range of positions entrance .. exit.
 
 <out>_summary.tsv: the summary of the program per genome plus
     sample and the --metadata columns (if given), cum_born, cum_promoted,
@@ -110,13 +121,76 @@ def read_nodemap(path):
     return nodes, has_ref
 
 
+def read_edges(path):
+    """all edges (u, v) of a numeric_edgelist.txt: the base graph and every
+    haplotype block ("# HAPLOTYPE: <name>", the edge count, the edges)"""
+    edges = []
+    with open(path) as f:
+        lines = (l.strip() for l in f)
+        line = next(lines)
+        while not line or line.startswith('#'):
+            line = next(lines)
+        n_base = int(next(lines).split()[0])          # line after the graph name: "<edges> <vertices>"
+        for _ in range(n_base):
+            u, v = next(lines).split()
+            edges.append((int(u), int(v)))
+        for line in lines:
+            if not line.startswith('# HAPLOTYPE:') or line.split(':', 1)[1].strip().startswith('#'):
+                continue
+            count = next(lines)
+            if not count.isdigit():
+                continue
+            for _ in range(int(count)):
+                u, v = next(lines).split()
+                edges.append((int(u), int(v)))
+    return edges
+
+
+def dfs_order(edges):
+    """position of every vertex in a DFS order (reverse postorder) of the
+    DAG, the DFS started from every source in turn (as from the artificial
+    source 0); iterative, so deep graphs need no recursion"""
+    n = 1 + max(max(e) for e in edges)
+    succ = [[] for _ in range(n)]
+    indeg = [0] * n
+    present = [False] * n
+    for u, v in edges:
+        succ[u].append(v)
+        indeg[v] += 1
+        present[u] = present[v] = True
+    post, seen = [], [False] * n
+    for root in range(n):
+        if not present[root] or indeg[root] or seen[root]:
+            continue
+        seen[root] = True
+        stack = [(root, iter(succ[root]))]
+        while stack:
+            x, it = stack[-1]
+            for y in it:
+                if not seen[y]:
+                    seen[y] = True
+                    stack.append((y, iter(succ[y])))
+                    break
+            else:
+                post.append(x)
+                stack.pop()
+    pos = [-1] * n
+    for i, x in enumerate(reversed(post)):
+        pos[x] = i
+    return pos, post[::-1]
+
+
 def read_metadata(path):
+    """sample table, tab separated; the sample column is called "sample" in
+    any case (the HPRC table: Sample, Cohort, Sex, FamilyID, Subpopulation,
+    Superpopulation, Notes)"""
     with open(path) as f:
         rows = list(csv.DictReader(f, delimiter='\t'))
-    if not rows or 'sample' not in rows[0]:
+    key = next((c for c in (rows[0].keys() if rows else []) if c.strip().lower() == 'sample'), None)
+    if key is None:
         sys.exit(f"error: {path} needs a header with a column 'sample'")
-    columns = [c for c in rows[0].keys() if c != 'sample']
-    return {r['sample']: r for r in rows}, columns
+    columns = [c for c in rows[0].keys() if c != key]
+    return {r[key]: r for r in rows}, columns
 
 
 def match_sample(genome, samples):
@@ -137,6 +211,7 @@ def main():
     ap.add_argument('--summary', required=True)
     ap.add_argument('--nodemap')
     ap.add_argument('--metadata')
+    ap.add_argument('--graph', help='numeric_edgelist.txt of the graph (final-graph columns)')
     ap.add_argument('--out', required=True)
     args = ap.parse_args()
     if os.path.dirname(args.out):
@@ -184,15 +259,60 @@ def main():
                                       born_as=ev, parent_at_birth=parent, died_step='NA', died_by='NA',
                                       absorbed_by='NA'))
 
+    # ---- final graph: inner vertices, inner bp and nesting depth of the
+    # superbubbles alive at the end (each is the range entrance .. exit of a
+    # DFS order); depth by a sweep over the nested ranges
+    final = {}                                     # (entrance, exit) -> (final_n_inner, inner_bp, depth)
+    if args.graph:
+        pos, order = dfs_order(read_edges(args.graph))
+        prefix = [0]
+        for x in order:
+            n = nodes.get(x - 2)
+            prefix.append(prefix[-1] + (n[2] if n else 0))
+        ranges = []
+        bad = 0
+        for L in lifespans:
+            if L['died_step'] != 'NA':
+                continue
+            a, b = pos[int(L['entrance'])], pos[int(L['exit'])]
+            if a < 0 or b < 0 or a >= b:
+                bad += 1
+                continue
+            ranges.append((a, b, (L['entrance'], L['exit'])))
+        ranges.sort()
+        stack = []                                 # open ranges, innermost on top
+        same = 0
+        for a, b, k in ranges:
+            while stack and stack[-1] <= a:
+                stack.pop()
+            inner_bp = prefix[b] - prefix[a + 1] if nodes else '-'
+            final[k] = (b - a - 1, inner_bp, len(stack))
+            stack.append(b)
+        for L in lifespans:
+            k = (L['entrance'], L['exit'])
+            if k in final and str(final[k][0]) == L['n_inner']:
+                same += 1
+        print(f"final graph: {len(final)} superbubbles placed in a DFS order"
+              + (f", {bad} NOT a range entrance < exit (check!)" if bad else "")
+              + f"; inner vertices unchanged since birth: {same}")
+
+    def on_ref(vid):
+        n = nodes.get(int(vid) - 2)
+        return bool(n and n[5])
+
     with open(args.out + '_lifespans.tsv', 'w') as o:
         o.write('sb_id\tentrance\texit\tentrance_node\texit_node\tref_seq\tref_start\tref_end\tn_inner\t'
-                'born_step\tborn_by\tborn_as\tparent_at_birth\tdied_step\tdied_by\tabsorbed_by\n')
+                'born_step\tborn_by\tborn_as\tparent_at_birth\tdied_step\tdied_by\tabsorbed_by\t'
+                'ref_exact\tfinal_n_inner\tinner_bp\tdepth\n')
         for i, L in enumerate(lifespans, 1):
             seq, start, end = coords(L['entrance'], L['exit']) if nodes else ('-', '-', '-')
+            exact = ('1' if on_ref(L['entrance']) and on_ref(L['exit']) else '0') if has_ref else '-'
+            fn, fbp, fd = final.get((L['entrance'], L['exit']), ('NA', 'NA', 'NA'))
             o.write(f"{i}\t{L['entrance']}\t{L['exit']}\t{node_name(L['entrance']) if nodes else '-'}\t"
                     f"{node_name(L['exit']) if nodes else '-'}\t{seq}\t{start}\t{end}\t{L['n_inner']}\t"
                     f"{L['born_step']}\t{L['born_by']}\t{L['born_as']}\t{L['parent_at_birth']}\t"
-                    f"{L['died_step']}\t{L['died_by']}\t{L['absorbed_by']}\n")
+                    f"{L['died_step']}\t{L['died_by']}\t{L['absorbed_by']}\t"
+                    f"{exact}\t{fn}\t{fbp}\t{fd}\n")
 
     # ---- summary with populations and cumulative counts
     meta, meta_cols = read_metadata(args.metadata) if args.metadata else ({}, [])

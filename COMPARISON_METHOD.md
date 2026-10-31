@@ -93,6 +93,98 @@ and only processes the change.
 produces the input of both, so it is reported once, as a separate column,
 and added to neither time.
 
+### What "reading the graph" means for the tools (note for the paper)
+
+A static tool has no way to change a graph it has read, so after every
+update (an edge or a genome) it is run again on the whole new graph. Its
+counted time is therefore **reading + parsing the GFA into its own graph
+structure** and **finding all superbubbles from scratch**:
+
+- The temporary GFA was just written by the comparator, so the file is in
+  the operating system's page cache (RAM); disk I/O is small. The time goes
+  into **parsing text** (`S` and `L` lines: splitting, converting, building
+  nodes and adjacency lists): in Python for BubbleGun, in compiled code for
+  BubbleFinder.
+- Our programs read their input (a compact numeric edge list) **once** at
+  the start and then change the graph in memory; that is the advantage of
+  the incremental approach, and why counting the tools' reading is fair.
+- Not counted for the tools: program start-up, writing their output,
+  BubbleGun's chains and nesting (`ChainsTime`, e.g. 365 s on HPRC chr22
+  perBatch, on top of the 1,072 s counted) and writing the temporary GFA.
+
+Share of reading in the counted tool time, and the speedup of the best
+algorithm against the tool's **search alone** (`FindTime`, a lower bound),
+perBatch (`Preprocessing/paperTables.py` writes both into every tool
+table caption, computed from the `ReadTime` / `FindTime` columns):
+
+| perBatch | reading share | speedup (search only) |
+|---|---|---|
+| BubbleGun, Human chr22 | 55% | |
+| BubbleFinder, Human chr22 | 54% | |
+| BubbleGun, HPRC chr22 | 45% | Batch ~66x (instead of ~107x) |
+| BubbleFinder, HPRC chr22 | 30% | Batch ~31x (instead of ~40x) |
+| BubbleGun, HPRC 5 chromosomes | 48% | Batch 59.6x (instead of 114.3x) |
+| BubbleFinder, HPRC 5 chromosomes | 37% | Batch 30.8x (instead of 48.8x) |
+| BubbleGun, 11 small datasets | 54% | Batch 62.4x (instead of 135.8x) |
+| BubbleFinder, 11 small datasets | 59% | Batch 43.0x (instead of 104.1x) |
+| perEdge, BubbleGun, 11 small datasets | 59% | H1 256.9x (instead of 620.9x) |
+| perEdge, BubbleFinder, 11 small datasets | 64% | H1 194.3x (instead of 537.5x) |
+
+(State 30 Oct 2026; Batch numbers of the small datasets still from the
+BENCHMARK of 27 Oct, the final values come from the reruns.)
+
+Suggested wording:
+
+> Since the static tools cannot update a graph they have already loaded,
+> they have to re-read and re-parse the whole graph after every update; we
+> count this reading (from the operating system's file cache, i.e. mainly
+> parsing the GFA text into the tool's graph structure) together with the
+> superbubble search, but not program start-up, output, or BubbleGun's
+> chain construction. Reading accounts for 37--64% of the tools' time.
+> Counting only the tools' superbubble search, our batch algorithm is
+> still x times faster than BubbleGun and y times faster than BubbleFinder
+> on the HPRC chromosomes (lower bound).
+
+### Our static baseline is already a strong baseline (note for the paper)
+
+Our static algorithm is "static" only in the superbubble computation: it
+keeps the graph **in memory** and inserts each new edge (UpdateDS, cheap);
+after every update it recomputes the DFS order, minI / maxO and the
+superbubbles from scratch on that in-memory graph. A static tool instead
+re-reads and re-parses the whole graph after every update and rebuilds its
+graph structure. The large gap between our static algorithm and the tools
+(perEdge, 11 small datasets: 87x vs BubbleGun, 75x vs BubbleFinder;
+perBatch HPRC: 79x / 34x) therefore has three parts:
+
+1. no re-reading (37-64% of the tools' time, see above),
+2. implementation (C++ vs Python for BubbleGun),
+3. algorithm: the linear superbubble algorithm for DAGs (one DFS + one
+   stack pass) vs a general method (BubbleFinder: SPQR trees). Even
+   against BubbleFinder's search alone our static algorithm is about 27x
+   faster per edge (75x x 0.36).
+
+Two levels of speedup, both to be reported:
+
+- **over our static algorithm** (H1 up to 8.3x per edge, Batch about
+  2-2.5x per genome): isolates what maintaining the order, minI / maxO and
+  the superbubbles incrementally brings, against the strongest fair
+  baseline (deliberately not a re-reading "really static" variant, which
+  would inflate the speedups);
+- **over the tools** (up to 621x per edge, 104-136x per genome): the gain
+  over the current practice of re-running a static tool after every update.
+
+Suggested wording:
+
+> Our static baseline keeps the graph in memory and inserts each new edge;
+> after every update it recomputes the topological order, minI/maxO and
+> the superbubbles from scratch. It is therefore already faster than
+> re-running a static tool, which has to re-read and re-parse the whole
+> graph (37--64% of the tools' time). The speedups over our static
+> algorithm (up to 8.3x per edge) isolate the gain of maintaining the
+> order, minI/maxO and the superbubbles incrementally; the speedups over
+> the tools (up to 621x) show the gain over the current practice of
+> re-running a static tool.
+
 ### Speedup
 
 `Speedup = TotalTime (tool) / AlgorithmTime (algorithm)`, per dataset and

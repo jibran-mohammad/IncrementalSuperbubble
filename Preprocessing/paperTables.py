@@ -92,6 +92,27 @@ def ratio(base, value):
     return compute_speedup(base, value)
 
 
+def tool_time_parts(path):
+    """Sums of Time / ReadTime / FindTime over the rows (base graph and every
+    update) of a <tool>_time.txt, and whether TotalTime is an estimate
+    (sampled perEdge run: the rows are only the sampled updates)."""
+    sums, idx, estimated = {"Time": 0.0, "ReadTime": 0.0, "FindTime": 0.0}, None, False
+    for line in open(path):
+        f = line.strip().split(",")
+        if idx is None and "ReadTime" in f:
+            idx = {k: f.index(k) for k in sums if k in f}
+            continue
+        if f[0] == "TotalTimeEstimated":
+            estimated = True
+        if idx and (f[0].isdigit() or f[0] == "Base"):
+            for k, i in idx.items():
+                try:
+                    sums[k] += float(f[i])
+                except (ValueError, IndexError):
+                    pass
+    return sums, estimated
+
+
 def write_table(path, header, rows, caption, label):
     """header: column titles; rows: lists of cells, None = \\hline"""
     lines = [r"\begin{table}[ht]", r"\centering",
@@ -223,12 +244,13 @@ def main():
     # 5. external tools: tool time vs every algorithm's BENCHMARK wall time
     mode_dir = MODE_DIRS[mode]
     for tool in TOOLS:
-        tool_time, ours = {}, {}
+        tool_time, ours, parts = {}, {}, {}
         for path, name in zip(args.csv, names):
             out = pathlib.Path(path).resolve().parent.parent.parent      # output/<dataset>
             tf = out / tool / mode_dir / f"{tool}_time.txt"
             if tf.exists():
                 tool_time[name] = read_tool_time(tf).get("TotalTime")
+                parts[name] = tool_time_parts(tf)
             for a in algos:
                 pf = out / PIPELINE_DIR / mode_dir / f"{a}_time.txt"
                 if pf.exists():
@@ -263,13 +285,36 @@ def main():
             rows.append([rf"\texttt{{{SHORT_NAMES.get(a, a)}}}"] + [fmt(v, 2) for v in vals])
             rows.append(["Speedup"] + [fmt(ratio(t, v) if v else None, 2) for t, v in zip(tools, vals)])
             rows.append(None)
+        # how much of the tool's time is reading the graph, and the speedup of
+        # the best algorithm against the tool's search alone (lower bound),
+        # over the datasets with complete (not sampled, not DNF) tool runs
+        # and a time of the best algorithm
+        ok = [n for n in cols if n in parts and not parts[n][1] and tool_time[n] is not None
+              and tool_time[n] <= LIMIT_S and isinstance(val(best, n), (int, float))]
+        read_note = ""
+        if ok:
+            t_all = sum(parts[n][0]["Time"] for n in ok)
+            t_read = sum(parts[n][0]["ReadTime"] for n in ok)
+            t_find = sum(parts[n][0]["FindTime"] for n in ok)
+            t_best = sum(val(best, n) for n in ok)
+            if t_all > 0 and t_best > 0:
+                read_note = (f" Reading the graph is {100 * t_read / t_all:.0f}\\% of {label}'s time here; "
+                             f"counting only its search (no reading), {SHORT_NAMES.get(best, best)} is still "
+                             f"{t_find / t_best:.1f}$\\times$ faster (lower bound; total over "
+                             f"{'all datasets' if len(ok) == len(cols) else ', '.join(ok)}).")
         write_table(
             os.path.join(args.outdir, f"table_tool_{tool}.tex"),
             ["Dataset"] + cols + ["Total"], rows,
-            f"{label} compared with our algorithms ({mode_text}): total time (s) of every program, wall time of "
-            f"the whole run (reading the input and processing every update; our algorithms in the BENCHMARK "
-            f"build without timers, mean of their runs); below each algorithm its speedup = {label} / "
-            f"algorithm." + DNF_NOTE + abbreviation_note([SHORT_NAMES.get(a, a) for a in bench_algos]),
+            f"{label} compared with our algorithms ({mode_text}): total time (s); below each algorithm its "
+            f"speedup = {label} / algorithm. Our algorithms: wall time of the whole run (reading the edge "
+            f"list once, building the base graph, processing every update; BENCHMARK build without timers, "
+            f"mean of their runs). {label}: after every update (an edge or a genome) the tool reads the whole "
+            f"graph again (it cannot change a graph it has read) and finds all superbubbles from scratch; "
+            f"counted are reading and parsing the GFA into its graph and finding the bubbles; not counted "
+            f"are program start-up, writing its output, "
+            + ("building chains and nesting, " if tool == "bubblegun" else "")
+            + "and writing the temporary GFA. Preprocessing (GFA to edge list) is counted on neither side."
+            + read_note + DNF_NOTE + abbreviation_note([SHORT_NAMES.get(a, a) for a in bench_algos]),
             f"tab:paper_tool_{tool}_{tag}")
 
 
