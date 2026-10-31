@@ -69,6 +69,14 @@ public:
     };
     Stats stats;
 
+    // per-edge history (incMinIBSTH1 ... perEdge history, see
+    // superbubbleEdgeHistory.h): while 'journal' is set, every superbubble the
+    // routine creates / removes is appended to journalAdded / journalKilled
+    // (internal ids; a full build removes all and adds all again); the caller
+    // takes the net difference and clears both
+    bool journal = false;
+    std::vector<std::pair<int,int>> journalAdded, journalKilled;
+
     // full computation of all superbubbles (and the tree) for the current order
     void build(const SBView &V);
     // after inserting u->v (internal ids) and updating the order: caseNo is the

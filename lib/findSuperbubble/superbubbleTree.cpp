@@ -59,6 +59,7 @@ int SuperbubbleTree::newNode(int s, int t, int parent) {
         assert(byEntrance[s] < 0 && byExit[t] < 0);   // one superbubble per entrance / exit
         byEntrance[s] = id; byExit[t] = id;
         ++aliveCount; ++stats.added;
+        if (journal) journalAdded.emplace_back(s, t);
     }
     return id;
 }
@@ -69,6 +70,7 @@ void SuperbubbleTree::kill(int id) {
     if (byEntrance[ns[id]] == id) byEntrance[ns[id]] = -1;
     if (byExit[nt[id]] == id) byExit[nt[id]] = -1;
     --aliveCount; ++stats.killed;
+    if (journal) journalKilled.emplace_back(ns[id], nt[id]);
 }
 
 // nearest alive node at or above id; dead nodes keep their parent pointers
@@ -162,6 +164,9 @@ bool SuperbubbleTree::rescan(const SBView& V, int owner) {
 }
 
 void SuperbubbleTree::build(const SBView& V) {
+    if (journal)                                // the pool is dropped: every alive superbubble is removed
+        for (int id = 1; id < (int)ns.size(); ++id)
+            if (nalive[id]) journalKilled.emplace_back(ns[id], nt[id]);
     ns.clear(); nt.clear(); npar.clear(); nmark.clear(); nalive.clear();
     aliveCount = 0;
     byEntrance.assign(V.n, -1);

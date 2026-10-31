@@ -1,5 +1,6 @@
 #include <sys/resource.h>
 #include"superbubbleAlgorithms.h"
+#include"../lib/findSuperbubble/superbubbleEdgeHistory.h"
 #include<fstream>
 #include<string>
 #include<chrono>
@@ -63,7 +64,10 @@ public:
         }
         return -1;
     }   
-    void inputAndCompute(std::string output_path, std::string mode) {
+    // history: also write what every edge changes (perEdge only, normal
+    // build): <ID>_edge_events.tsv next to the time file (see
+    // lib/findSuperbubble/superbubbleEdgeHistory.h)
+    void inputAndCompute(std::string output_path, std::string mode, bool history) {
         #ifndef BENCHMARK
         long baselineMemoryKB = getCurrentMemoryInKB();   // before the input is read
         #endif
@@ -150,6 +154,18 @@ public:
         
         std::cout << "base graph processed" << std::endl;
         #endif
+        #ifndef BENCHMARK
+        SuperbubbleEdgeHistory hist;
+        if (history && mode == "perEdge") {
+            std::string prefix = output_path;
+            const std::string suffix = "_time.txt";
+            if (prefix.size() >= suffix.size() && prefix.compare(prefix.size() - suffix.size(), suffix.size(), suffix) == 0)
+                prefix = prefix.substr(0, prefix.size() - suffix.size());
+            if (!hist.open(prefix)) { std::cerr << "history: cannot write " << prefix << "_edge_events.tsv" << std::endl; history = false; }
+            else superbubble.tree.journal = true;
+        }
+        else history = false;
+        #endif
         if(mode == "perEdge") {
             #ifndef BENCHMARK
             timeFile << "Edge_Number Haplotype_Name UpdateDS_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Case1 Case2 Case3 Case4 Case5 AffectedVertices ExploredVertices TotalVertices TotalEdges TotalAffectedEdges TotalExploredEdges\n";
@@ -235,6 +251,7 @@ public:
 
                 if (mode == "perEdge") {
                     #ifndef BENCHMARK
+                    long long fullBefore = superbubble.tree.stats.fullRecomputes, dupBefore = superbubble.duplicateEdges;
                     start = std::chrono::high_resolution_clock::now();
                     #endif
                     superbubble.updateSB(&d, &g);
@@ -249,6 +266,10 @@ public:
                     #ifndef BENCHMARK
                     superbubbleTime += elapsed.count();
                     totalTime = incdfs.latestTimes.currentinsertTime + incdfs.latestTimes.currentdfsTime + incdfs.latestTimes.currenttopologicalOrderTime + incdfs.latestTimes.currentminITime + incdfs.latestTimes.currentmaxOTime + currentsuperbubbleTime;
+                    if (history)
+                        hist.record(update_counter, clean_hap_name, i + 1, x, y,
+                                    superbubble.duplicateEdges > dupBefore ? 0 : d.dfsStrategy->cases,
+                                    superbubble.tree.stats.fullRecomputes > fullBefore, superbubble.tree, g, totalTime);
                     timeFile << i + 1 << " " << clean_hap_name << " " << incdfs.latestTimes.currentinsertTime << " " << incdfs.latestTimes.currentdfsTime << " " << incdfs.latestTimes.currenttopologicalOrderTime << " " << incdfs.latestTimes.currentminITime << " " << incdfs.latestTimes.currentmaxOTime << " " << currentsuperbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.currentcase1 << " " << incdfs.edgeTypes.currentcase2 << " " << incdfs.edgeTypes.currentcase3 << " " << incdfs.edgeTypes.currentcase4 << " " << incdfs.edgeTypes.currentcase5 << " " << incdfs.vertexCount.currentcountAffectedVertices << " " << incdfs.vertexCount.currentcountExploredVertices << " " << incdfs.n << " " << incdfs.vertexCount.currentTotalEdges << " " << incdfs.vertexCount.currentTotalAffectedEdges << " " << incdfs.vertexCount.currentTotalExploredEdges <<"\n";
                     currentsuperbubbleTime = 0.0;
                     #endif
@@ -323,10 +344,11 @@ int main(int argc, char* argv[]){
     if (argc < 3) {
         // Print error to standard error
         std::cerr << "Error: No output file path provided." << std::endl;
-        std::cerr << "Usage: " << argv[0] << " <output_file_path> <perBatch|perEdge>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <output_file_path> <perBatch|perEdge> [history]" << std::endl;
         return 1; // Exit with an error code
     }
 	IncMinIBSTH1Superbubble incremental;
-    incremental.inputAndCompute(argv[1], argv[2]);
+    bool history = (argc >= 4 && std::string(argv[3]) == "history");
+    incremental.inputAndCompute(argv[1], argv[2], history);
     return 0;
 }
