@@ -78,6 +78,12 @@ appears again later has two rows):
                      superbubble). Computed in a DFS order of the final
                      graph, in which every superbubble is the contiguous
                      range of positions entrance .. exit.
+    dag_affected     with --graph and --removed-links (<name>.removed_links.tsv
+                     of mcToDag.py), final graph only: 1 if the DAG
+                     normalization changed anything at the site, i.e. an
+                     endpoint of a removed link (inversion, self-loop, cycle
+                     back edge, link to a removed node) lies in entrance,
+                     interior or exit; else 0 (prefix sums over the DFS order)
 
 <out>_summary.tsv: the summary of the program per genome plus
     sample and the --metadata columns (if given), cum_born, cum_promoted,
@@ -137,7 +143,7 @@ def read_edges(path):
         for line in lines:
             if not line.startswith('# HAPLOTYPE:') or line.split(':', 1)[1].strip().startswith('#'):
                 continue
-            count = next(lines)
+            count = next(lines, '')                   # a genome without new edges may end the file
             if not count.isdigit():
                 continue
             for _ in range(int(count)):
@@ -212,6 +218,7 @@ def main():
     ap.add_argument('--nodemap')
     ap.add_argument('--metadata')
     ap.add_argument('--graph', help='numeric_edgelist.txt of the graph (final-graph columns)')
+    ap.add_argument('--removed-links', help='<name>.removed_links.tsv of mcToDag.py (dag_affected)')
     ap.add_argument('--out', required=True)
     args = ap.parse_args()
     if os.path.dirname(args.out):
@@ -262,13 +269,28 @@ def main():
     # ---- final graph: inner vertices, inner bp and nesting depth of the
     # superbubbles alive at the end (each is the range entrance .. exit of a
     # DFS order); depth by a sweep over the nested ranges
-    final = {}                                     # (entrance, exit) -> (final_n_inner, inner_bp, depth)
+    final = {}                                     # (entrance, exit) -> (final_n_inner, inner_bp, depth, dag_affected)
     if args.graph:
         pos, order = dfs_order(read_edges(args.graph))
         prefix = [0]
         for x in order:
             n = nodes.get(x - 2)
             prefix.append(prefix[-1] + (n[2] if n else 0))
+        # vertices touched by the DAG normalization: surviving endpoints of
+        # removed links (edge-list id = new id + 2); prefix sums over the order
+        touched_prefix = None
+        if args.removed_links:
+            touched = set()
+            with open(args.removed_links) as f:
+                next(f)
+                for line in f:
+                    p = line.rstrip('\n').split('\t')
+                    for new in (int(p[3]), int(p[4])):
+                        if new >= 0:
+                            touched.add(new + 2)
+            touched_prefix = [0]
+            for x in order:
+                touched_prefix.append(touched_prefix[-1] + (x in touched))
         ranges = []
         bad = 0
         for L in lifespans:
@@ -286,7 +308,9 @@ def main():
             while stack and stack[-1] <= a:
                 stack.pop()
             inner_bp = prefix[b] - prefix[a + 1] if nodes else '-'
-            final[k] = (b - a - 1, inner_bp, len(stack))
+            affected = (('1' if touched_prefix[b + 1] - touched_prefix[a] > 0 else '0')
+                        if touched_prefix is not None else '-')
+            final[k] = (b - a - 1, inner_bp, len(stack), affected)
             stack.append(b)
         for L in lifespans:
             k = (L['entrance'], L['exit'])
@@ -295,6 +319,10 @@ def main():
         print(f"final graph: {len(final)} superbubbles placed in a DFS order"
               + (f", {bad} NOT a range entrance < exit (check!)" if bad else "")
               + f"; inner vertices unchanged since birth: {same}")
+        if touched_prefix is not None and final:
+            n_aff = sum(1 for v in final.values() if v[3] == '1')
+            print(f"dag_affected: {n_aff} of {len(final)} final superbubbles ({100.0 * n_aff / len(final):.2f}%) "
+                  f"touched by the DAG normalization ({len(touched)} vertices touched)")
 
     def on_ref(vid):
         n = nodes.get(int(vid) - 2)
@@ -303,16 +331,16 @@ def main():
     with open(args.out + '_lifespans.tsv', 'w') as o:
         o.write('sb_id\tentrance\texit\tentrance_node\texit_node\tref_seq\tref_start\tref_end\tn_inner\t'
                 'born_step\tborn_by\tborn_as\tparent_at_birth\tdied_step\tdied_by\tabsorbed_by\t'
-                'ref_exact\tfinal_n_inner\tinner_bp\tdepth\n')
+                'ref_exact\tfinal_n_inner\tinner_bp\tdepth\tdag_affected\n')
         for i, L in enumerate(lifespans, 1):
             seq, start, end = coords(L['entrance'], L['exit']) if nodes else ('-', '-', '-')
             exact = ('1' if on_ref(L['entrance']) and on_ref(L['exit']) else '0') if has_ref else '-'
-            fn, fbp, fd = final.get((L['entrance'], L['exit']), ('NA', 'NA', 'NA'))
+            fn, fbp, fd, faff = final.get((L['entrance'], L['exit']), ('NA', 'NA', 'NA', 'NA'))
             o.write(f"{i}\t{L['entrance']}\t{L['exit']}\t{node_name(L['entrance']) if nodes else '-'}\t"
                     f"{node_name(L['exit']) if nodes else '-'}\t{seq}\t{start}\t{end}\t{L['n_inner']}\t"
                     f"{L['born_step']}\t{L['born_by']}\t{L['born_as']}\t{L['parent_at_birth']}\t"
                     f"{L['died_step']}\t{L['died_by']}\t{L['absorbed_by']}\t"
-                    f"{exact}\t{fn}\t{fbp}\t{fd}\n")
+                    f"{exact}\t{fn}\t{fbp}\t{fd}\t{faff}\n")
 
     # ---- summary with populations and cumulative counts
     meta, meta_cols = read_metadata(args.metadata) if args.metadata else ({}, [])

@@ -67,6 +67,11 @@ OUTPUT
   Normalization (prefix --out):
     <out>.dag.gfa      S/L lines only, nodes renumbered 0..n-1, all links +/+
     <out>.batches.tsv  one batch per haplotype, reference first ("#" lines)
+    <out>.removed_links.tsv  every removed link: kind (inversion, self_loop,
+                       back_edge, component), its endpoints as original names
+                       and as new ids (-1: the node was removed too); for
+                       Preprocessing/superbubbleHistory.py --removed-links
+                       (dag_affected)
     <out>.nodemap.tsv  original node name -> new id, flipped?, length, segment,
                        reference sequence and 0-based position (reference
                        nodes: their start; other nodes: the end of the
@@ -417,11 +422,13 @@ def main():
     edge_idx = {}
     eu, ev = array('i'), array('i')
     n_inv = n_self = n_dup = 0
+    dropped_links = []            # (kind, a, b) of the links that cannot be directed edges
     for k in range(m_in):
         a, b = la[k], lb[k]
         oa, ob = lra[k] ^ flip[a], lrb[k] ^ flip[b]
         if a == b:
             n_self += 1
+            dropped_links.append(('self_loop', a, b))
             continue
         if not oa and not ob:
             u, v = a, b
@@ -429,6 +436,7 @@ def main():
             u, v = b, a
         else:
             n_inv += 1
+            dropped_links.append(('inversion', a, b))
             continue
         if (u, v) in edge_idx:
             n_dup += 1
@@ -625,6 +633,14 @@ def main():
             o.write(f'#\tunwalked\t{len(unwalked)}\n')
             for k in unwalked:
                 o.write(f'{new_id[eu[k]]}\t{new_id[ev[k]]}\n')
+    with open(f'{args.out}.removed_links.tsv', 'w') as o:
+        o.write('kind\tu_orig\tv_orig\tu_new\tv_new\n')
+        for kind, a, b in dropped_links:
+            o.write(f'{kind}\t{names[a]}\t{names[b]}\t{new_id[a]}\t{new_id[b]}\n')
+        for k in range(m_dir):
+            if removed[k]:
+                kind = 'back_edge' if removed[k] == 1 else 'component'
+                o.write(f'{kind}\t{names[eu[k]]}\t{names[ev[k]]}\t{new_id[eu[k]]}\t{new_id[ev[k]]}\n')
     with open(f'{args.out}.nodemap.tsv', 'w') as o:
         o.write('orig\tnew\tflipped\tlength\tsegment\tref_seq\tref_pos\ton_ref\n')
         last_rank = len(rank_pos) - 1
