@@ -21,6 +21,11 @@ Options:
     --label     a label per summary (default: the file name)
     --group     metadata column for the colours of figure 2
                 (default: Superpopulation)
+    --lifespans, --alleles
+                for figure 3: <out>_lifespans.tsv (superbubbleHistory.py
+                with --removed-links) and <out>_alleles.tsv
+                (superbubbleAlleles.py), one each per summary, in the same
+                order
     --out       output prefix
 
 =====================================================================
@@ -36,6 +41,10 @@ OUTPUT
                           the genomes were added, coloured by --group, and
                           their distribution per group (one row per summary
                           with metadata)
+    <out>_var_types.png   figure 3 (with --lifespans and --alleles): variant
+                          type of the final superbubbles, untouched vs
+                          touched by the DAG normalization (dag_affected),
+                          as shares of each group, with the counts
 """
 import argparse
 import os
@@ -56,6 +65,8 @@ def main():
     ap.add_argument("--summary", nargs="+", required=True)
     ap.add_argument("--label", nargs="+")
     ap.add_argument("--group", default="Superpopulation")
+    ap.add_argument("--lifespans", nargs="+")
+    ap.add_argument("--alleles", nargs="+")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
     labels = args.label or [os.path.basename(p).replace("_summary.tsv", "") for p in args.summary]
@@ -85,6 +96,10 @@ def main():
     plt.savefig(args.out + "_growth.png", dpi=200)
     plt.close(fig)
     print(f"Saved plot: {args.out}_growth.png")
+
+    # ---- figure 3: variant types, untouched vs touched by the DAG normalization
+    if args.lifespans and args.alleles:
+        plot_var_types(args, labels)
 
     # ---- figure 2: new sites per genome by population
     with_meta = [(df, lab) for df, lab in zip(frames, labels) if args.group in df.columns]
@@ -124,6 +139,49 @@ def main():
     plt.savefig(args.out + "_new_sites.png", dpi=200)
     plt.close(fig)
     print(f"Saved plot: {args.out}_new_sites.png")
+
+
+VAR_ORDER = ["SNP", "MNP", "insertion", "deletion", "complex", "mixed", "nested", "nonref", "none"]
+VAR_COLORS = {"SNP": "#0072B2", "MNP": "#56B4E9", "insertion": "#009E73", "deletion": "#D55E00",
+              "complex": "#CC79A7", "mixed": "#E69F00", "nested": "#999999", "nonref": "#000000",
+              "none": "#DDDDDD"}
+
+
+def plot_var_types(args, labels):
+    """figure 3: one bar per dataset and dag_affected group, stacked by variant type (shares)"""
+    bars = []                                      # (label, counts per type, total)
+    for lab, lf, af in zip(labels, args.lifespans, args.alleles):
+        life = pd.read_csv(lf, sep="\t", usecols=["entrance", "exit", "died_step", "dag_affected"],
+                           dtype=str, keep_default_na=False)          # "NA" = alive at the end, a value
+        life = life[life["died_step"] == "NA"]
+        al = pd.read_csv(af, sep="\t", dtype=str, keep_default_na=False)
+        df = al.merge(life[["entrance", "exit", "dag_affected"]], on=["entrance", "exit"], how="left")
+        for flag, name in (("0", "untouched"), ("1", "touched by DAG")):
+            sub = df[df["dag_affected"] == flag]
+            if len(sub):
+                bars.append((f"{lab}\n{name}", sub["var_type"].value_counts(), len(sub)))
+    if not bars:
+        print("[!] no dag_affected values (superbubbleHistory.py --removed-links): figure 3 skipped")
+        return
+    fig, ax = plt.subplots(figsize=(max(8, 1.6 * len(bars) + 4), 6))
+    for i, (lab, counts, total) in enumerate(bars):
+        bottom = 0.0
+        for t in VAR_ORDER:
+            share = 100.0 * counts.get(t, 0) / total
+            ax.bar(i, share, bottom=bottom, color=VAR_COLORS[t], edgecolor="black", linewidth=0.4,
+                   label=t if i == 0 else None)
+            bottom += share
+        ax.text(i, 101, f"{total:,}", ha="center", va="bottom", fontsize=10)
+    ax.set_xticks(range(len(bars)))
+    ax.set_xticklabels([b[0] for b in bars], fontsize=10)
+    ax.set_ylabel("share of the final superbubbles (%)")
+    ax.set_ylim(0, 108)
+    ax.set_title("Variant type of the final superbubbles (number above each bar)")
+    ax.legend(title="var_type", loc="upper left", bbox_to_anchor=(1.01, 1.0))
+    plt.tight_layout()
+    plt.savefig(args.out + "_var_types.png", dpi=200)
+    plt.close(fig)
+    print(f"Saved plot: {args.out}_var_types.png")
 
 
 if __name__ == "__main__":
