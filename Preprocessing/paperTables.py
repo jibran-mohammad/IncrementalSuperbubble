@@ -259,8 +259,11 @@ def main():
             continue
         cols = [n for n in names if n in tool_time]
         # the tool table shows the tool, static and the best algorithm of the
-        # mode: H1 (incMinIBSTH1) per edge, the batch algorithm per genome
-        best = "incMinIBSTH1" if mode == "perEdge" else "incBSTBatch"
+        # mode: H1 (incMinIBSTH1) per edge, the batch heuristic per genome
+        # (incBSTBatchH1; incBSTBatch while it has no BENCHMARK times yet)
+        best = "incMinIBSTH1" if mode == "perEdge" else "incBSTBatchH1"
+        if mode != "perEdge" and not any((best, n) in ours for n in cols):
+            best = "incBSTBatch"
         bench_algos = [a for a in ("static", best) if any((a, n) in ours for n in cols)]
         if not bench_algos:
             print(f"[!] {tool}: no BENCHMARK times of our algorithms yet (run pipelineRunner.py / the BENCHMARK runs)")
