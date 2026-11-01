@@ -31,7 +31,9 @@ Options:
                reference position of vertices off the reference)
     --gfa      the original GFA (haplotype walks: edge support)
     --final    <ID>_superbubbles.txt of the same run: check that replaying
-               the edges backwards from it is consistent
+               the edges backwards from it is consistent (only for a finished
+               run; without it, a run still going or stopped by its time limit
+               is analysed up to its last complete edge)
     --top      edges listed in <out>_top_edges.tsv (default: 100)
     --label    title of figure 4
     --out      output prefix (required)
@@ -73,11 +75,16 @@ from superbubbleHistory import read_nodemap, read_edges, dfs_order     # noqa: E
 
 
 def read_events(path):
-    """rows of the edge events as dicts (lists left as strings)"""
+    """rows of the edge events as dicts (lists left as strings); a last line
+    without its newline (a run still writing, or stopped) is left out"""
     with open(path) as f:
         head = f.readline().rstrip("\n").split("\t")
         for line in f:
-            yield dict(zip(head, line.rstrip("\n").split("\t")))
+            p = line.rstrip("\n").split("\t")
+            if not line.endswith("\n") or len(p) != len(head):
+                print(f"[!] incomplete line left out (edge {p[0]}): the run is still writing or was stopped")
+                continue
+            yield dict(zip(head, p))
 
 
 def check_replay(events, final_path):
@@ -166,7 +173,7 @@ def main():
         os.makedirs(os.path.dirname(args.out), exist_ok=True)
 
     events = list(read_events(args.events))
-    print(f"edges: {len(events)}")
+    print(f"edges: {len(events)}" + (f" (up to genome {events[-1]['step']}, {events[-1]['genome']})" if events else ""))
     if args.final:
         bad, n_base = check_replay(events, args.final)
         print(f"check: replay from {args.final}: {bad} inconsistencies, {n_base} superbubbles in the base graph")
