@@ -31,7 +31,8 @@ Options:
                reference position of vertices off the reference)
     --gfa      the original GFA (haplotype walks: edge support)
     --final    <ID>_superbubbles.txt of the same run: check that replaying
-               the edges backwards from it is consistent (only for a finished
+               the edges backwards from its superbubbles with an inside
+               vertex is consistent (needs --graph) (only for a finished
                run; without it, a run still going or stopped by its time limit
                is analysed up to its last complete edge)
     --top      edges listed in <out>_top_edges.tsv (default: 100)
@@ -41,6 +42,10 @@ Options:
 =====================================================================
 OUTPUT
 =====================================================================
+
+Only superbubbles with at least one inside vertex are counted (trivial
+superbubbles, a single edge with nothing inside, are not variant sites; see
+lib/findSuperbubble/superbubbleEdgeHistory.h).
 
 <out>_edges.tsv, one row per inserted edge that destroyed or created a
 superbubble:
@@ -87,16 +92,21 @@ def read_events(path):
             yield dict(zip(head, p))
 
 
-def check_replay(events, final_path):
-    """replays the edges backwards from the final superbubble list: every
-    created superbubble must be alive and every destroyed one not; returns
-    (inconsistencies, superbubbles of the base graph)"""
-    cur = set()
+def check_replay(events, final_path, pos):
+    """replays the edges backwards from the superbubbles of the final list
+    that have an inside vertex (range entrance .. exit longer than the two in
+    the DFS order pos of the final graph): every created superbubble must be
+    alive and every destroyed one not; returns (inconsistencies,
+    superbubbles of the base graph, trivial ones left out of the list)"""
+    cur, trivial = set(), 0
     with open(final_path) as f:
         for line in f:
             p = line.split()
             if len(p) == 2 and p[0].isdigit() and (p[0], p[1]) != ("0", "1"):
-                cur.add(f"{p[0]}-{p[1]}")
+                if pos[int(p[1])] - pos[int(p[0])] > 1:
+                    cur.add(f"{p[0]}-{p[1]}")
+                else:
+                    trivial += 1
     bad = 0
     for r in reversed(events):
         if int(r["alive"]) != len(cur):
@@ -107,7 +117,7 @@ def check_replay(events, final_path):
         for d in ([] if r["destroyed"] == "-" else r["destroyed"].split(",")):
             bad += d in cur
             cur.add(d)
-    return bad, len(cur)
+    return bad, len(cur), trivial
 
 
 def reference_positions(nodes, graph_path):
@@ -174,9 +184,13 @@ def main():
 
     events = list(read_events(args.events))
     print(f"edges: {len(events)}" + (f" (up to genome {events[-1]['step']}, {events[-1]['genome']})" if events else ""))
-    if args.final:
-        bad, n_base = check_replay(events, args.final)
-        print(f"check: replay from {args.final}: {bad} inconsistencies, {n_base} superbubbles in the base graph")
+    pos = dfs_order(read_edges(args.graph))[0] if args.graph else None
+    if args.final and pos is None:
+        print("[!] the replay check needs --graph (which superbubbles of the final list have an inside vertex)")
+    elif args.final:
+        bad, n_base, n_triv = check_replay(events, args.final, pos)
+        print(f"check: replay from {args.final} ({n_triv} trivial left out): {bad} inconsistencies, "
+              f"{n_base} superbubbles with an inside vertex in the base graph")
 
     # ---- summary per case
     summ = collections.OrderedDict()

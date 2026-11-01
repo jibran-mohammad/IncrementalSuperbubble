@@ -22,6 +22,13 @@
   artifact of the edge order, do not appear). A superbubble is identified by
   its (entrance, exit) pair; the artificial <0 1> is left out.
 
+  Only superbubbles with at least one inside vertex are recorded. A trivial
+  superbubble (a single edge s -> t, nothing inside) is not a variant site:
+  the base graph (the reference path) consists of them only, one per edge.
+  A trivial pair that gains an inside vertex is recorded as born / promoted
+  at that step, one that loses all of them as died. The trivial ones are
+  only counted (summary column "trivial").
+
   Two files (tab separated, vertex ids are the ids of the input edge list):
 
   <prefix>_history_events.tsv, one row per change:
@@ -43,7 +50,9 @@
                none, top level)
 
   <prefix>_history_summary.tsv, one row per step:
-    step genome new_edges new_vertices born promoted died died_merged alive time_s
+    step genome new_edges new_vertices born promoted died died_merged alive time_s trivial
+    alive = superbubbles with an inside vertex; trivial = the others (alive +
+    trivial = all superbubbles, as in the time file without <0 1>)
     died_merged = died superbubbles absorbed by one born or promoted in the
     same step (smaller sites merged into a larger one)
 
@@ -63,7 +72,7 @@ public:
         summary.open(prefix + "_history_summary.tsv");
         if (!events.is_open() || !summary.is_open()) return false;
         events << "step\tgenome\tevent\tentrance\texit\tn_inner\tparent\n";
-        summary << "step\tgenome\tnew_edges\tnew_vertices\tborn\tpromoted\tdied\tdied_merged\talive\ttime_s\n";
+        summary << "step\tgenome\tnew_edges\tnew_vertices\tborn\tpromoted\tdied\tdied_merged\talive\ttime_s\ttrivial\n";
         return true;
     }
 
@@ -86,6 +95,11 @@ public:
         }
         std::sort(cur.begin(), cur.end());
         cur.erase(std::unique(cur.begin(), cur.end()), cur.end());
+        // only superbubbles with an inside vertex (range entrance .. exit longer than the two)
+        size_t all = cur.size();
+        cur.erase(std::remove_if(cur.begin(), cur.end(),
+                                 [&](uint64_t k) { return rto[second(k)] - rto[first(k)] <= 1; }), cur.end());
+        long trivial = (long)(all - cur.size());
 
         // ---- nesting of the current set (sweep over the order)
         if ((int)exitOf.size() < n) { exitOf.resize(n, -1); parentOf.resize(n, -1); coverOf.resize(n, -1); }
@@ -139,7 +153,7 @@ public:
         }
         summary << step << '\t' << genome << '\t' << newEdges << '\t' << (nBefore > 0 ? n - nBefore : n - 2)
                 << '\t' << (step == 0 ? (long)born.size() : nBorn) << '\t' << nPromoted << '\t' << died.size()
-                << '\t' << nDiedMerged << '\t' << cur.size() << '\t' << timeSec << '\n';
+                << '\t' << nDiedMerged << '\t' << cur.size() << '\t' << timeSec << '\t' << trivial << '\n';
         prev.swap(cur);
     }
 

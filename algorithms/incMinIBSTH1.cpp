@@ -162,7 +162,10 @@ public:
             if (prefix.size() >= suffix.size() && prefix.compare(prefix.size() - suffix.size(), suffix.size(), suffix) == 0)
                 prefix = prefix.substr(0, prefix.size() - suffix.size());
             if (!hist.open(prefix)) { std::cerr << "history: cannot write " << prefix << "_edge_events.tsv" << std::endl; history = false; }
-            else superbubble.tree.journal = true;
+            else {
+                superbubble.tree.journal = true;
+                hist.start(superbubble.tree, d.dfsStrategy->reverseTopologicalOrder);
+            }
         }
         else history = false;
         #endif
@@ -269,7 +272,8 @@ public:
                     if (history)
                         hist.record(update_counter, clean_hap_name, i + 1, x, y,
                                     superbubble.duplicateEdges > dupBefore ? 0 : d.dfsStrategy->cases,
-                                    superbubble.tree.stats.fullRecomputes > fullBefore, superbubble.tree, g, totalTime);
+                                    superbubble.tree.stats.fullRecomputes > fullBefore, superbubble.tree, g,
+                                    d.dfsStrategy->reverseTopologicalOrder, totalTime);
                     timeFile << i + 1 << " " << clean_hap_name << " " << incdfs.latestTimes.currentinsertTime << " " << incdfs.latestTimes.currentdfsTime << " " << incdfs.latestTimes.currenttopologicalOrderTime << " " << incdfs.latestTimes.currentminITime << " " << incdfs.latestTimes.currentmaxOTime << " " << currentsuperbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << " " << incdfs.edgeTypes.currentcase1 << " " << incdfs.edgeTypes.currentcase2 << " " << incdfs.edgeTypes.currentcase3 << " " << incdfs.edgeTypes.currentcase4 << " " << incdfs.edgeTypes.currentcase5 << " " << incdfs.vertexCount.currentcountAffectedVertices << " " << incdfs.vertexCount.currentcountExploredVertices << " " << incdfs.n << " " << incdfs.vertexCount.currentTotalEdges << " " << incdfs.vertexCount.currentTotalAffectedEdges << " " << incdfs.vertexCount.currentTotalExploredEdges <<"\n";
                     currentsuperbubbleTime = 0.0;
                     #endif

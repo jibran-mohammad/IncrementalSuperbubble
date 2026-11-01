@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <fstream>
 #include <iterator>
+#include <cstdint>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 #include "../graph/contextGraph.h"
@@ -21,6 +23,14 @@
   recomputation of the same edge does not appear). A superbubble is
   identified by its (entrance, exit) pair; the artificial <0 1> is left out.
 
+  Only superbubbles with at least one inside vertex are recorded (as in
+  superbubbleHistory.h): a trivial superbubble (a single edge, nothing
+  inside) is not a variant site. A pair that gains its first inside vertex
+  counts as created, one that loses its last as destroyed. Every pair the
+  routine touched is checked against the order after the edge (a
+  superbubble is the range entrance .. exit of the DFS order, so it has an
+  inside vertex iff the range is longer than the two).
+
   <prefix>_edge_events.tsv, one row per inserted edge (vertex ids are the
   ids of the input edge list):
     edge_idx       running number over all inserted edges (from 1)
@@ -31,9 +41,11 @@
     case           case of the incremental DFS (1-5); 0 = the edge was
                    already in the graph (nothing changes)
     full           1 if the routine recomputed all superbubbles
-    n_destroyed    superbubbles that are no longer superbubbles
-    n_created      new superbubbles
-    alive          superbubbles after the edge
+    n_destroyed    superbubbles (with an inside vertex) that are no longer
+                   superbubbles or have nothing inside any more
+    n_created      new superbubbles with an inside vertex (also a pair that
+                   gains its first inside vertex)
+    alive          superbubbles with an inside vertex after the edge
     destroyed, created
                    the superbubbles as entrance-exit, separated by ','
                    ("-": none)
@@ -41,7 +53,8 @@
 
   The superbubbles alive at the end are those of the base graph plus every
   created and minus every destroyed one, in edge order; they must equal the
-  final superbubble list (a check on real data).
+  superbubbles with an inside vertex of the final superbubble list (a check
+  on real data, Preprocessing/edgeHistory.py --final --graph).
   ===========================================================================
 */
 class SuperbubbleEdgeHistory {
@@ -54,21 +67,35 @@ public:
         return true;
     }
 
+    // after the base graph: the superbubbles with an inside vertex (pos: the
+    // position of every vertex in the DFS order)
+    void start(const SuperbubbleTree &tree, const std::vector<int> &pos) {
+        nontrivial.clear();
+        for (const std::pair<int,int> &sb : tree.superbubbles())
+            if (pos[sb.second] - pos[sb.first] > 1) nontrivial.insert(key(sb.first, sb.second));
+    }
+
     // after one edge: x, y the edge in input ids, caseNo 0 for a duplicate
     // edge; takes and clears the journal of the tree
     void record(int step, const std::string &genome, int edgeInGenome, int x, int y, int caseNo, bool full,
-                SuperbubbleTree &tree, GraphContext &g, double timeSec) {
-        std::vector<std::pair<int,int>> &added = tree.journalAdded, &killed = tree.journalKilled;
-        std::sort(added.begin(), added.end());
-        std::sort(killed.begin(), killed.end());
+                SuperbubbleTree &tree, GraphContext &g, const std::vector<int> &pos, double timeSec) {
+        std::vector<std::pair<int,int>> &touched = tree.journalAdded, &killed = tree.journalKilled;
+        touched.insert(touched.end(), killed.begin(), killed.end());
+        std::sort(touched.begin(), touched.end());
+        touched.erase(std::unique(touched.begin(), touched.end()), touched.end());
         created.clear(); destroyed.clear();
-        std::set_difference(added.begin(), added.end(), killed.begin(), killed.end(), std::back_inserter(created));
-        std::set_difference(killed.begin(), killed.end(), added.begin(), added.end(), std::back_inserter(destroyed));
-        added.clear(); killed.clear();
+        for (const std::pair<int,int> &sb : touched) {
+            uint64_t k = key(sb.first, sb.second);
+            bool before = nontrivial.count(k) > 0;
+            bool after = tree.alive(sb.first, sb.second) && pos[sb.second] - pos[sb.first] > 1;
+            if (before && !after) { destroyed.push_back(sb); nontrivial.erase(k); }
+            if (!before && after) { created.push_back(sb); nontrivial.insert(k); }
+        }
+        touched.clear(); killed.clear();
 
         events << ++edgeIdx << '\t' << step << '\t' << genome << '\t' << edgeInGenome << '\t' << x << '\t' << y
                << '\t' << caseNo << '\t' << (full ? 1 : 0) << '\t' << destroyed.size() << '\t' << created.size()
-               << '\t' << tree.count() << '\t';
+               << '\t' << nontrivial.size() << '\t';
         list(destroyed, g);
         events << '\t';
         list(created, g);
@@ -79,6 +106,9 @@ private:
     std::ofstream events;
     long long edgeIdx = 0;
     std::vector<std::pair<int,int>> created, destroyed;
+    std::unordered_set<uint64_t> nontrivial;          // current superbubbles with an inside vertex
+
+    static uint64_t key(int s, int t) { return ((uint64_t)(uint32_t)s << 32) | (uint32_t)t; }
 
     void list(const std::vector<std::pair<int,int>> &sbs, GraphContext &g) {
         if (sbs.empty()) { events << '-'; return; }

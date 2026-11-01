@@ -88,6 +88,10 @@ public:
     // current superbubbles (without the root <0 1>), as (entrance, exit)
     std::vector<std::pair<int,int>> superbubbles() const;
     int count() const { return aliveCount; }
+    // <s t> (internal ids) is a current superbubble
+    bool alive(int s, int t) const {
+        return s < (int)byEntrance.size() && byEntrance[s] >= 0 && nt[byEntrance[s]] == t;
+    }
     bool checkAgainstFullScan(const SBView &V) const;
 
 private:

@@ -36,7 +36,8 @@ OUTPUT
                           (new sites: containing a vertex the genome added),
                           cumulative promoted (an existing region became a
                           superbubble) and cumulative died, against the
-                          number of genomes added (one panel per summary)
+                          number of genomes added (one panel per summary, at
+                          most three per row, one legend below)
     <out>_new_sites.png   figure 2: new sites (born) per genome in the order
                           the genomes were added, coloured by --group, and
                           their distribution per group (one row per summary
@@ -75,9 +76,15 @@ def main():
         os.makedirs(os.path.dirname(args.out), exist_ok=True)
     plt.rcParams.update({"font.size": 13, "axes.labelsize": 13, "legend.fontsize": 11})
 
-    # ---- figure 1: growth curve
-    fig, axes = plt.subplots(1, len(frames), figsize=(9.5 * len(frames), 5), squeeze=False)
-    for ax, df, lab in zip(axes[0], frames, labels):
+    # ---- figure 1: growth curve, at most three panels per row, one legend below
+    ncol = min(3, len(frames))
+    nrow = -(-len(frames) // ncol)
+    leg_col = 5 if ncol >= 3 else (3 if ncol == 2 else 2)        # legend columns: fit the width
+    leg_h = 0.35 * (-(-5 // leg_col)) + 0.2                      # inches for the legend rows
+    fig, axes = plt.subplots(nrow, ncol, figsize=(6.5 * ncol, 4.6 * nrow + leg_h), squeeze=False)
+    for ax in axes.flat[len(frames):]:
+        ax.axis("off")
+    for ax, df, lab in zip(axes.flat, frames, labels):
         g = df[df["step"] > 0]
         base = int(df.loc[df["step"] == 0, "alive"].iloc[0]) if (df["step"] == 0).any() else 0
         ax.plot(g["step"], g["alive"], color="black", linewidth=2, label="alive")
@@ -85,14 +92,15 @@ def main():
         ax.plot(g["step"], base + g["cum_born"] + g["cum_promoted"], color="#009E73", linestyle="--",
                 label="... + cumulative promoted")
         ax.plot(g["step"], g["cum_died"], color="#D55E00", label="cumulative died")
-        ax.axhline(base, color="grey", linestyle=":", linewidth=1, label=f"base graph ({base:,})")
+        ax.axhline(base, color="grey", linestyle=":", linewidth=1, label="superbubbles of the base graph")
         ax.set_xlabel("genomes added")
         ax.set_ylabel("superbubbles")
         ax.set_title(lab)
         ax.grid(alpha=0.4, linestyle="--")
         ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{int(v):,}"))
-        ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0))
-    plt.tight_layout()
+    handles, names = axes.flat[0].get_legend_handles_labels()
+    fig.legend(handles, names, loc="lower center", ncol=leg_col, frameon=False)
+    plt.tight_layout(rect=(0, leg_h / (4.6 * nrow + leg_h), 1, 1))
     plt.savefig(args.out + "_growth.png", dpi=200)
     plt.close(fig)
     print(f"Saved plot: {args.out}_growth.png")
@@ -126,7 +134,7 @@ def main():
         # distribution per group, without the first genomes (they add the most sites to any graph)
         late = g[g["step"] > max(3, len(g) // 10)]
         data = [late.loc[late[args.group] == k, "born"] for k in groups]
-        bp = axb.boxplot(data, patch_artist=True, showfliers=False)
+        bp = axb.boxplot(data, patch_artist=True, showfliers=False, medianprops={"color": "black"})
         for patch, k in zip(bp["boxes"], groups):
             patch.set_facecolor(GROUP_COLORS.get(k, "#555555"))
         for i, d in enumerate(data, 1):
@@ -155,7 +163,9 @@ def plot_var_types(args, labels):
                            dtype=str, keep_default_na=False)          # "NA" = alive at the end, a value
         life = life[life["died_step"] == "NA"]
         al = pd.read_csv(af, sep="\t", dtype=str, keep_default_na=False)
-        df = al.merge(life[["entrance", "exit", "dag_affected"]], on=["entrance", "exit"], how="left")
+        # only the superbubbles of the lifespans (with an inside vertex; the
+        # alleles may also list trivial ones)
+        df = al.merge(life[["entrance", "exit", "dag_affected"]], on=["entrance", "exit"], how="inner")
         for flag, name in (("0", "untouched"), ("1", "touched by DAG")):
             sub = df[df["dag_affected"] == flag]
             if len(sub):
