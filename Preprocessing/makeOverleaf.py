@@ -14,7 +14,8 @@ makeOverleaf.py - builds the Overleaf folder with every table of the paper.
         toolComparison/<tool>/ tables of Preprocessing/toolComparisonToLatex.py
     output/overleaf_tables.zip the same folder, to upload
 
-<mode> = perEdge, perBatch (11 datasets), perBatchHPRC (HPRC chromosomes).
+<mode> = perEdge, perBatch (11 datasets), perEdgeHPRC, perBatchHPRC (HPRC
+chromosomes), perBatchHPRC2 (HPRC release 2 chr22).
 Every tabular is wrapped in an adjustbox (never wider than the text; the
 large full-time table also not higher than the page), so the preamble needs
 \\usepackage{adjustbox}. Labels of the detailed tables get the mode as
@@ -49,10 +50,13 @@ TABLES = DEST / "tables"
 DETAILED = []
 PAPER = [("perEdge", OUT / "paperTables" / "perEdge"),
          ("perBatch", OUT / "paperTables" / "perBatch"),
-         ("perBatchHPRC", OUT / "paperTables" / "perBatch_HPRC")]
+         ("perEdgeHPRC", OUT / "paperTables" / "perEdge_HPRC"),
+         ("perBatchHPRC", OUT / "paperTables" / "perBatch_HPRC"),
+         ("perBatchHPRC2", OUT / "paperTables" / "perBatch_HPRC2")]
 TOOL_DIRS = []
 MODE_TITLE = {"perEdge": "perEdge, 11 datasets", "perBatch": "perBatch, 11 datasets",
-              "perBatchHPRC": "perBatch, HPRC chromosomes"}
+              "perEdgeHPRC": "perEdge, HPRC chromosomes", "perBatchHPRC": "perBatch, HPRC chromosomes",
+              "perBatchHPRC2": "perBatch, HPRC release 2 chr22"}
 
 # plots: (folder in the Overleaf project, source folder of output/plots, mode text)
 FIGURE_SETS = [("perEdge", OUT / "plots" / "perEdge", "perEdge"),

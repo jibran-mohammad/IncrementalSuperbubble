@@ -66,12 +66,14 @@ DNF_NOTE = (f" DNF = did not finish within {LIMIT_DAYS} days (not scalable): sto
             f"its measured or estimated time exceeds {LIMIT_DAYS} days.")
 
 
-def run_finished(csv_path, algo):
+def run_finished(csv_path, algo, missing_dnf=False):
     """False if the algorithm's time file next to the CSV ends without its
-    final PeakMemory line, i.e. the run was stopped (time limit) or crashed."""
+    final PeakMemory line, i.e. the run was stopped (time limit) or crashed;
+    with missing_dnf also if there is no time file (not run: estimated to
+    exceed the limit)."""
     f = pathlib.Path(csv_path).parent / f"{algo}_time.txt"
     if not f.exists():
-        return True
+        return not missing_dnf
     with open(f, "rb") as fh:
         fh.seek(max(0, f.stat().st_size - 4096))
         return b"PeakMemory" in fh.read()
@@ -80,14 +82,14 @@ def run_finished(csv_path, algo):
 def fmt(x, digits):
     if x is None or (isinstance(x, float) and pd.isna(x)):
         return "-"
-    if x == DNF or x > LIMIT_S:
+    if x == DNF:
         return DNF
     return f"{x:.{digits}f}"
 
 
 def ratio(base, value):
     """speedup base / value; none if either side did not finish"""
-    if base in (None, DNF) or value in (None, DNF) or base > LIMIT_S or value > LIMIT_S:
+    if base in (None, DNF) or value in (None, DNF):
         return None
     return compute_speedup(base, value)
 
@@ -148,6 +150,9 @@ def main():
     ap.add_argument("--algorithms", nargs="+",
                     help="only these algorithm IDs (default: every algorithm with data), "
                          "e.g. static incBSTBatch for all HPRC chromosomes")
+    ap.add_argument("--missing-dnf", action="store_true",
+                    help="an algorithm without a time file for a dataset is DNF (not run: estimated to "
+                         "exceed the limit); with --algorithms, also algorithms without any data")
     args = ap.parse_args()
     os.makedirs(args.outdir, exist_ok=True)
 
@@ -158,19 +163,21 @@ def main():
     frames = [normalize_dataframe(pd.read_csv(p, low_memory=False), p) for p in args.csv]
     algos = [a for a in ALGORITHMS if any(not pd.isna(sum_metric(df, a, "TotalTime")) for df in frames)]
     if args.algorithms:
-        algos = [a for a in algos if a in args.algorithms]
+        algos = [a for a in (ALGORITHMS if args.missing_dnf else algos) if a in args.algorithms]
     notes = abbreviation_note([SHORT_NAMES.get(a, a) for a in algos])
 
-    finished = {(a, n): run_finished(p, a) for a in algos for p, n in zip(args.csv, names)}
+    finished = {(a, n): run_finished(p, a, args.missing_dnf) for a in algos for p, n in zip(args.csv, names)}
 
     def one(a, n, suffix):
-        """a step's time of one dataset; DNF if the run did not finish or took longer than the limit"""
+        """a step's time of one dataset; DNF if the run did not finish or took
+        longer than the limit (the limit applies to a run, not to a sum over
+        datasets)"""
         if not finished[(a, n)]:
             return DNF
-        v = sum_metric(by_name[n], a, suffix)
-        if not pd.isna(v) and suffix == "TotalTime" and v > LIMIT_S:
+        run = sum_metric(by_name[n], a, "TotalTime")
+        if not pd.isna(run) and run > LIMIT_S:
             return DNF
-        return v
+        return sum_metric(by_name[n], a, suffix)
 
     def total(a, suffix, frame_list=None):
         vals = [one(a, n, suffix) for n in names]
@@ -220,7 +227,8 @@ def main():
     # modified BST for both (BST), modified BST for minI and maxO by
     # comparison (MinI); speedup relative to NBST
     ds_algos = ["incNormalBST", "incBST", "incMinIBST"]
-    if mode == "perEdge" and all(a in algos for a in ds_algos):
+    if mode == "perEdge" and all(a in algos for a in ds_algos) and \
+            any(total(a, "TotalTime") != DNF for a in ds_algos):           # not only DNF (HPRC)
         ds_cols = [("MinI", "MinITime"), ("MaxO", "MaxOTime"), ("MinI+MaxO", None), ("Total", "TotalTime")]
 
         def ds_value(a, c):
@@ -257,13 +265,26 @@ def main():
                     ours[(a, name)] = read_pipeline_time(pf).get("AlgorithmTime")
         if not tool_time:
             continue
-        cols = [n for n in names if n in tool_time]
+        # with --missing-dnf a tool that was not run on a dataset is DNF there
+        cols = names if args.missing_dnf else [n for n in names if n in tool_time]
+        for n in cols:
+            tool_time.setdefault(n, LIMIT_S + 1)
         # the tool table shows the tool, static and the best algorithm of the
         # mode: H1 (incMinIBSTH1) per edge, the batch heuristic per genome
         # (incBSTBatchH1; incBSTBatch while it has no BENCHMARK times yet)
         best = "incMinIBSTH1" if mode == "perEdge" else "incBSTBatchH1"
         if mode != "perEdge" and not any((best, n) in ours for n in cols):
             best = "incBSTBatch"
+        # perEdge on HPRC: H1 has no BENCHMARK run on every chromosome; there
+        # its time comes from the timed run (sum of its steps), marked *
+        fallback = set()
+        if mode == "perEdge":
+            for n in cols:
+                if (best, n) not in ours and finished.get((best, n)) and best in algos:
+                    v = one(best, n, "TotalTime")
+                    if isinstance(v, (int, float)) and not pd.isna(v):
+                        ours[(best, n)] = v
+                        fallback.add(n)
         bench_algos = [a for a in ("static", best) if any((a, n) in ours for n in cols)]
         if not bench_algos:
             print(f"[!] {tool}: no BENCHMARK times of our algorithms yet (run pipelineRunner.py / the BENCHMARK runs)")
@@ -281,13 +302,17 @@ def main():
         tool_total = DNF if any(tool_time[n] is None or tool_time[n] > LIMIT_S for n in cols) \
             else sum(tool_time[n] for n in cols)
         label = TOOL_LABELS.get(tool, tool)
-        rows = [[rf"\texttt{{{label}}}"] + [fmt(tool_time[n], 2) for n in cols] + [fmt(tool_total, 2)], None]
+        tool_val = {n: DNF if tool_time[n] is not None and tool_time[n] > LIMIT_S else tool_time[n] for n in cols}
+        rows = [[rf"\texttt{{{label}}}"] + [fmt(tool_val[n], 2) for n in cols] + [fmt(tool_total, 2)], None]
         for a in bench_algos:
             vals = [val(a, c) for c in cols + ["Total"]]
-            tools = [tool_time[n] for n in cols] + [tool_total]
-            rows.append([rf"\texttt{{{SHORT_NAMES.get(a, a)}}}"] + [fmt(v, 2) for v in vals])
+            tools = [tool_val[n] for n in cols] + [tool_total]
+            star = [("$^*$" if a == best and n in fallback else "") for n in cols] + [""]
+            rows.append([rf"\texttt{{{SHORT_NAMES.get(a, a)}}}"] + [fmt(v, 2) + st for v, st in zip(vals, star)])
             rows.append(["Speedup"] + [fmt(ratio(t, v) if v else None, 2) for t, v in zip(tools, vals)])
             rows.append(None)
+        fallback_note = (f" $^*$ {SHORT_NAMES.get(best, best)}: no BENCHMARK run; time of the timed run (sum of "
+                         f"its steps, without reading the input)." if fallback else "")
         # how much of the tool's time is reading the graph, and the speedup of
         # the best algorithm against the tool's search alone (lower bound),
         # over the datasets with complete (not sampled, not DNF) tool runs
@@ -317,7 +342,7 @@ def main():
             f"are program start-up, writing its output, "
             + ("building chains and nesting, " if tool == "bubblegun" else "")
             + "and writing the temporary GFA. Preprocessing (GFA to edge list) is counted on neither side."
-            + read_note + DNF_NOTE + abbreviation_note([SHORT_NAMES.get(a, a) for a in bench_algos]),
+            + read_note + fallback_note + DNF_NOTE + abbreviation_note([SHORT_NAMES.get(a, a) for a in bench_algos]),
             f"tab:paper_tool_{tool}_{tag}")
 
 
