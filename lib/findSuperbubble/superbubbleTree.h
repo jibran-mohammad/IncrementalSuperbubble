@@ -65,6 +65,7 @@ public:
         std::vector<int> tails, heads;
         bool tailWasSink = false, headWasSource = false;
         bool isPath = false, tailPair = false, headPair = false;
+        bool openEnd = false;   // a new vertex without a child or without a parent
         std::vector<int> path;
     };
     Stats stats;
@@ -85,6 +86,9 @@ public:
     // after a whole batch: V is the order after the batch, the tree still the
     // one before it; the groups as above (internal ids)
     void updateBatch(const SBView &V, const std::vector<BatchGroup> &groups);
+    // the same with the rescan restricted to the ranges of the groups
+    // (incBSTBatchH2, see superbubbleTree.cpp)
+    void updateBatchRanges(const SBView &V, const std::vector<BatchGroup> &groups);
     // current superbubbles (without the root <0 1>), as (entrance, exit)
     std::vector<std::pair<int,int>> superbubbles() const;
     int count() const { return aliveCount; }
@@ -111,6 +115,8 @@ private:
     int lca(int a, int b);
     void killPath(int from, int to);
     bool rescan(const SBView &V, int owner);
+    bool rescanRange(const SBView &V, int owner, int L, int R);
+    int childUnder(int x, int P);
     void rescanOrFull(const SBView &V, int P);
     void fullBuild(const SBView &V, long long &reason);
     void addLeaf(int s, int t);

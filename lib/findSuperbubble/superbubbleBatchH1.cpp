@@ -135,6 +135,7 @@
             gr.heads.erase(std::unique(gr.heads.begin(), gr.heads.end()), gr.heads.end());
             for (int t : gr.tails) if (G->outgoing[t] == 2) gr.tailWasSink = true;
             for (int h : gr.heads) if (G->incoming[h] == 2) gr.headWasSource = true;
+            for (int x : members[k]) if (inDeg[x] == 0 || outDeg[x] == 0) gr.openEnd = true;
             if (!gr.tails.empty() && !gr.heads.empty()) continue;
 
             // dangling: one simple path (at most one tail and one head, every
@@ -163,7 +164,8 @@
         for (SuperbubbleTree::BatchGroup &gr : this->groups) {
             for (int &x : gr.path) x = G->reverseMapping.find(x)->second;
         }
-        this->tree.updateBatch(view(sdfs, g), this->groups);
+        if (this->useRanges) this->tree.updateBatchRanges(view(sdfs, g), this->groups);
+        else this->tree.updateBatch(view(sdfs, g), this->groups);
     }
 
 

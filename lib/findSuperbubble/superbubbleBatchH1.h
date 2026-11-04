@@ -37,7 +37,8 @@ public:
     double prepareTime;           // reading the groups of the last batch (s)
 
 public:
-    SuperbubbleCalculationBatchH1() : duplicateEdges(0), prepareTime(0.0), pending(false) {}
+    // ranges: incBSTBatchH2, rescan only the ranges of the groups (updateBatchRanges)
+    explicit SuperbubbleCalculationBatchH1(bool ranges = false) : duplicateEdges(0), prepareTime(0.0), pending(false), useRanges(ranges) {}
     void computeSB(DFSCONTEXT *sdfs, GraphContext *g);
     void insertBatch(DFSCONTEXT *sdfs, GraphContext *g, const std::vector<std::pair<int,int>> &edges);
     void updateSB(DFSCONTEXT *sdfs, GraphContext *g);
@@ -52,6 +53,7 @@ private:
     // as internal ids, the new vertices of a path as input ids (their internal
     // ids exist only after the batch)
     bool pending;
+    bool useRanges;
     std::vector<SuperbubbleTree::BatchGroup> groups;
 
     void readGroups(GraphContext *g, const std::vector<std::pair<int,int>> &edges);

@@ -41,7 +41,7 @@ Options:
                          --release): Minigraph-Cactus graphs prepared by
                          Preprocessing/mcToDag.py, experimental)
     -a / --algorithms    algorithm IDs: static incRecompute incNormalBST incBST incMinIBST
-                         incMinIBSTH1 incRecomputeBatch incBSTBatch incBSTBatchH1
+                         incMinIBSTH1 incRecomputeBatch incBSTBatch incBSTBatchH1 incBSTBatchH2
                                                                   (default: all of the mode)
     -c / --chromosomes   Human only: chromosome_1 chromosome_X ... (default: all)
     -m / --mode          perEdge: recompute after every edge;
@@ -209,10 +209,18 @@ ALGORITHMS = [
         "name": "incBSTBatchH1",
         "target": "incBSTBatchH1",
         "output_filename": "incBSTBatchH1_time.txt"
+    },
+
+    {
+        # incBSTBatch + superbubble heuristic per batch by ranges: P = root
+        # needs no full computation (SuperbubbleTree::updateBatchRanges)
+        "name": "incBSTBatchH2",
+        "target": "incBSTBatchH2",
+        "output_filename": "incBSTBatchH2_time.txt"
     }
 ]
 # perBatch only / perEdge only (skipped in the other mode)
-BATCH_ONLY = {"incRecomputeBatch", "incBSTBatch", "incBSTBatchH1"}
+BATCH_ONLY = {"incRecomputeBatch", "incBSTBatch", "incBSTBatchH1", "incBSTBatchH2"}
 PEREDGE_ONLY = {"incNormalBST", "incRecompute", "incBST", "incMinIBST"}
 # ---------------------
 

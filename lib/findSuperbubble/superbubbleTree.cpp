@@ -311,6 +311,160 @@ void SuperbubbleTree::updateBatch(const SBView& V, const std::vector<BatchGroup>
     }
 }
 
+// ---------------------------------------------------------------------------
+// A batch by ranges, incBSTBatchH2. As updateBatch, but a closed group does
+// not rescan its whole region P: only the part of P between the group's ends.
+//   a tail / head directly inside P counts with its own position, otherwise
+//   with both ends of the child of P that holds it: the children outside stay
+//   superbubbles, nothing in them was touched
+//   ranges of the same P that overlap or touch are merged (a new superbubble
+//   can span two touched children that share a vertex), so P = root needs no
+//   full computation any more
+//   full computation: a tail was a sink or a head a source (a superbubble can
+//   appear anywhere), a dangling group that is not a simple path, a closed
+//   group with a new vertex without a child or a parent (it opens the
+//   superbubbles around the group, and a range scan does not see that), a
+//   range that cuts a superbubble that stays (rescanRange returns false)
+// The dangling groups kill first, so the P's are alive.
+// ---------------------------------------------------------------------------
+int SuperbubbleTree::childUnder(int x, int P) {
+    int up = findAlive(npar[x]);
+    while (up != P) { x = up; up = findAlive(npar[x]); }
+    return x;
+}
+
+// Replace the superbubbles with their entrance in [L,R) by a fresh scan of that
+// range, under 'owner' (alive, contains the range). Changes nothing and returns
+// false if the range does not fit the tree.
+bool SuperbubbleTree::rescanRange(const SBView& V, int owner, int L, int R) {
+    if (L >= R) return true;
+    std::vector<std::pair<int,int>> pairs = scanRange(V, L, R);
+
+    // 1. the old superbubbles in the range must end in it
+    for (int p = L; p < R; ++p) {
+        int id = byEntrance[V.at[p]];
+        if (id >= 0 && id != owner && V.pos[nt[id]] > R) return false;
+    }
+    for (int p = L + 1; p <= R; ++p) {
+        int id = byExit[V.at[p]];
+        if (id >= 0 && id != owner && V.pos[ns[id]] < L) return false;
+    }
+    // 2. the new ones must fit next to what stays
+    std::vector<int> exitAt(R - L + 1, -1);      // indexed by entrance position - L
+    for (auto& pr : pairs) {
+        int s = V.at[pr.first], t = V.at[pr.second];
+        if (s == ns[owner]) {
+            if (t == nt[owner]) continue;        // the owner itself
+            return false;                        // the owner is no longer a superbubble
+        }
+        if (t == nt[owner]) return false;
+        int other = byExit[t];                   // stays if its entrance is outside [L,R)
+        if (other >= 0 && (V.pos[ns[other]] < L || V.pos[ns[other]] >= R)) return false;
+        exitAt[pr.first - L] = pr.second;
+    }
+
+    // 3. kill the old ones
+    for (int p = L; p < R; ++p) {
+        int id = byEntrance[V.at[p]];
+        if (id >= 0 && id != owner) kill(id);
+    }
+
+    // 4. sweep left to right: create nodes, set parents and encl
+    std::vector<int> st;                         // open nodes, innermost on top
+    for (int p = L; p <= R; ++p) {
+        while (!st.empty() && V.pos[nt[st.back()]] <= p) st.pop_back();
+        int x = V.at[p];
+        int top = st.empty() ? owner : st.back();
+        if (p > L && p < R) encl[x] = top;
+        if (exitAt[p - L] >= 0) {
+            int id = newNode(x, V.at[exitAt[p - L]], top);
+            st.push_back(id);
+        }
+    }
+    ++stats.rescans;
+    stats.rescanVertices += R - L + 1;
+    return true;
+}
+
+void SuperbubbleTree::updateBatchRanges(const SBView& V, const std::vector<BatchGroup>& groups) {
+    ensureSize(V.n);
+    ++stats.batches;
+
+    // 1. what needs a full computation
+    bool dangling = false;
+    for (const BatchGroup& gr : groups) {
+        if (gr.tails.empty() || gr.heads.empty()) {
+            if (!gr.isPath) { fullBuild(V, stats.fullDangling); return; }
+            dangling = true;
+        }
+        else if (gr.tailWasSink || gr.headWasSource) { fullBuild(V, stats.fullSinkSource); return; }
+        else if (gr.openEnd) { fullBuild(V, stats.fullDangling); return; }
+    }
+
+    // 2. dangling groups: the superbubbles around their old vertex die (cases 1, 2)
+    if (dangling) {
+        for (const BatchGroup& gr : groups) {
+            if (!gr.tails.empty() && !gr.heads.empty()) continue;
+            for (int t : gr.tails) if (!gr.tailWasSink) killPath(innerOut(t), ROOT);
+            for (int h : gr.heads) if (!gr.headWasSource) killPath(innerIn(h), ROOT);
+        }
+    }
+
+    // 3. closed groups: P on the tree and the range inside P, in the new order
+    struct Range { int L, R, P; };
+    std::vector<Range> ranges;
+    for (const BatchGroup& gr : groups) {
+        if (gr.tails.empty() || gr.heads.empty()) continue;
+        int P = innerOut(gr.tails[0]);
+        for (size_t i = 1; i < gr.tails.size(); ++i) P = lca(P, innerOut(gr.tails[i]));
+        for (int h : gr.heads) P = lca(P, innerIn(h));
+        Range r = { V.n, -1, P };
+        auto cover = [&](int x, int inner) {
+            r.L = std::min(r.L, V.pos[x]);
+            r.R = std::max(r.R, V.pos[x]);
+            if (inner == P) return;
+            int c = childUnder(inner, P);
+            r.L = std::min(r.L, V.pos[ns[c]]);
+            r.R = std::max(r.R, V.pos[nt[c]]);
+        };
+        for (int t : gr.tails) cover(t, innerOut(t));
+        for (int h : gr.heads) cover(h, innerIn(h));
+        ranges.push_back(r);
+    }
+
+    // 4. merge from left to right and rescan
+    std::sort(ranges.begin(), ranges.end(), [](const Range& a, const Range& b) {
+        return a.L != b.L ? a.L < b.L : a.R > b.R;
+    });
+    std::vector<Range> merged;
+    for (const Range& r : ranges) {
+        if (!merged.empty()) {
+            Range& m = merged.back();
+            if (r.L < m.R || (r.L == m.R && r.P == m.P)) {
+                if (r.P != m.P) m.P = lca(m.P, r.P);
+                m.R = std::max(m.R, r.R);
+                continue;
+            }
+        }
+        merged.push_back(r);
+    }
+    for (const Range& m : merged) {
+        if (!rescanRange(V, m.P, m.L, m.R)) { fullBuild(V, stats.fullNotClosed); return; }
+    }
+    if (merged.empty()) ++stats.batchesNoScan;
+
+    // 5. the superbubbles along the dangling paths (case 3; tailPair / headPair: case 2 / case 1)
+    if (dangling) {
+        for (const BatchGroup& gr : groups) {
+            if (!gr.tails.empty() && !gr.heads.empty()) continue;
+            const std::vector<int>& p = gr.path;
+            if (gr.tailPair) addLeaf(gr.tails[0], p.front());
+            for (size_t i = 0; i + 1 < p.size(); ++i) addLeaf(p[i], p[i + 1]);
+            if (gr.headPair) addLeaf(p.back(), gr.heads[0]);
+        }
+    }
+}
+
 void SuperbubbleTree::fullBuild(const SBView& V, long long& reason) {
     ++stats.fullRecomputes;
     ++reason;
