@@ -46,3 +46,8 @@ output/
 test/
 # Ignore generated plots
 plots/
+
+# local notes, not on GitHub
+ALGORITHMS.md
+COMPARISON_METHOD.md
+GRAPH_PREPARATION.md
