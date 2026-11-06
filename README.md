@@ -1,14 +1,24 @@
-# IncSuperbubble: Pangenome Superbubble Detection Pipeline
+# IncSuperbubble: Incremental Superbubble Maintenance in Pangenome Graphs
 
-This repository contains the source code for the **IncSuperbubble** C++ algorithms and the Python scripts used to orchestrate the entire pangenome processing pipeline.
+This repository contains the C++ algorithms that keep the superbubbles of a
+growing pangenome DAG up to date with an incremental DFS, and the Python
+scripts that run the experiments of the paper.
 
-The pipeline is generally run in two phases:
-1.  **Preprocessing** (handled by `graphRunner.py`): Converts raw genome data into processed, normalized, and simplified edge list files (`numeric_edgelist.txt`).
-2.  **Superbubble Detection** (handled by `superbubbleRunner.py`): Compiles and executes the C++ superbubble algorithms on the generated edge lists, measuring their performance.
+The algorithms, with the names used in the paper:
+
+| Name | Per edge | Per batch (haplotype) |
+|---|---|---|
+| Simple | `static` | `static` |
+| ImpDFS | `incRecompute` | `incRecomputeBatch` |
+| ImpDS | `incMinIBST` | `incBSTBatch` |
+| ImpSB | `incMinIBSTH1` | `incBSTBatchH2` |
+
+Each ID is the source file (`algorithms/<ID>.cpp`), the make target and the
+binary (`test/<ID>`).
 
 ---
 
-## 🧪 Testing the Artifact (for Reviewers)
+## 🧪 Testing the Artifact
 
 Two scripts reproduce the experiments of the paper. Run them from the
 repository root.
@@ -35,26 +45,24 @@ repository root.
   https://github.com/vgteam/vg/releases), about 10 GB of free disk space
   and 8 GB of memory.
 
-### Test 1: the small human graphs (`scripts/reviewerTest.py`)
+### Test 1: the small human graphs (`scripts/smallGraphsTest.py`)
 
 The five small graphs of the paper (chromosomes 11, 17, 18, 22 and X) are
 in `testdata/small/` (gzipped; base graph, haplotypes and the edge list of
 the updates). The script unpacks them and then:
 
-* runs **our algorithms** per edge and per batch: Simple (`static`), ImpDFS
-  (`incRecompute` / `incRecomputeBatch`), ImpDS (`incMinIBST` /
-  `incBSTBatch`), ImpSB (`incMinIBSTH1` / `incBSTBatchH2`), and per edge also
-  the data structures NBST (`incNormalBST`) and BST (`incBST`);
+* runs **our algorithms** per edge and per batch (the four above, and per
+  edge also the data structures NBST, `incNormalBST`, and BST, `incBST`);
 * runs **BubbleGun** and **BubbleFinder** per batch;
-* prints the **tables** and writes them to `output/reviewer/small_tables.md`.
+* prints the **tables** and writes them to `output/artifactTest/small_tables.md`.
   They show the total time per graph with the speedup over Simple, the time
   of every step, minI/maxO for each data structure, the tools against our
   algorithms (time and memory), and whether all our algorithms and the
   tools find the same superbubbles in the final graph.
 
 ```Bash
-python3 scripts/reviewerTest.py            # all five graphs: about 40 minutes
-python3 scripts/reviewerTest.py -c 22      # one graph only: a few minutes
+python3 scripts/smallGraphsTest.py            # all five graphs: about 40 minutes
+python3 scripts/smallGraphsTest.py -c 22      # one graph only: a few minutes
 ```
 
 **Per edge, the tools take hours.** BubbleGun and BubbleFinder cannot
@@ -64,7 +72,7 @@ per haplotype, which takes minutes. To also run the tools per edge (about
 4.5 hours for the five graphs; optional):
 
 ```Bash
-python3 scripts/reviewerTest.py --tools-per-edge
+python3 scripts/smallGraphsTest.py --tools-per-edge
 ```
 
 Other options: `--runs N` (runs of each of our algorithms, averaged; default
@@ -85,7 +93,7 @@ The script then:
   haplotype;
 * as a check, also runs BubbleFinder on the DAG, which must give the same
   superbubbles as ImpSB;
-* writes the tables to `output/reviewer/dag_conversion_chr<c>.md`.
+* writes the tables to `output/artifactTest/dag_conversion_chr<c>.md`.
 
 Choose the chromosome with `-c`:
 
@@ -114,410 +122,22 @@ data publicly available.
 
 ---
 
-## 🏗️ Directory Structure
-
-The project uses the following directory structure, rooted at `IncSuperbubble/`:
-```bash
-.
-├── algorithms
-├── input
-├── lib
-├── LICENSE
-├── Makefile
-├── output
-├── Pangenome_Construction
-├── Preprocessing
-├── README.md
-├── requirements.txt
-├── scripts
-├── test
-├── testdata
-└── venv
-
+## 📁 Repository Layout
 
 ```
----
-
-## 🛠️ Prerequisites
-
-### 1. General System Tools
-* **Git:** For cloning the repository.
-* **Python 3:** Version 3.6 or newer.
-* **make:** The build automation tool.
-* **g++ / Clang:** A C++ compiler that supports **C++11** or newer (the Makefile compiles with `-std=c++11`).
-
-### 2. Python Dependencies
-The following libraries are required for the pipeline, especially for the analysis and plotting phases.
-
-```bash
-# Recommended: Create and activate a virtual environment first
-python3 -m venv venv
-source venv/bin/activate
-
-# Install required Python packages
-pip install pandas matplotlib numpy
+algorithms/      one C++ file per algorithm (main program)
+lib/             incremental DFS, data structures, superbubble computation
+Makefile         make TARGET=<ID> builds test/<ID>
+scripts/         run scripts: the two tests above, superbubbleRunner.py
+                 (our algorithms), superbubbleComparator.py (the tools),
+                 hprcPrepare.py (HPRC download and conversion)
+Preprocessing/   graph preparation (mcToDag.py), parsing, tables, plots
+testdata/small/  the five small graphs
 ```
 
-### 3. External Executables (CRITICAL)
+Every script has a guide at the top of its file, and
+`python3 <script> --help` lists its options.
 
-The pipeline uses several external bioinformatics tools. These executables must be installed and placed in specific locations within the `Pangenome_Construction/` directory before running **Phase 1**.
+## License
 
-| Tool | Required Location |
-| :--- | :--- |
-| **vg** | Must be installed inside the **`Pangenome_Construction/vgTool/`** directory. |
-| **mash** | The executable must be placed directly inside **`Pangenome_Construction/`**. |
-| **minichain** | The executable must be placed directly inside **`Pangenome_Construction/`**. |
-| **minigraph**| The executable must be places directly inside **`Pangenome_Construction/`**. |
-
-## 🚀 Pipeline Execution Guide
-
-The workflow is divided into four phases. You must complete Phase 0 before running any other steps.
-
-Every script you run has a guide at the top of its file (HOW TO RUN, options, input and output files), and `python3 <script> --help` lists its options.
-
-### Phase 0: External Tool Setup (One-Time)
-This step ensures that the required external bioinformatics tools (vg, mash, minichain, minigraph) are present in the correct locations for the preprocessing scripts to function.
-
-Create the required directory structure:
-
-```Bash
-
-mkdir -p Pangenome_Construction/vgTool
-```
-**Install/Place Executables**: Install the external tools and ensure their executables are available at the required paths:
-
-**Pangenome_Construction/vgTool/vg**
-
-**Pangenome_Construction/Mash**
-
-**Pangenome_Construction/minichain**
-
-**Pangenome_Construction/minigraph**
-
-### Phase 1: Preprocessing and Graph Generation (graphRunner.py)
-This script runs the entire preprocessing pipeline to create the graph file (numeric_edgelist.txt) which is required for Phase 2.
-
-**Script location: scripts/graphRunner.py**
-
-> **Note:** dataset names are case-sensitive and differ between scripts: `graphRunner.py` takes `ecoli` / `Human` / `Virus`, `superbubbleRunner.py` takes `Ecoli` / `Human`, and `parse_to_csv.py` takes `ecoli` / `human` / `all`.
-
-Examples:
-```Bash
-
-# Run E. coli Dataset (creates input/Ecoli/Graphs/numeric_edgelist.txt)
-python3 scripts/graphRunner.py --dataset ecoli
-
-# Run All Human Chromosomes (iterates through all chromosome_* directories)
-python3 scripts/graphRunner.py --dataset Human
-
-# Run Specific Human Chromosomes (e.g., chromosome_1 and chromosome_X)
-python3 scripts/graphRunner.py --dataset Human --chromosomes 1 X
-```
-### Phase 2: Superbubble Algorithm Execution (superbubbleRunner.py)
-This step handles C++ compilation via the Makefile and executes the algorithms on the generated graphs, logging raw time output to the output/ directory.
-
-**Script location: scripts/superbubbleRunner.py**
-
-**Available Algorithms: `static`, `incRecompute`, `incNormalBST`, `incBST`, `incMinIBST`, `incBSTBatch`.** Each ID is also the source file (`algorithms/<ID>.cpp`), make target, binary (`test/<ID>`) and timing file (`<ID>_time.txt`).
-
-`incBSTBatch` only runs in `perBatch` mode; it is skipped automatically in `perEdge` mode. Each algorithm is run 100 times (`NUM_RUNS` in `superbubbleRunner.py`) and the timings are averaged, so large datasets take a long time.
-
-Examples:
-```Bash
-
-# Run all algorithms on E. coli in batch mode
-python3 scripts/superbubbleRunner.py --dataset Ecoli -m perBatch
-
-# Run all algorithms on E. coli in Edge mode
-python3 scripts/superbubbleRunner.py --dataset Ecoli -m perEdge
-
-# Run specific algorithms on chromosome_1 in batch mode
-python3 scripts/superbubbleRunner.py --dataset Human --algorithms incBST --chromosomes chromosome_1 -m perBatch
-
-# Run specific algorithms on chromosome_1 in edge mode
-python3 scripts/superbubbleRunner.py --dataset Human --algorithms incBST --chromosomes chromosome_1 -m perEdge
-```
-### Phase 3: Data Analysis and Plotting
-This final phase processes the raw time outputs into readable CSVs and generates performance charts.
-
-#### Step 3a: Generate CSV (parse_to_csv.py)
-This script merges the raw time output files from the three algorithms into a single haplotype_build_comparison.csv within the respective timeFile/ directory.
-
-```Bash
-
-# Example: Process E. coli output in Edge mode
-python3 Preprocessing/parse_to_csv.py --dataset ecoli -m peredge
-
-# Example: Process E. coli output in Batch mode
-python3 Preprocessing/parse_to_csv.py --dataset ecoli -m perbatch
-
-# Example: Process all Human chromosome outputs in Edge mode
-python3 Preprocessing/parse_to_csv.py --dataset human -m peredge
-
-# Example: Process all Human chromosome outputs in batch mode
-python3 Preprocessing/parse_to_csv.py --dataset human -m perbatch 
-```
-#### Step 3b: Generate Plots (plotcsv.py)
-This script reads the CSV generated in 3a and produces performance charts (PNG files). You must specify the path to the CSV and the desired output directory for the plots: by convention `output/plots/<perEdge|perBatch>/<dataset>/`, next to the tables in `output/`.
-
-```Bash
-
-# Example: plots for the E. coli data in edge mode, log scale, into output/plots/perEdge/Ecoli/
-python3 Preprocessing/plotcsv.py --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv --out output/plots/perEdge/Ecoli/ --mode peredge --dataset Ecoli --scale log
-
-# Example: the same in linear scale
-python3 Preprocessing/plotcsv.py --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv --out output/plots/perEdge/Ecoli/ --mode peredge --dataset Ecoli --scale linear
-
-
-# Example: plots for chromosome_11 in batch mode, log scale, into output/plots/perBatch/chromosome_11/
-python3 Preprocessing/plotcsv.py --csv output/Human/chromosome_11/timeFile/perbatch/haplotype_build_comparison.csv --out output/plots/perBatch/chromosome_11/ --mode perbatch --dataset chromosome_11 --scale log
-
-# Example: plots for E. coli and every chromosome with a perEdge CSV
-for f in output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv output/Human/chromosome_*/timeFile/perEdge/haplotype_build_comparison.csv; do
-    d=$(echo $f | sed -E 's#output/(Human/)?##; s#/timeFile.*##')
-    python3 Preprocessing/plotcsv.py --csv $f --out output/plots/perEdge/$d/ --mode peredge --dataset $d --scale log
-done
-```
-
-#### Step 3b2: Check the superbubbles after every update (checkSuperbubbles.py)
-Compares the superbubble count of one or more algorithms after every update with an independent reference (and the final superbubble lists), e.g.:
-
-```Bash
-python3 Preprocessing/checkSuperbubbles.py --edgelist input/Ecoli/Graphs/numeric_edgelist.txt -m perEdge \
-    --time output/Ecoli/timeFile/perEdge/static_time.txt output/Ecoli/timeFile/perEdge/incMinIBST_time.txt
-```
-
-#### Step 3c: Compare the best algorithm with an external tool (toolComparisonToLatex.py)
-Writes LaTeX tables comparing the best algorithm (`BEST_ALGORITHM` in `scripts/pipelineRunner.py`) with a superbubble tool (default `bubblegun`; any tool run through `scripts/superbubbleComparator.py -t <tool>` works the same way). It needs, per dataset and mode:
-
-* the tool results: `python3 scripts/superbubbleComparator.py -d Ecoli -m perEdge`
-* the algorithm time: `python3 scripts/pipelineRunner.py -d Ecoli -m perEdge`
-* the algorithm memory and superbubble list: `python3 scripts/superbubbleRunner.py -d Ecoli -m perEdge`
-
-```Bash
-python3 Preprocessing/toolComparisonToLatex.py -d Ecoli
-python3 Preprocessing/toolComparisonToLatex.py -d Ecoli Human -c 11 13 X -t bubblegun
-```
-Output in `output/toolComparison/<tool>/`: `performance_<mode>.tex` (time, speedup, peak memory), `agreement.tex` (superbubbles of the final graph found by both / only one) and `agreement_details_<dataset>.txt` (the differing superbubbles).
-
-## 🔁 Rerunning All Experiments (e.g. on a Server)
-
-Use this after a change to the preprocessing or to the algorithms. The
-pangenome graphs (`<ref>.gfa` with walks) do **not** have to be generated
-again: everything below starts from the existing graphs. Do not run
-`scripts/graphRunner.py` for this (it rebuilds the graphs, which takes
-months for the human chromosomes).
-
-**0. Code and data**
-
-```Bash
-git pull                      # branch main
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-Every dataset needs its graph with walks:
-`input/Ecoli/Graphs/GCF_000005845.2_ASM584v2_genomic.gfa` and
-`input/Human/chromosome_<X>/Graphs/chromosome_<X>.gfa`. The next step
-rewrites the other files in these `Graphs/` folders; keep a copy if you
-want the old ones.
-
-**1. Preprocessing + end-to-end time of the best algorithm** (`pipelineRunner.py`)
-
-Regenerates `reduced_graph.gfa`, `unique_elements.txt`,
-`ordered_haplotypes.txt`, `numeric_edgelist.txt` and
-`haplotype_removal_report.txt`. One command does this for
-E. coli and every human chromosome that has a graph:
-
-```Bash
-python3 scripts/pipelineRunner.py -d all --preprocess-only
-```
-
-It takes seconds per chromosome. A chromosome that fails a check is
-skipped and the others continue; the SUMMARY at the end lists every
-dataset with its status and graph sizes, and the command exits with
-code 1 if any failed. Then time the best algorithm (10 runs) for both
-modes:
-
-```Bash
-python3 scripts/pipelineRunner.py -d all -m perEdge 2>&1 | tee pipeline_perEdge.log
-python3 scripts/pipelineRunner.py -d all -m perBatch 2>&1 | tee pipeline_perBatch.log
-```
-
-(These also rerun the preprocessing, with the same result.)
-
-Chromosomes without a graph are skipped. Each chromosome's
-counts are in `input/Human/chromosome_<X>/Graphs/haplotype_removal_report.txt`.
-
-**2. All algorithms** (`superbubbleRunner.py`, 100 runs each): timing
-files, peak memory and final superbubble lists for the plots and tables.
-Only one `superbubbleRunner.py` at a time per copy of the repository.
-
-```Bash
-python3 scripts/superbubbleRunner.py -d Ecoli -m perEdge
-python3 scripts/superbubbleRunner.py -d Ecoli -m perBatch -a static incRecompute incBST incMinIBST
-python3 scripts/superbubbleRunner.py -d Human -m perEdge
-python3 scripts/superbubbleRunner.py -d Human -m perBatch -a static incRecompute incBST incMinIBST
-```
-
-(Leave out `-a ...` in perBatch once `incBSTBatch` compiles.)
-
-**3. BubbleGun and BubbleFinder** (`superbubbleComparator.py`, `-t bubblegun` is the default):
-
-```Bash
-python3 scripts/superbubbleComparator.py -d all -m perEdge  2>&1 | tee bubblegun_perEdge.log
-python3 scripts/superbubbleComparator.py -d all -m perBatch 2>&1 | tee bubblegun_perBatch.log
-
-# BubbleFinder: install the binary once (see Preprocessing/superbubbleTools/bubblefinderTool.py)
-mkdir -p ~/tools/bubblefinder-1.0.5 && cd ~/tools/bubblefinder-1.0.5 \
-  && wget https://github.com/algbio/BubbleFinder/releases/download/v1.0.5/BubbleFinder-linux-x86_64.tar.gz \
-  && tar xzf BubbleFinder-linux-x86_64.tar.gz && ./BubbleFinder --version && cd -
-python3 scripts/superbubbleComparator.py -d all -m perEdge  -t bubblefinder 2>&1 | tee bubblefinder_perEdge.log
-python3 scripts/superbubbleComparator.py -d all -m perBatch -t bubblefinder 2>&1 | tee bubblefinder_perBatch.log
-```
-
-Tables for BubbleFinder: `toolComparisonToLatex.py -d Ecoli Human -t bubblefinder`
-(output in `output/toolComparison/bubblefinder/`).
-
-`-d all` runs E. coli and every preprocessed human chromosome one after
-the other and ends with a SUMMARY (`-d Human -c 14 X` for single
-chromosomes).
-
-**Rough times** (measured on chromosome 21: 64 genomes, 6,863 edge
-updates; larger chromosomes take longer): step 1 about 1 minute per
-chromosome; step 2 about 50 minutes perEdge (half of it for `static`) and
-7 minutes perBatch; step 3 about 30 seconds perBatch and, by estimate,
-30-60 minutes perEdge.
-
-**4. Copy back** (to the same paths in this repository):
-
-```
-output/Ecoli/{timeFile,incsuperbubble,bubblegun}/
-output/Human/chromosome_*/{timeFile,incsuperbubble,bubblegun}/
-input/Ecoli/Graphs/{numeric_edgelist.txt,haplotype_removal_report.txt}
-input/Human/chromosome_*/Graphs/{numeric_edgelist.txt,haplotype_removal_report.txt}
-```
-
-(`numeric_edgelist.txt` is needed by `toolComparisonToLatex.py`; the
-reports give the graph sizes for the paper.)
-
-**5. Tables and plots** (locally): Phase 3 above
-(`parse_to_csv.py -d all`, `plotcsv.py`, `csvToLatex.py`) and Step 3c
-(`toolComparisonToLatex.py -d Ecoli Human`).
-
-## 🧬 HPRC Minigraph-Cactus Graphs (experimental)
-
-Larger graphs from the Human Pangenome Reference Consortium (Minigraph-Cactus,
-bidirected and possibly cyclic) form a separate dataset **`HPRC`**, with the
-same folder layout as `Human`: `input/HPRC/chromosome_<X>/Graphs/` and
-`output/HPRC/chromosome_<X>/`. Their preprocessing is
-`Preprocessing/mcToDag.py`: it orients the nodes (reference orientation,
-otherwise the majority of the walks), drops inversion links and self-loops,
-breaks cycles by removing only DFS back edges, and writes the same pipeline
-files as the other datasets (`numeric_edgelist.txt`, `reduced_graph.gfa`,
-`unique_elements.txt`, `ordered_haplotypes.txt`,
-`haplotype_removal_report.txt`), plus `<name>.stats.json` with everything
-that was removed. Check that file first: the share of removed links and of
-broken walk transitions says how faithful the DAG is.
-
-```Bash
-# 1. graph: e.g. HPRC chromosome 22 (.vg; list the bucket for the exact name)
-aws s3 ls --no-sign-request s3://human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/hprc-v1.1-mc-grch38/
-mkdir -p input/HPRC/chromosome_22/Graphs
-vg convert -f chr22.vg > input/HPRC/chromosome_22/Graphs/chromosome_22.gfa   # vg: github.com/vgteam/vg/releases
-grep "^W" input/HPRC/chromosome_22/Graphs/chromosome_22.gfa | cut -f2 | sort -u | head   # reference sample name
-
-# 2. preprocessing (mcToDag.py, ~2 min); look at chromosome_22.stats.json
-python3 scripts/pipelineRunner.py -d HPRC -c c22 --ref GRCh38 --preprocess-only
-```
-
-HPRC **release 2** (v2.1, about 232 samples / 464 haplotypes) is the separate
-dataset **`HPRC2`** (`input/HPRC2/`, `output/HPRC2/`, release 1 stays
-untouched); `scripts/hprcPrepare.py --release 2` downloads, converts and
-normalizes it in one step (needs `vg`; chr22: 8.7 GB download):
-
-```Bash
-nohup python3 -u scripts/hprcPrepare.py --release 2 -c 22 --vg ~/tools/vg --threads 16 > hprc2_prepare.log 2>&1 &
-python3 scripts/superbubbleRunner.py -d HPRC2 -c chromosome_22 -m perBatch -a static incBSTBatch --runs 1
-python3 scripts/superbubbleComparator.py -d HPRC2 -c 22 -t bubblegun -m perBatch --final-superbubbles-only
-python3 Preprocessing/parse_to_csv.py -d hprc2 -c 22 -m perbatch
-```
-
-On a graph of this size only the **best algorithm** is compared with
-BubbleGun, with **one run** each, and BubbleGun perEdge is **sampled**
-(`--every`). For one mode (`perEdge` / `perEdge` dir, or `perBatch` / `perbatch` dir):
-
-```Bash
-# a + b. incMinIBST, one run each, one after the other (perEdge: ~1 day each):
-#   b. superbubbleRunner: memory, superbubble list, per-update counts (normal build)
-#   a. pipelineRunner:    AlgorithmTime for the speedup (BENCHMARK build)
-nohup bash -c 'python3 -u scripts/superbubbleRunner.py -d HPRC -c chromosome_22 -m perEdge -a incMinIBST --runs 1;
-               python3 -u scripts/pipelineRunner.py -d HPRC -c c22 --ref GRCh38 -m perEdge --repeat 1' \
-    > hprc22_perEdge.log 2>&1 &
-#   progress: genomes finished (of 89) during b, and the current step
-grep -c '#[0-9]*$' hprc22_perEdge.log; tail -2 hprc22_perEdge.log
-
-# c. BubbleGun: perEdge sampled (every 10,000th edge, ~100 samples), perBatch complete
-python3 scripts/superbubbleComparator.py -d HPRC -c 22 -m perEdge --every 10000
-python3 scripts/superbubbleComparator.py -d HPRC -c 22 -m perBatch
-
-# d. correctness (sampled: the Python reference is slow on 1.3 million nodes)
-python3 Preprocessing/checkSuperbubbles.py --edgelist input/HPRC/chromosome_22/Graphs/numeric_edgelist.txt \
-    -m perEdge --every 20000 --time output/HPRC/chromosome_22/timeFile/perEdge/incMinIBST_time.txt
-
-# e. tables (estimated BubbleGun times marked with $\approx$)
-python3 Preprocessing/toolComparisonToLatex.py -d HPRC -m perEdge perBatch
-```
-
-BubbleGun after every edge would take months on chr22 (one run ~12 s, ~1
-million edges), hence the sampling; perBatch needs none. `-d all` does
-not include `HPRC`. The normalization script is pure Python; `pypy3
-Preprocessing/mcToDag.py ...` is several times faster on large graphs.
-
-## 🧪 Test Run Instructions (Quick Start Example)
-
-To verify the installation and test the pipeline end-to-end, use five sample E. coli genomes. Genome files are not tracked in git, so download them from NCBI RefSeq and place the `.fna` files in **input/Ecoli/coli3682_dataset/**:
-
-* `GCF_000005845.2_ASM584v2` (reference)
-* `GCF_000007445.1_ASM744v1`
-* `GCF_000008865.2_ASM886v2`
-* `GCF_000009565.1_ASM956v1`
-* `GCF_000010245.2_ASM1024v1`
-
-Follow the steps below to run a complete test execution.
-
-**Step 1** — Ensure Virtual Environment & Dependencies
-```Bash
-source venv/bin/activate
-```
-**Step 2** — Preprocessing & Graph Construction
-
-This step processes the five genomes and generates the numeric_edgelist.txt file.
- ```Bash
-python3 scripts/graphRunner.py --dataset ecoli
-```
-**Step 3** — Run Superbubble Algorithms
-
-This will compile the C++ code and run all available algorithms on the generated graph.
-```Bash
-python3 scripts/superbubbleRunner.py --dataset Ecoli -m perEdge
-```
-**Step 4** — Generate CSV Output
-```Bash
-python3 Preprocessing/parse_to_csv.py --dataset ecoli -m peredge
-```
-**Step 5** — Produce Performance Plots
-```Bash
-python3 Preprocessing/plotcsv.py --csv output/Ecoli/timeFile/perEdge/haplotype_build_comparison.csv --out output/plots/perEdge/Ecoli/ --mode peredge --dataset Ecoli --scale log
-```
-## 📦 Expected Output
-
-After completion, you should find the following:
-
-Location	Contents  
--**input/Ecoli/Graphs/	numeric_edgelist.txt**.  
--**output/Ecoli/timeFile	Algorithm results and timing logs**.  
--**output/Ecoli/timeFile/	Raw timing files + .csv**.  
--**output/plots/perEdge/Ecoli/	Performance comparison graphs (PNG)**.  
- 
-If everything runs successfully, you have verified the pipeline setup and the algorithms.
+GNU General Public License v3.0, see [LICENSE](LICENSE).

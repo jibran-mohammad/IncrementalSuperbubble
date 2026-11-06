@@ -16,7 +16,7 @@ HOW TO RUN
 
 Run from the repository root, with the virtual environment active. Needs
 curl, vg (static binary from https://github.com/vgteam/vg/releases) and
-BubbleFinder (see scripts/reviewerTest.py or the README).
+BubbleFinder (see scripts/smallGraphsTest.py or the README).
 
     # chromosome 22, the smallest download
     python3 scripts/dagConversionTest.py -c 22 --vg ~/tools/vg
@@ -58,7 +58,7 @@ WHAT IT DOES
      of the final graph
   4. (unless --no-dag-check) BubbleFinder on the DAG (directed): must give
      the same superbubbles as our algorithm
-  5. tables: output/reviewer/dag_conversion_chr<c>.md (printed at the end)
+  5. tables: output/artifactTest/dag_conversion_chr<c>.md (printed at the end)
 
 A superbubble is compared as the unordered pair of its two ends, as original
 segment names (the DAG's vertices are mapped back with the node map). The
@@ -78,10 +78,10 @@ import time
 REPO = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "Preprocessing"))
 from superbubbleTools.bubblefinderTool import DEFAULT_BINARY   # noqa: E402
-from reviewerTest import log, run, table                       # noqa: E402
+from smallGraphsTest import log, run, table                       # noqa: E402
 
 ALGO = "incBSTBatchH2"
-OUT = REPO / "output" / "reviewer"
+OUT = REPO / "output" / "artifactTest"
 
 
 def bubblefinder(bf, gfa, out, directed, threads):

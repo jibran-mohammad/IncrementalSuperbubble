@@ -1,5 +1,5 @@
 """
-reviewerTest.py
+smallGraphsTest.py
 
 Reproduces the experiments of the paper on the five small human graphs
 (chromosomes 11, 17, 18, 22 and X) in one command: our algorithms per edge
@@ -15,14 +15,14 @@ Run from the repository root, with the virtual environment active:
     pip install -r requirements.txt
 
     # all five graphs, per batch tools (about 40 minutes)
-    python3 scripts/reviewerTest.py
+    python3 scripts/smallGraphsTest.py
 
     # one graph only (chr22, the smallest: a few minutes)
-    python3 scripts/reviewerTest.py -c 22
+    python3 scripts/smallGraphsTest.py -c 22
 
     # also BubbleGun and BubbleFinder after every edge: this takes HOURS
     # (about 4.5 hours for the five graphs), see the note below
-    python3 scripts/reviewerTest.py --tools-per-edge
+    python3 scripts/smallGraphsTest.py --tools-per-edge
 
 Options:
     -c / --chromosomes  11 17 18 22 X               (default: all five)
@@ -63,7 +63,7 @@ WHAT IT DOES
                then Preprocessing/parse_to_csv.py (CSV and peak memory)
   3. tools     scripts/superbubbleComparator.py -t bubblegun / bubblefinder,
                per batch (per edge with --tools-per-edge)
-  4. tables    output/reviewer/small_tables.md (printed at the end):
+  4. tables    output/artifactTest/small_tables.md (printed at the end):
                total time per graph and speedup over Simple, time of every
                step, minI / maxO of the data structures, the tools against
                our algorithms (time and memory), and whether everybody finds
@@ -101,7 +101,7 @@ TREES = [("Simple", "static"), ("NBST", "incNormalBST"), ("BST", "incBST"), ("Mi
 MODE_DIR = {"perEdge": "perEdge", "perBatch": "perbatch"}
 TOOLS = [("BubbleGun", "bubblegun"), ("BubbleFinder", "bubblefinder")]
 STEPS = ["Insert", "DFS", "Top. order", "MinI", "MaxO", "SB compute", "Total"]
-OUT = REPO / "output" / "reviewer"
+OUT = REPO / "output" / "artifactTest"
 
 
 def log(msg):
@@ -242,7 +242,7 @@ def agreement_table(chroms, modes, tools):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Reviewer test: the small human graphs, all algorithms and tools")
+    ap = argparse.ArgumentParser(description="Artifact test: the small human graphs, all algorithms and tools")
     ap.add_argument("-c", "--chromosomes", nargs="+", choices=CHROMS, default=CHROMS)
     ap.add_argument("--runs", type=int, default=1)
     ap.add_argument("--tools-per-edge", action="store_true", help="also the tools per edge (takes hours)")
@@ -300,7 +300,7 @@ def main():
             parts += [f"## {title}: tools and our algorithms, time", t1,
                       f"## {title}: tools and our algorithms, peak memory (MB)", t2]
         elif tools:
-            parts += [f"## {title}: tools", "Not run (python3 scripts/reviewerTest.py --tools-per-edge: takes hours)."]
+            parts += [f"## {title}: tools", "Not run (python3 scripts/smallGraphsTest.py --tools-per-edge: takes hours)."]
     parts += ["## Superbubbles of the final graph (single-edge superbubbles and the artificial source/sink not "
               "counted)", agreement_table(chroms, ["perBatch", "perEdge"], tools)]
     text = "\n\n".join(parts) + "\n"
