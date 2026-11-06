@@ -1,3 +1,41 @@
+r"""
+datasetWiseCaseTables.py
+
+Writes LaTeX tables for ONE dataset that split the time of each step by
+update case (Case1..Case5: which kind of edge insertion an update was),
+with one row per algorithm and one column per case, plus tables of
+affected / explored vertices per case.
+
+=====================================================================
+HOW TO RUN
+=====================================================================
+
+Run from the repository root, with the virtual environment active
+(source venv/bin/activate), after Preprocessing/parse_to_csv.py.
+
+    python3 Preprocessing/datasetWiseCaseTables.py \
+        --csv output/Human/chromosome_11/timeFile/perEdge/haplotype_build_comparison.csv \
+        --dataset chr11 --outdir output/caseTables/chr11
+
+Options:
+
+    --csv       haplotype_build_comparison.csv of one dataset            (required)
+    --dataset   name used in file names and captions, e.g. Ecoli, chr11   (required)
+    --outdir    folder for the .tex files                                 (required)
+    --mode      time: speedup; percent: percentage improvement           (default: time)
+
+=====================================================================
+OUTPUT (.tex files in --outdir)
+=====================================================================
+
+    <dataset>_<step>.tex      step = UpdateDS, DFS, Topo, MinI, MaxO, SBCompute:
+                              time of that step per algorithm and case
+    <dataset>_<metric>.tex    Affected / Explored vertices per case
+
+Compared algorithms: ALGORITHMS below (static, incRecompute, incBST);
+add incMinIBST there to include the current best algorithm.
+"""
+
 import pandas as pd
 import os
 import argparse
@@ -9,7 +47,7 @@ import argparse
 CASE_COLUMNS = ["Case1", "Case2", "Case3", "Case4", "Case5"]
 
 METRICS = {
-    "Insert": "InsertTime",
+    "UpdateDS": "UpdateDSTime",
     "DFS": "DFSTime",
     "Topo": "TopologicalOrderTime",
     "MinI": "MinITime",
@@ -17,11 +55,11 @@ METRICS = {
     "SBCompute": "SBComputeTime",
 }
 VERTEX_METRICS = {
-    "Affected": ["INCAffectedVertices", "BSTAffectedVertices"],
-    "Explored": ["BSTExploredVertices"],
+    "Affected": ["incRecomputeAffectedVertices", "incBSTAffectedVertices"],
+    "Explored": ["incBSTExploredVertices"],
 }
 
-ALGORITHMS = ["Simple", "INC", "BST"]
+ALGORITHMS = ["static", "incRecompute", "incBST"]
 
 
 # ============================================================
@@ -30,7 +68,7 @@ ALGORITHMS = ["Simple", "INC", "BST"]
 
 def compute_speedup(simple_val, other_val):
     """
-    Speedup = Simple / Other
+    Speedup = static / Other
     """
     if simple_val == 0 or other_val == 0:
         return float("nan")
@@ -39,7 +77,7 @@ def compute_speedup(simple_val, other_val):
 
 def compute_percent(simple_val, other_val):
     """
-    Percentage reduction relative to Simple
+    Percentage reduction relative to static
     """
     if simple_val == 0:
         return float("nan")
@@ -79,7 +117,7 @@ def build_vertex_table(df, metric_name):
 
     for col in cols:
 
-        row = {"Metric": col.replace("Vertices","").replace("INC","INC ").replace("BST","BST ")}
+        row = {"Metric": col.replace("Vertices","").replace("incRecompute","Inc-Recompute ").replace("incBST","Inc-BST ")}
 
         for case in CASE_COLUMNS:
 
@@ -115,8 +153,8 @@ def build_metric_table(df, metric_name, mode):
     for algo in ALGORITHMS:
         rows_dict[f"{algo}"] = {}
 
-    rows_dict["INC_Improvement"] = {}
-    rows_dict["BST_Improvement"] = {}
+    rows_dict["incRecompute_Improvement"] = {}
+    rows_dict["incBST_Improvement"] = {}
 
     for case in CASE_COLUMNS:
 
@@ -126,14 +164,14 @@ def build_metric_table(df, metric_name, mode):
         case_df = df[df[case] > 0]
 
         # Compute sums per algorithm
-        simple_total = case_df.get(f"Simple{metric_suffix}", pd.Series(dtype=float)).sum()
-        inc_total = case_df.get(f"INC{metric_suffix}", pd.Series(dtype=float)).sum()
-        bst_total = case_df.get(f"BST{metric_suffix}", pd.Series(dtype=float)).sum()
+        simple_total = case_df.get(f"static{metric_suffix}", pd.Series(dtype=float)).sum()
+        inc_total = case_df.get(f"incRecompute{metric_suffix}", pd.Series(dtype=float)).sum()
+        bst_total = case_df.get(f"incBST{metric_suffix}", pd.Series(dtype=float)).sum()
 
         # Store raw values
-        rows_dict["Simple"][case] = format_value(simple_total)
-        rows_dict["INC"][case] = format_value(inc_total)
-        rows_dict["BST"][case] = format_value(bst_total)
+        rows_dict["static"][case] = format_value(simple_total)
+        rows_dict["incRecompute"][case] = format_value(inc_total)
+        rows_dict["incBST"][case] = format_value(bst_total)
 
         if mode == "time":
             inc_imp = compute_speedup(simple_total, inc_total)
@@ -142,8 +180,8 @@ def build_metric_table(df, metric_name, mode):
             inc_imp = compute_percent(simple_total, inc_total)
             bst_imp = compute_percent(simple_total, bst_total)
 
-        rows_dict["INC_Improvement"][case] = format_value(inc_imp, 2)
-        rows_dict["BST_Improvement"][case] = format_value(bst_imp, 2)
+        rows_dict["incRecompute_Improvement"][case] = format_value(inc_imp, 2)
+        rows_dict["incBST_Improvement"][case] = format_value(bst_imp, 2)
 
     # Convert to DataFrame
     final_rows = []

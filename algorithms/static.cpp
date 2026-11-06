@@ -4,22 +4,57 @@
 #include <chrono>
 #include <string>
 #include <sstream>
+#include <cstdlib>
 
-#ifdef BENCHMARK
-#define LOG(x)
-#else
+// LOG(...) is debug output: enabled only with `make ... DEBUG=1`
+// (was: enabled unless BENCHMARK)
+#ifdef DEBUG_OUTPUT
 #define LOG(x) x
+#else
+#define LOG(x)
 #endif
 
-class SimpleSuperbubble: public AlgorithmForSuperbubbles {
+class StaticSuperbubble: public AlgorithmForSuperbubbles {
 public:
+    // Peak resident memory (KB) of this program: VmHWM from /proc/self/status.
+    // Not getrusage(RUSAGE_SELF).ru_maxrss: on Linux a program started by
+    // another process inherits that process's peak, so when started from the
+    // Python runners it reported the runner's memory instead of its own.
+    // resident memory now (VmRSS): read at the start, before the input, it is the
+    // program's own memory without the graph (baseline of PeakMemory)
+    long getCurrentMemoryInKB() {
+        std::ifstream status("/proc/self/status");
+        std::string line;
+        while (std::getline(status, line)) {
+            if (line.compare(0, 6, "VmRSS:") == 0) return std::stol(line.substr(6));
+        }
+        return -1;
+    }
     long getMemoryUsageInKB() {
-        struct rusage usage;
-        getrusage(RUSAGE_SELF, &usage);
-        return usage.ru_maxrss; // memory in kilobytes
+        std::ifstream status("/proc/self/status");
+        std::string line;
+        while (std::getline(status, line)) {
+            if (line.compare(0, 6, "VmHWM:") == 0) {
+                return std::stol(line.substr(6));   // "VmHWM:     4960 kB"
+            }
+        }
+        return -1;
     }
 
-    void inputAndCompute(std::string output_path, std::string mode) {
+    /*
+      every (perEdge only, default 1): ESTIMATOR for graphs too large to
+      recompute after every edge (HPRC). Every edge is inserted, but the full
+      computation (clearing, DFS, minI, maxO, superbubbles) runs only after
+      every <every>-th edge (the evenly spaced samples) and after the last
+      edge of every genome (its superbubble count). Only those updates get a
+      row (with the global edge number and the kind of sample). At the end:
+      the estimated total = mean time of the evenly spaced samples x number
+      of updates (the same rule as superbubbleComparator.py --every).
+    */
+    void inputAndCompute(std::string output_path, std::string mode, int every = 1) {
+        #ifndef BENCHMARK
+        long baselineMemoryKB = getCurrentMemoryInKB();   // before the input is read
+        #endif
 
         #ifndef BENCHMARK
         std::ofstream timeFile(output_path);
@@ -48,6 +83,16 @@ public:
         AdjacencyListGraph adl(num_base_edges); 
         GraphContext g(&adl);
         SimpleDFS simdfs(&g);
+        // perEdge: a full DFS follows every edge, so every insert clears the
+        // arrays for it. perBatch: one DFS per genome, so the arrays are
+        // cleared once before it (simdfs.clear()), not after every edge.
+        // perEdge estimator (every > 1): cleared once before each sample.
+        bool sampling = (mode == "perEdge" && every > 1);
+        simdfs.clearOnInsert = (mode == "perEdge" && !sampling);
+        long long globalStep = 0;            // edges added by the genomes so far
+        long long evenSamples = 0;           // samples after every <every>-th edge
+        long long otherSamples = 0;          // samples only because a genome ends
+        double evenTime = 0.0;               // their summed time
         DFSCONTEXT d(&simdfs);
         SuperbubbleCalculation superbubble;
         LOG(std::cout << "creating of objects classes" << std::endl;)
@@ -68,11 +113,19 @@ public:
             LOG(std::cout << x << " "<< y << std::endl;)
             d.updateEdge(&g, x, y); 
         }
+        #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
         std::cout << "All edges updated succesfully" << std::endl;
+        #endif
         //g.displayOutgoingGraph();
+        if (!simdfs.clearOnInsert) {
+            simdfs.clear();
+        }
         // Now, perform the first full calculation on the complete base graph
         #ifndef BENCHMARK
         auto start = std::chrono::high_resolution_clock::now();
+        #endif
+        #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
+        g.displayOutgoingGraph();
         #endif
         d.performDFS(&g);
         //std::cout << "DFS performed successfully" << std::endl;
@@ -80,13 +133,17 @@ public:
         //std::cout << "minI done successfully" << std::endl;
         d.createMaxO(&g);
         //std::cout << "maxO done successfully" << std:: endl;
-        //d.displayTopologicalOrder();
-        //d.displayReverseTopologicalOrder();
-        //d.displayMinI();
-        //d.displayMaxO();
+        #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
+        d.displayTopologicalOrder();
+        d.displayReverseTopologicalOrder();
+        d.displayMinI();
+        d.displayMaxO();
+        #endif
         superbubble.computeSB(&d, &g);
         //std::cout << "superbubble function done successfully" << std::endl;
-        //superbubble.printSuperbubbles();
+        #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
+        superbubble.printSuperbubbles(&g);
+        #endif
         #ifndef BENCHMARK
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
@@ -102,14 +159,20 @@ public:
 
         std::cout << "base graph processed" << std::endl;
         #endif
-        if(mode == "perEdge") {
+        if(mode == "perEdge" && sampling) {
             #ifndef BENCHMARK
-            timeFile << "Edge_Number Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count\n";
+            // Sample: E = after every <every>-th edge, L = only the last edge of a genome
+            timeFile << "Edge_Number Haplotype_Name UpdateDS_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count Global_Step Sample\n";
+            #endif
+        }
+        else if(mode == "perEdge") {
+            #ifndef BENCHMARK
+            timeFile << "Edge_Number Haplotype_Name UpdateDS_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count\n";
             #endif
         }
         else {
             #ifndef BENCHMARK
-            timeFile << "Update_ID Haplotype_Name Insert_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count\n";
+            timeFile << "Update_ID Haplotype_Name UpdateDS_Time DFS_Time TopologicalOrderTime MinI_Time MaxO_Time SB_Compute_Time Total_Time SB_Count\n";
             #endif
         }
         // --- 2. Process Haplotype Additions Incrementally ---
@@ -160,11 +223,16 @@ public:
             //start = std::chrono::high_resolution_clock::now();
             for (int i = 0; i < hap_edge_count; ++i) {
                  std::cin >> x >> y;
+                 #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
                  std::cout << x << " " << y << std::endl;
+                 #endif
                  #ifndef BENCHMARK
                  start = std::chrono::high_resolution_clock::now();
                  #endif
                  superbubble.insertE(&d,&g,x,y);
+                 #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
+                 g.displayOutgoingGraph();
+                 #endif
                  // use pointer to superbubble tree to flag affected superbubbles and all ancestors upto LCA
                  #ifndef BENCHMARK
                  end = std::chrono::high_resolution_clock::now();
@@ -172,11 +240,36 @@ public:
                  currentinsertTime = elapsed.count();
                  insertTime += elapsed.count();
                  #endif
+                 bool evenSample = false;
                  if (mode == "perEdge") {
-                     
+                     globalStep++;
+                     evenSample = (globalStep % every == 0);
+                 }
+                 // estimator: between the samples the edges are only inserted
+                 if (mode == "perEdge" && sampling && !evenSample && i != hap_edge_count - 1) {
+                     #ifndef BENCHMARK
+                     currentinsertTime = 0.0;
+                     #endif
+                     continue;
+                 }
+                 if (mode == "perEdge") {
+                     if (sampling) {
+                         // the clearing that every perEdge update does
+                         #ifndef BENCHMARK
+                         start = std::chrono::high_resolution_clock::now();
+                         #endif
+                         simdfs.clear();
+                         #ifndef BENCHMARK
+                         end = std::chrono::high_resolution_clock::now();
+                         elapsed = end - start;
+                         currentinsertTime += elapsed.count();
+                         #endif
+                     }
                      d.performDFS(&g);
+                     #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
                      d.displayTopologicalOrder();
                      d.displayReverseTopologicalOrder();
+                     #endif
                      
                      
 
@@ -189,7 +282,9 @@ public:
                      end = std::chrono::high_resolution_clock::now();
                      elapsed = end - start;
                      minITime = elapsed.count();
-                     //d.displayMinI();
+                     #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1`
+                     d.displayMinI();
+                     #endif
 
                      start = std::chrono::high_resolution_clock::now();
                      #endif
@@ -199,7 +294,9 @@ public:
                      end = std::chrono::high_resolution_clock::now();
                      elapsed = end - start;
                      maxOTime = elapsed.count();
-                     //d.displayMaxO();
+                     #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1`
+                     d.displayMaxO();
+                     #endif
 
                      start = std::chrono::high_resolution_clock::now();
                      #endif
@@ -210,10 +307,18 @@ public:
                      superbubbleTime = elapsed.count();
                      #endif
                      
-                     superbubble.printSuperbubbles();
+                     #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
+                     superbubble.printSuperbubbles(&g);
+                     #endif
                      #ifndef BENCHMARK
                      totalTime = currentinsertTime + simdfs.latestTimes.dfsTime + simdfs.latestTimes.topologicalOrderTime + minITime + maxOTime + superbubbleTime;
-                     timeFile << i + 1 << " " << clean_hap_name << " " << currentinsertTime << " " << simdfs.latestTimes.dfsTime << " " << simdfs.latestTimes.topologicalOrderTime << " " << minITime << " " << maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles() << "\n";
+                     timeFile << i + 1 << " " << clean_hap_name << " " << currentinsertTime << " " << simdfs.latestTimes.dfsTime << " " << simdfs.latestTimes.topologicalOrderTime << " " << minITime << " " << maxOTime << " " << superbubbleTime << " " << totalTime << " " << superbubble.numberOfSuperbubbles();
+                     if (sampling) {
+                         timeFile << " " << globalStep << " " << (evenSample ? "E" : "L");
+                         if (evenSample) { evenSamples++; evenTime += totalTime; }
+                         else otherSamples++;
+                     }
+                     timeFile << "\n";
                      currentinsertTime = 0.0;
                      simdfs.latestTimes.topologicalOrderTime = 0.0;
                      simdfs.latestTimes.dfsTime = 0.0;
@@ -228,7 +333,17 @@ public:
             //timeFile << g.displayNumberEdges() << " " << g.displayNumberVertices() << "\n";
             
             if (mode == "perBatch") {
-                
+                // the clearing for the DFS, once per genome (counted as
+                // updating the data structures, as after every edge in perEdge)
+                #ifndef BENCHMARK
+                start = std::chrono::high_resolution_clock::now();
+                #endif
+                simdfs.clear();
+                #ifndef BENCHMARK
+                end = std::chrono::high_resolution_clock::now();
+                elapsed = end - start;
+                insertTime += elapsed.count();
+                #endif
                 d.performDFS(&g);
                 
                 #ifndef BENCHMARK
@@ -294,8 +409,22 @@ public:
         //outFile.close();
         // --- Finalization ---
         #ifndef BENCHMARK
+        if (sampling) {
+            double mean = evenSamples > 0 ? evenTime / evenSamples : 0.0;
+            timeFile << "Updates: " << globalStep << "\n";
+            timeFile << "Every: " << every << "\n";
+            timeFile << "SampledUpdates: " << evenSamples << "\n";
+            timeFile << "RunsAfterLastEdgeOfGenome: " << otherSamples << "\n";
+            timeFile << "MeanUpdateTime: " << mean << "\n";
+            timeFile << "TotalTimeEstimated: " << mean * globalStep << "\n";
+            std::cout << "static estimator: " << evenSamples << " evenly spaced samples of " << globalStep
+                      << " updates, mean " << mean << " s -> estimated total " << mean * globalStep << " s" << std::endl;
+        }
+        timeFile << "BaselineMemory(KB): " << baselineMemoryKB << "\n";
         timeFile << "PeakMemory(KB): " << getMemoryUsageInKB() << "\n";
         timeFile.close();
+        // superbubbles of the final graph -> <ID>_superbubbles.txt
+        writeFinalSuperbubbles(output_path, superbubble, g);
         #endif
     }
 };
@@ -308,10 +437,13 @@ int main(int argc, char* argv[]){
     if (argc < 3) {
         // Print error to standard error
         std::cerr << "Error: No output file path provided." << std::endl;
-        std::cerr << "Usage: " << argv[0] << " <output_path> <perBatch|perEdge>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <output_path> <perBatch|perEdge> [every]" << std::endl;
+        std::cerr << "  every (perEdge only): estimator, compute only after every <every>-th edge" << std::endl;
         return 1; // Exit with an error code
     }
-    SimpleSuperbubble simple;
-    simple.inputAndCompute(argv[1], argv[2]);
+    int every = (argc >= 4) ? std::atoi(argv[3]) : 1;
+    if (every < 1) every = 1;
+    StaticSuperbubble simple;
+    simple.inputAndCompute(argv[1], argv[2], every);
     return 0; 
 }

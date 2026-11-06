@@ -1,3 +1,20 @@
+"""
+graphgeneration.py
+
+Step 1 of the graph pipeline: builds the pangenome graph from the FASTA
+files of the dataset (minichain or minigraph, chosen with
+PIPELINE_GRAPH_BACKEND), aligns every genome to it and adds one walk per
+genome. Writes <reference>.gfa; alignments go to input/<dataset>/GAF_Files/.
+Each genome's walk is its best primary alignment record; segments on no
+walk are removed. See GRAPH_PREPARATION.md, section 1.
+Run by graphRunner.py as: python3 -m Preprocessing.graphgeneration -t 27
+
+Not run directly: called by scripts/graphRunner.py (and, without
+graphgeneration.py, by scripts/pipelineRunner.py), which pass the dataset
+and reference through the environment variables PIPELINE_DATASET_NAME
+(e.g. Ecoli, Human/chromosome_11) and PIPELINE_REF_FASTA. Files are in
+input/<dataset>/Graphs/. See the guide at the top of scripts/graphRunner.py.
+"""
 
 import os
 import time

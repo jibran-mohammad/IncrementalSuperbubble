@@ -1,47 +1,102 @@
+"""
+superbubbleRunner.py
+
+Compiles the C++ superbubble algorithms and runs them on the edge list of
+a dataset, 100 times each; writes the averaged timing file and the final
+superbubble list of every algorithm. These files feed the plots and
+tables (parse_to_csv.py, plotcsv.py, csvToLatex.py) and the comparison
+with external tools (toolComparisonToLatex.py).
+
+=====================================================================
+HOW TO RUN
+=====================================================================
+
+Run from the repository root, with the virtual environment active
+(source venv/bin/activate). The edge list must exist first
+(scripts/graphRunner.py).
+
+    # E. coli, all algorithms, one update per edge
+    python3 scripts/superbubbleRunner.py -d Ecoli -m perEdge
+
+    # E. coli, one update per haplotype
+    python3 scripts/superbubbleRunner.py -d Ecoli -m perBatch
+
+    # only some algorithms (IDs: see ALGORITHMS.md)
+    python3 scripts/superbubbleRunner.py -d Ecoli -m perEdge -a static incMinIBST
+
+    # all human chromosomes: chromosome_1 ... chromosome_22, chromosome_X,
+    # chromosome_Y, chromosome_M; those without an edge list are skipped
+    # with a warning
+    python3 scripts/superbubbleRunner.py -d Human -m perEdge
+
+    # specific human chromosomes (full folder names)
+    python3 scripts/superbubbleRunner.py -d Human -m perEdge -c chromosome_1 chromosome_X
+
+Options:
+
+    --runs N             runs per algorithm, averaged             (default: 100;
+                         1 for very large graphs such as HPRC chromosomes)
+    -d / --dataset       Ecoli | Human | HPRC | HPRC2             (default: Ecoli;
+                         HPRC / HPRC2 (release 1.1 / 2.1, scripts/hprcPrepare.py
+                         --release): Minigraph-Cactus graphs prepared by
+                         Preprocessing/mcToDag.py, experimental)
+    -a / --algorithms    algorithm IDs: static incRecompute incNormalBST incBST incMinIBST
+                         incMinIBSTH1 incRecomputeBatch incBSTBatch incBSTBatchH1 incBSTBatchH2
+                                                                  (default: all of the mode)
+    -c / --chromosomes   Human only: chromosome_1 chromosome_X ... (default: all)
+    -m / --mode          perEdge: recompute after every edge;
+                         perBatch: after every haplotype           (default: perBatch)
+
+Notes:
+
+  - The batch algorithms (BATCH_ONLY: incRecomputeBatch, incBSTBatch,
+    incBSTBatchH1) only run in perBatch mode (skipped in perEdge): they
+    process a whole haplotype at once.
+  - PEREDGE_ONLY algorithms are skipped in perBatch mode, where the
+    comparison is static, incMinIBSTH1 (the best edge-by-edge algorithm)
+    and the batch algorithms: incNormalBST (it re-keys its trees after
+    every edge, so in perBatch it is far slower than every other algorithm:
+    Ecoli 55 s vs 0.4 s static), incRecompute, incBST and incMinIBST.
+  - Every run starts with "make clean" and uses one _tmp_runs/ folder in
+    the repository root, so run only one superbubbleRunner.py at a time
+    per copy of the repository.
+  - NUM_RUNS (below) sets the number of runs per algorithm (100); the
+    times in the output are their average. Debug output is off (build
+    with make DEBUG=1 to see it).
+  - Run by pipelineRunner.py, this script works in "pipeline mode"
+    (SUPERBUBBLE_PIPELINE_MODE=1): BENCHMARK build, no timing files, only
+    the wall-clock time of each run is reported back.
+
+=====================================================================
+INPUT / OUTPUT
+=====================================================================
+
+Input:   input/Ecoli/Graphs/numeric_edgelist.txt
+         input/Human/chromosome_<X>/Graphs/numeric_edgelist.txt
+
+Output:  output/Ecoli/timeFile/<perEdge|perbatch>/
+         output/Human/chromosome_<X>/timeFile/<perEdge|perbatch>/
+
+    <ID>_time.txt           per update: insert, DFS, topological order,
+                            minI, maxO and superbubble times, superbubble
+                            count, and (incremental algorithms) cases and
+                            affected/explored vertices and edges; last
+                            line PeakMemory(KB); averaged over NUM_RUNS
+    <ID>_superbubbles.txt   superbubbles of the final graph, one
+                            "<entrance> <exit>" per line in input ids
+
+Next step: python3 Preprocessing/parse_to_csv.py --dataset ecoli -m peredge
+"""
+
 import os
+import resource
+import signal
 import subprocess
 import sys
 import shutil
 import argparse
+import time
 
-# --- HOW TO RUN ---
-#
-# This script uses command-line arguments to select the dataset and algorithms.
-#
-# 1. Run on Ecoli dataset (default) with ALL algorithms:
-#    python3 superbubbleRunner.py
-#    OR
-#    python3 superbubbleRunner.py -d Ecoli
-#
-# 2. Run on Human dataset with ALL algorithms:
-#    python3 superbubbleRunner.py -d Human
-#
-# 3. Run on Ecoli dataset with a SINGLE specific algorithm:
-#    python3 superbubbleRunner.py -a SimpleSuperbubble
-#
-# 4. Run on Ecoli dataset with MULTIPLE specific algorithms:
-#    python3 superbubbleRunner.py -a SimpleSuperbubble AnotherAlgorithm
-#
-# 5. Run on Human dataset with a SINGLE specific algorithm:
-#    python3 superbubbleRunner.py -d Human -a IncrementalAlgorithm
-#
-# 6. Run on Human dataset with MULTIPLE specific algorithms:
-#    python3 superbubbleRunner.py -d Human -a IncrementalAlgorithm AnotherAlgorithm
-#
-# 
-# 7. Run on Human dataset for ONLY chromosome_1:
-#    python3 superbubbleRunner.py -d Human -c chromosome_1
-#
-# 8. Run on Human dataset for chromosome_1 and chromosome_X with a specific algorithm:
-#    python3 superbubbleRunner.py -d Human -a SimpleSuperbubble -c chromosome_1 chromosome_X
-# 
-# 9. For Batch processing: python3 superbubbleRunner.py -d Human -m perBatch
-
-# 10.For Every-Edge processing: python3 superbubbleRunner.py -d Human -m perEdge
-  
-# 11.  python3 superbubbleRunner.py -d Ecoli -a SimpleSuperbubbleH1 -m perEdge 
-#
-# --- END HOW TO RUN ---
 
 
 # --- DYNAMIC PATH CONFIGURATION ---
@@ -57,8 +112,13 @@ MAKE_DIR = PROJECT_ROOT
 
 PIPELINE_MODE = os.environ.get("SUPERBUBBLE_PIPELINE_MODE") == "1"
 
-# Number of repetitions for averaging
-NUM_RUNS = 100
+# In pipeline mode, pipelineRunner.py passes a file here; the wall-clock
+# time of each executable run (compilation excluded) is appended to it.
+PIPELINE_TIMING_FILE = os.environ.get("SUPERBUBBLE_TIMING_FILE")
+
+# Number of repetitions for averaging. In pipeline mode pipelineRunner.py
+# sets SUPERBUBBLE_PIPELINE_RUNS (its --repeat) and averages the reported times.
+NUM_RUNS = int(os.environ.get("SUPERBUBBLE_PIPELINE_RUNS", "1")) if PIPELINE_MODE else 100
 
 print("PIPELINE MODE:", PIPELINE_MODE)
 
@@ -71,17 +131,30 @@ print("PIPELINE MODE:", PIPELINE_MODE)
 #
 #    NOTE: The 'output_dir' has been removed from this list because the
 #    main() function now generates it dynamically based on the dataset.
+#    Every algorithm has one ID, used for the source file
+#    (algorithms/<ID>.cpp), the make target and binary (test/<ID>), the
+#    name below, the timing file (<ID>_time.txt) and the CSV/table column
+#    prefix. See ALGORITHMS.md for what each algorithm does.
 ALGORITHMS = [
     {
-        "name": "SimpleSuperbubble",
-        "target": "simpleSuperbubble",
-        "output_filename": "SuperbubbleSimpleTimeOutput.txt"
+        "name": "static",
+        "target": "static",
+        "output_filename": "static_time.txt"
     },
 
     {
-        "name": "incsuperbubbleDifferentMaxO",
-        "target": "incsuperbubbleDifferentMaxO",
-        "output_filename": "SuperbubbleDifferentMaxO.txt"
+        "name": "incRecompute",
+        "target": "incRecompute",
+        "output_filename": "incRecompute_time.txt"
+    },
+
+    {
+        # incBST with normal binary search trees (keyed by position) for
+        # minI / maxO: every vertex that moves is re-keyed in its neighbours'
+        # trees (lib/DFS/incrementalDFSNormalBST.cpp)
+        "name": "incNormalBST",
+        "target": "incNormalBST",
+        "output_filename": "incNormalBST_time.txt"
     },
 
    
@@ -91,9 +164,23 @@ ALGORITHMS = [
     #   "output_filename": "SuperbubbleIncrementalDFSOutput.txt"
     #},
     {
-        "name": "AnotherAlgorithm",
-        "target": "newincrementalSuperbubble",
-        "output_filename": "SuperbubbleIncrementalAVLDFSOutput.txt"
+        "name": "incBST",
+        "target": "incBST",
+        "output_filename": "incBST_time.txt"
+    },
+
+    {
+        "name": "incMinIBST",
+        "target": "incMinIBST",
+        "output_filename": "incMinIBST_time.txt"
+    },
+
+    {
+        # incMinIBST + superbubble heuristic: superbubbles updated locally
+        # where possible (lib/findSuperbubble/superbubbleh1.cpp)
+        "name": "incMinIBSTH1",
+        "target": "incMinIBSTH1",
+        "output_filename": "incMinIBSTH1_time.txt"
     },
      
     #{
@@ -103,17 +190,38 @@ ALGORITHMS = [
     #},
 
     {
-        "name": "incsuperbubblessm",
-        "target": "incsuperbubblessm",
-        "output_filename": "SuperbubbleIncrementalDFSOutputSSM.txt"
+        # the batch DFS of incBSTBatch, minI and maxO from scratch after
+        # every genome (as incRecompute after every edge)
+        "name": "incRecomputeBatch",
+        "target": "incRecomputeBatch",
+        "output_filename": "incRecomputeBatch_time.txt"
     },
 
     {
-        "name": "IncrementalSuperbubbleBatch",
-        "target": "incsuperbubblebatch",
-        "output_filename": "SuperbubbleIncrementalBatchDFSOutput.txt"
+        "name": "incBSTBatch",
+        "target": "incBSTBatch",
+        "output_filename": "incBSTBatch_time.txt"
+    },
+
+    {
+        # incBSTBatch + superbubble heuristic per batch (negative result:
+        # P = root in almost every genome; lib/findSuperbubble/superbubbleBatchH1.cpp)
+        "name": "incBSTBatchH1",
+        "target": "incBSTBatchH1",
+        "output_filename": "incBSTBatchH1_time.txt"
+    },
+
+    {
+        # incBSTBatch + superbubble heuristic per batch by ranges: P = root
+        # needs no full computation (SuperbubbleTree::updateBatchRanges)
+        "name": "incBSTBatchH2",
+        "target": "incBSTBatchH2",
+        "output_filename": "incBSTBatchH2_time.txt"
     }
 ]
+# perBatch only / perEdge only (skipped in the other mode)
+BATCH_ONLY = {"incRecomputeBatch", "incBSTBatch", "incBSTBatchH1", "incBSTBatchH2"}
+PEREDGE_ONLY = {"incNormalBST", "incRecompute", "incBST", "incMinIBST"}
 # ---------------------
 
 def run_make_clean(cpp_dir):
@@ -195,6 +303,19 @@ def compile_target_with_make(cpp_dir, target):
         print("-------------------------", file=sys.stderr)
         return None
 
+def raise_stack_limit():
+    """
+    Runs in the child process before the C++ program starts: raises its
+    stack limit to the largest the system allows (usually unlimited). The
+    DFS of the algorithms is recursive, one level per vertex on a path, and
+    the default 8 MB stack overflows on very large graphs (segmentation
+    fault, e.g. HPRC chromosome 22 with a 740,000-vertex reference path).
+    """
+    soft, hard = resource.getrlimit(resource.RLIMIT_STACK)
+    if soft != hard:
+        resource.setrlimit(resource.RLIMIT_STACK, (hard, hard))
+
+
 def run_cpp_program(executable_path, input_path,full_output_path, mode):
     """Runs a compiled C++ program, redirecting the input file to its stdin."""
     print(f"-> Running {os.path.basename(executable_path)} with input {os.path.basename(input_path)}...in {mode} mode...")
@@ -208,15 +329,31 @@ def run_cpp_program(executable_path, input_path,full_output_path, mode):
                 run_command,
                 stdin=input_file_handle,
                 check=True,
-                cwd=PROJECT_ROOT
+                cwd=PROJECT_ROOT,
+                preexec_fn=raise_stack_limit
             )
         print(f"   ...Finished successfully.")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"   [!] Execution FAILED for {os.path.basename(executable_path)}.", file=sys.stderr)
-        print("--- Program error output ---", file=sys.stderr)
-        print(e.stderr, file=sys.stderr)
-        print("----------------------------", file=sys.stderr)
+        # Why it ended: a negative return code means the program was killed
+        # by a signal (it prints nothing itself then, e.g. on a segmentation
+        # fault); otherwise its exit code. Its own error messages (stderr)
+        # are already in the log above, they are not captured here.
+        if e.returncode < 0:
+            sig = -e.returncode
+            try:
+                name = signal.Signals(sig).name
+            except ValueError:
+                name = "unknown signal"
+            hints = {"SIGSEGV": "segmentation fault, e.g. a stack overflow or an invalid memory access",
+                     "SIGKILL": "killed, e.g. by the system when it ran out of memory (see dmesg)",
+                     "SIGABRT": "aborted, e.g. a failed assertion or std::bad_alloc (out of memory)",
+                     "SIGBUS": "bus error (invalid memory access)"}
+            reason = f"killed by signal {sig} ({name}" + (f": {hints[name]}" if name in hints else "") + ")"
+        else:
+            reason = f"exit code {e.returncode}"
+        print(f"   [!] Execution FAILED for {os.path.basename(executable_path)}: {reason}", flush=True)
+        print(f"   [!] Execution FAILED for {os.path.basename(executable_path)}: {reason}", file=sys.stderr, flush=True)
         return False
 
 
@@ -246,8 +383,8 @@ def main():
         '-d', '--dataset',
         type=str,
         default='Ecoli',
-        choices=['Ecoli', 'Human'], # Added choices for clarity
-        help="Specify which dataset to run (e.g., 'Ecoli', 'Human'). Default: Ecoli"
+        choices=['Ecoli', 'Human', 'HPRC', 'HPRC2'], # Added choices for clarity
+        help="Specify which dataset to run (e.g., 'Ecoli', 'Human', 'HPRC', 'HPRC2'). Default: Ecoli"
     )
     
     # Add a new argument for specifying chromosomes
@@ -267,7 +404,20 @@ def main():
         help="Specify processing mode. 'perBatch' (after haplotype) or 'perEdge' (after every edge)."
     )
     
+    parser.add_argument(
+        '--runs',
+        type=int,
+        default=None,
+        help="Runs per algorithm, averaged (default: 100). Use 1 for very large graphs "
+             "(e.g. HPRC chromosomes), where one run takes hours."
+    )
     args = parser.parse_args()
+
+    # --runs overrides the number of runs (not in pipeline mode, where
+    # pipelineRunner.py sets it with --repeat)
+    global NUM_RUNS
+    if args.runs is not None and not PIPELINE_MODE:
+        NUM_RUNS = args.runs
 
     mode_dir_map = {
         "perBatch": "perbatch",
@@ -287,14 +437,11 @@ def main():
         algorithms_to_run = ALGORITHMS
         print("--- Starting Superbubble Algorithm Pipeline (all algorithms) ---")
 
-    if args.mode == "perEdge":
-        removed = [algo['name'] for algo in algorithms_to_run if algo['name'] == "IncrementalSuperbubbleBatch"]
-        algorithms_to_run = [
-            algo for algo in algorithms_to_run
-            if algo['name'] != "IncrementalSuperbubbleBatch"
-        ]
-        if removed:
-            print("[INFO] Skipping IncrementalSuperbubbleBatch (only valid for perBatch mode)")
+    skip = BATCH_ONLY if args.mode == "perEdge" else PEREDGE_ONLY
+    removed = [algo['name'] for algo in algorithms_to_run if algo['name'] in skip]
+    algorithms_to_run = [algo for algo in algorithms_to_run if algo['name'] not in skip]
+    if removed:
+        print(f"[INFO] Skipping {', '.join(removed)} (not run in {args.mode} mode)")
 
     print(f"--- Target Dataset: {args.dataset} ---")
 
@@ -332,12 +479,14 @@ def main():
                 "job_name": f"{algo['name']} on Ecoli" # Added job_name
             })
             
-    elif args.dataset == 'Human':
-        # --- HUMAN DATASET ---
+    elif args.dataset in ('Human', 'HPRC', 'HPRC2'):
+        # --- HUMAN / HPRC / HPRC2 DATASET (one folder per chromosome) ---
+        # HPRC = Minigraph-Cactus graphs prepared by Preprocessing/mcToDag.py
+        # (experimental), input/HPRC/chromosome_<X>/, same layout as Human
         
         ### MODIFIED ###
         # Define the full list of chromosomes
-        ALL_HUMAN_CHROMOSOMES = [f"chromosome_{i}" for i in range(1, 23)] + ["chromosome_X", "chromosome_y", "chromosome_M"]
+        ALL_HUMAN_CHROMOSOMES = [f"chromosome_{i}" for i in range(1, 23)] + ["chromosome_X", "chromosome_Y", "chromosome_M"]
         
         chromosomes_to_process = []
         
@@ -357,7 +506,7 @@ def main():
             # This path assumes your Human graphs follow the Ecoli naming convention
             # e.g., .../input/Human/Graphs/chromosome_1_numeric_edgelist.txt
             # e.g., .../input/Human/Graphs/chromosome_X_numeric_edgelist.txt
-            input_path = os.path.join(PROJECT_ROOT, "input", "Human", f"{chr_name}", "Graphs" ,"numeric_edgelist.txt")
+            input_path = os.path.join(PROJECT_ROOT, "input", args.dataset, f"{chr_name}", "Graphs" ,"numeric_edgelist.txt")
             
             if not os.path.exists(input_path):
                 print(f"[!] Warning: Input file not found, skipping: '{input_path}'", file=sys.stderr)
@@ -366,7 +515,7 @@ def main():
             for algo in algorithms_to_run:
                 # This builds the output path exactly as you requested:
                 # .../output/Human/chromosome_1/timeFile/
-                output_dir = os.path.join(PROJECT_ROOT, "output", "Human", chr_name, "timeFile", mode_dir)
+                output_dir = os.path.join(PROJECT_ROOT, "output", args.dataset, chr_name, "timeFile", mode_dir)
                 full_output_path = os.path.join(output_dir, algo['output_filename'])
                 
                 jobs_to_run.append({
@@ -429,9 +578,15 @@ def main():
                 sys.exit(1)
 
             # Step 3: Run the job, writing to the temp path
+            run_start = time.time()
             if not run_cpp_program(executable_path, job['input_path'], tmp_output_path, args.mode):
                 print(f"\nAborting pipeline due to execution error on job {job_name}.", file=sys.stderr)
                 sys.exit(1)
+            run_time = time.time() - run_start
+
+            if PIPELINE_MODE and PIPELINE_TIMING_FILE:
+                with open(PIPELINE_TIMING_FILE, 'a') as tf:
+                    tf.write(f"{job_name}\t{run_time}\n")
 
     # --- PHASE 3: Average the NUM_RUNS outputs and write final files ---
     print(f"\n[PHASE 3: Averaging {NUM_RUNS} runs and writing final output files]")
@@ -489,6 +644,15 @@ def main():
         with open(job['full_output_path'], 'w') as fh:
             fh.writelines(averaged_lines)
         print(f"   ...Averaged output written to: {job['full_output_path']}")
+
+        # Superbubbles of the final graph (<ID>_superbubbles.txt, written by the
+        # algorithm next to its timing file); identical in every run, so the
+        # list of run 1 is kept.
+        sb_name = filename.replace("_time.txt", "_superbubbles.txt")
+        sb_run1 = os.path.join(tmp_runs_dir, "run_001", rel_output_dir, sb_name)
+        if sb_name != filename and os.path.exists(sb_run1):
+            shutil.copyfile(sb_run1, os.path.join(job['output_dir'], sb_name))
+            print(f"   ...Superbubble list written to: {os.path.join(job['output_dir'], sb_name)}")
 
     # Clean up temporary run directories
     shutil.rmtree(tmp_runs_dir, ignore_errors=True)

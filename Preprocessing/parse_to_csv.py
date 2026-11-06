@@ -1,3 +1,65 @@
+"""
+parse_to_csv.py
+
+Merges the timing files of all algorithms of one dataset and mode into one
+CSV, haplotype_build_comparison.csv, which the plot and table scripts read
+(plotcsv.py, csvToLatex.py, datasetWiseCaseTables.py,
+plotChromosomeComparison*.py).
+
+=====================================================================
+HOW TO RUN
+=====================================================================
+
+Run from the repository root, with the virtual environment active
+(source venv/bin/activate), after scripts/superbubbleRunner.py has
+written the timing files (or after copying them from the server into
+the same output/ folders).
+
+    # E. coli, per-edge results
+    python3 Preprocessing/parse_to_csv.py -d ecoli -m peredge
+
+    # E. coli, per-haplotype results
+    python3 Preprocessing/parse_to_csv.py -d ecoli -m perbatch
+
+    # human chromosomes 1, 2 and 22
+    python3 Preprocessing/parse_to_csv.py -d human -c 1 2 22 -m peredge
+
+    # all human chromosomes (every output/Human/chromosome_* folder)
+    python3 Preprocessing/parse_to_csv.py -d human -m peredge
+
+    # E. coli and all human chromosomes
+    python3 Preprocessing/parse_to_csv.py -d all -m peredge
+
+Options:
+
+    -d / --dataset      ecoli | human | all (lowercase)               (required)
+    -c / --chromosome   human only: chromosome numbers, e.g. 1 2 22   (default: all)
+    -m / --mode         peredge | perbatch (lowercase)                (default: perbatch)
+
+=====================================================================
+INPUT / OUTPUT
+=====================================================================
+
+Input, per folder output/Ecoli/timeFile/<perEdge|perbatch>/ or
+output/Human/chromosome_<X>/timeFile/<perEdge|perbatch>/:
+
+    static_time.txt, incRecompute_time.txt, incNormalBST_time.txt, incBST_time.txt,
+    incMinIBST_time.txt, incMinIBSTH1_time.txt, incRecomputeBatch_time.txt,
+    incBSTBatch_time.txt, incBSTBatchH1_time.txt, incBSTBatchH2_time.txt
+    (written by superbubbleRunner.py; missing files are skipped with a
+    warning, e.g. incBSTBatch_time.txt in perEdge mode)
+
+Output, in the same folder:
+
+    haplotype_build_comparison.csv
+        one row per update (Step), with HaplotypeName, Nodes, Edges,
+        SuperbubbleCount (of static), the per-algorithm columns
+        <ID><Metric> (e.g. incMinIBSTTotalTime, incBSTAffectedVertices;
+        IDs: see ALGORITHMS.md) and the cases Case1..Case5
+
+Next steps: python3 Preprocessing/plotcsv.py ..., python3 Preprocessing/csvToLatex.py ...
+"""
+
 import pandas as pd
 import re
 import os
@@ -63,7 +125,7 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     peak_memory = 0
     if not filename.exists():
         print(f"    Warning: File not found: {os.path.basename(filename)}. Skipping.")
-        return pd.DataFrame(), 0
+        return pd.DataFrame(), 0, {}
 
     print(f"    Parsing {filename.name}...")
     with open(filename, 'r') as f:
@@ -72,17 +134,17 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     line_iter = iter(lines)
     
     # Define metric columns
-    BASE_METRIC_COLUMNS = ['Insert_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time', 'SB_Count', 'AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
+    BASE_METRIC_COLUMNS = ['UpdateDS_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time', 'SB_Count', 'AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
     
-    is_incremental_file = (
-            "Incremental" in filename.name or
-            "DifferentMaxO" in filename.name
-        )
-    has_explored = (
-            "AVL" in filename.name or
-            "Batch" in filename.name or
-            "DifferentMaxO" in filename.name
-        )
+    # Timing files are named <ID>_time.txt (see ALGORITHMS.md); the
+    # incremental algorithms write case columns, and some also explored counts.
+    algorithm_id = filename.name[:-len("_time.txt")]
+
+    is_incremental_file = algorithm_id in {"incRecompute", "incNormalBST", "incBST", "incMinIBST", "incMinIBSTH1",
+                                           "incRecomputeBatch", "incBSTBatch", "incBSTBatchH1", "incBSTBatchH2"}
+
+    has_explored = algorithm_id in {"incNormalBST", "incBST", "incMinIBST", "incMinIBSTH1",
+                                    "incRecomputeBatch", "incBSTBatch", "incBSTBatchH1", "incBSTBatchH2"}
     if is_incremental_file:
         CASE_COLUMNS = ['Case1', 'Case2', 'Case3', 'Case4', 'Case5']
         if has_explored:
@@ -95,7 +157,7 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     else:
         CASE_COLUMNS = []
         FULL_METRIC_COLUMNS = [
-            'Insert_Time',
+            'UpdateDS_Time',
             'DFS_Time',
             'TopologicalOrderTime',
             'MinI_Time',
@@ -107,31 +169,68 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
         EXPECTED_DATA_PARTS_LEN = 2 + len(FULL_METRIC_COLUMNS)
         
     # Determine PREFIX and SOURCE METRIC
-    if filename.name == "SuperbubbleSimpleTimeOutput.txt":
+    if filename.name == "static_time.txt":
         source_time_metric = 'Total_Time'
-        prefix = 'Simple_'
-    elif filename.name == "SuperbubbleIncrementalDFSOutputSSM.txt":
+        prefix = 'static_'
+    elif filename.name == "incRecompute_time.txt":
         source_time_metric = 'DFS_Time'
-        prefix = 'INC_'
-    elif filename.name == "SuperbubbleIncrementalAVLDFSOutput.txt":
+        prefix = 'incRecompute_'
+    elif filename.name == "incNormalBST_time.txt":
         source_time_metric = 'DFS_Time'
-        prefix = 'BST_'
-    elif filename.name == "SuperbubbleIncrementalBatchDFSOutput.txt":
+        prefix = 'incNormalBST_'
+    elif filename.name == "incBST_time.txt":
         source_time_metric = 'DFS_Time'
-        prefix = 'INCBATCH_' 
-    elif filename.name == "SuperbubbleDifferentMaxO.txt":
+        prefix = 'incBST_'
+    elif filename.name == "incBSTBatch_time.txt":
+        source_time_metric = 'DFS_Time'
+        prefix = 'incBSTBatch_' 
+    elif filename.name == "incRecomputeBatch_time.txt":
+        source_time_metric = 'DFS_Time'
+        prefix = 'incRecomputeBatch_'
+    elif filename.name == "incBSTBatchH1_time.txt":
+        source_time_metric = 'DFS_Time'
+        prefix = 'incBSTBatchH1_' 
+    elif filename.name == "incBSTBatchH2_time.txt":
+        source_time_metric = 'DFS_Time'
+        prefix = 'incBSTBatchH2_'
+    elif filename.name == "incMinIBST_time.txt":
         source_time_metric = 'DFS_Time'   
-        prefix = 'DIFFMAXO_'       
+        prefix = 'incMinIBST_'       
+    elif filename.name == "incMinIBSTH1_time.txt":
+        source_time_metric = 'DFS_Time'
+        prefix = 'incMinIBSTH1_'
 
     current_haplotype_edges = 0
     current_haplotype_nodes = 0
 
+    baseline_memory = 0
+    pending_block_rows = []
+    prev_edges = 0
+    prev_nodes = 0
+    genome_names = {}            # every genome of the file, also those that add nothing
+
+    def flush(after_edges, after_nodes):
+        """The programs write a genome's rows first and then its size line
+        ("Edges Nodes" AFTER the genome), so the rows get the size that
+        follows them. A genome that added nothing has no size line of its
+        own; its rows are flushed with the next genome's and keep the size
+        before (prev_*), since the graph did not change."""
+        if not pending_block_rows:
+            return
+        last = pending_block_rows[-1]['Haplotype_Name']
+        for row in pending_block_rows:
+            own = row['Haplotype_Name'] == last
+            row['Edges'] = after_edges if own else prev_edges
+            row['Nodes'] = after_nodes if own else prev_nodes
+            data.append(row)
+        pending_block_rows.clear()
+
     try:
         # --- Lines 1-3: Initialization and Header Skip ---
         stats_line = next(line_iter).strip()
-        if "PeakMemory" in stats_line: return pd.DataFrame(), 0 
+        if "PeakMemory" in stats_line: return pd.DataFrame(), 0, {}
         stats_parts = stats_line.split()
-        if len(stats_parts) < 2: return pd.DataFrame(), 0
+        if len(stats_parts) < 2: return pd.DataFrame(), 0, {}
         initial_edges = int(stats_parts[0])
         initial_nodes = int(stats_parts[1])
         current_haplotype_edges = initial_edges
@@ -162,38 +261,60 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
         data.append(base_entry)
 
         try:
+            # The column header follows the BaseGraph_Build line: skip it
+            # (and blank lines), but nothing more. (It used to read one more
+            # line whenever the header was not a number, i.e. always, and
+            # dropped the first update: the first edge in perEdge mode, the
+            # first genome in perBatch mode.)
             header_line = next(line_iter).strip()
-            # If the line looks like a header (contains text), skip it.
-            # If it's empty, skip and get the next one.
-            if not header_line or not header_line[0].isdigit():
+            while not header_line:
                 header_line = next(line_iter).strip()
+            # Read the columns by the names in this header: the programs
+            # write them in their own order (e.g. ... TotalVertices TotalEdges
+            # TotalAffectedEdges TotalExploredEdges), which is not the order of
+            # the fixed lists above (reading by position put the values into
+            # the wrong columns). The fixed lists stay as the fallback for a
+            # file without a usable header.
+            header_names = header_line.split()
+            # files written before the rename call the first step Insert_Time
+            header_names = ['UpdateDS_Time' if h == 'Insert_Time' else h for h in header_names]
+            if (len(header_names) > 2 and header_names[1] == 'Haplotype_Name'
+                    and 'Total_Time' in header_names):
+                FULL_METRIC_COLUMNS = header_names[2:]
+                EXPECTED_DATA_PARTS_LEN = len(header_names)
+            else:
+                print(f"    Warning: no column header in {filename.name}; reading the columns by position")
         except StopIteration:
             pass
         
-        pending_block_rows = []
         prev_edges = initial_edges
-        prev_nodes = initial_nodes   
+        prev_nodes = initial_nodes
         global_step = 0 
         # --- Data Lines ---
         while True:
             # --- Line N: Edges and Nodes ---
             stats_line = next(line_iter).strip()
             
+            if stats_line.startswith("BaselineMemory"):
+                # the program's memory before reading the input (baseline of PeakMemory)
+                baseline_memory = int(stats_line.split(':')[1].strip())
+                continue
             if "PeakMemory" in stats_line:
                 # Extract the peak memory value
                 peak_memory = int(stats_line.split(':')[1].strip())
-                if mode != "perbatch" and pending_block_rows:
-                    for row in pending_block_rows:
-                        row['Edges'] = prev_edges
-                        row['Nodes'] = prev_nodes
-                        data.append(row)
-                    pending_block_rows.clear()
+                # rows left without a size line (genomes that added nothing at
+                # the end): the graph did not change
+                flush(prev_edges, prev_nodes)
                 break
             if not stats_line: continue
 
             stats_parts = stats_line.split()
 
-            if(mode == "perbatch"):
+            # Both modes: the file has the update rows of a genome first and
+            # then its "Edges Nodes" line, so perBatch is read like perEdge
+            # (the old perBatch branch below expected "Edges Nodes" before the
+            # row and is no longer used).
+            if False and mode == "perbatch":
 
                 # stats_line MUST be "Edges Nodes"
                 if not (len(stats_parts) == 2 and stats_parts[0].isdigit() and stats_parts[1].isdigit()):
@@ -277,9 +398,10 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
                 #   ...
                 #   PeakMemory ...
                 #
-                # Important: "Edges Nodes" line ends the PREVIOUS block.
-                # So we keep edge rows in a buffer and flush them when the next
-                # "Edges Nodes" appears (or at PeakMemory/EOF).
+                # Important: an "Edges Nodes" line is the size AFTER the
+                # rows before it (their genome). So we keep the rows in a
+                # buffer and flush them with the next "Edges Nodes" line (or
+                # at PeakMemory/EOF, with the last size).
 
                 # (1) If this is an "Edges Nodes" line
                 if len(stats_parts) == 2 and stats_parts[0].isdigit() and stats_parts[1].isdigit():
@@ -287,14 +409,10 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
                     new_nodes = int(stats_parts[1])
 
                     # Flush the previously collected edge rows (if any)
-                    if pending_block_rows:
-                        # Apply the PREVIOUS block sizes
-                        for row in pending_block_rows:
-                            row['Edges'] = prev_edges
-                            row['Nodes'] = prev_nodes
-                            data.append(row)
-
-                        pending_block_rows.clear()
+                    # the size line belongs to the rows before it (the
+                    # size after their genome); it used to be given to the
+                    # rows after it, one genome late
+                    flush(new_edges, new_nodes)
 
                     # Update the "previous block size" to this new metadata
                     prev_edges = new_edges
@@ -320,7 +438,9 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
                 # edge number in the file (YOU WANT THIS EXACTLY)
                 local_edge_no = int(build_parts[0])
                 global_step += 1
-                step = global_step
+                # perEdge: running number over all edges; perBatch: the
+                # update (genome) number written by the algorithm
+                step = local_edge_no if mode == "perbatch" else global_step
                 haplotype_name = build_parts[1]
 
                 # Parse metrics
@@ -358,10 +478,11 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
                 entry[f'{prefix}Time_s'] = entry[f'{prefix}{source_time_metric}']
 
                 pending_block_rows.append(entry)
+                genome_names[haplotype_name] = True
                     
             
     except StopIteration:
-        pass
+        flush(prev_edges, prev_nodes)
     except Exception as e:
         print(f"    ❌ Error parsing {filename}: {e}", file=sys.stderr)
 
@@ -370,7 +491,37 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
         df['Step'] = df['Step'].astype(object)
         df.loc[df['Step'] == 0, 'Step'] = 'Base'
     
-    return df, peak_memory
+    info = {'genomes': len(genome_names), 'final_edges': prev_edges, 'final_nodes': prev_nodes,
+            'baseline_memory': baseline_memory}
+    return df, peak_memory, info
+
+def real_graph_size(time_dir_path: pathlib.Path):
+    """Vertices and edges of the input graph without the artificial source 0,
+    sink 1 and their edges: the distinct vertices and edges of
+    input/<dataset>/Graphs/numeric_edgelist.txt (the graph after the last
+    genome). None if the edge list is not found."""
+    parts = time_dir_path.resolve().parts
+    if "output" not in parts:
+        return None
+    i = len(parts) - 1 - parts[::-1].index("output")
+    dataset = parts[i + 1:parts.index("timeFile", i)]
+    edge_list = pathlib.Path(*parts[:i]) / "input" / pathlib.Path(*dataset) / "Graphs" / "numeric_edgelist.txt"
+    if not edge_list.exists():
+        print(f"  Warning: {edge_list} not found; no real graph size")
+        return None
+    edges, header = set(), 0
+    with open(edge_list) as f:
+        for line in f:
+            p = line.split()
+            if not p or p[0].startswith("#"):
+                continue
+            header += 1
+            if header <= 2:            # graph name, then "edges nodes" of the base graph
+                continue
+            if len(p) == 2:
+                edges.add((p[0], p[1]))
+    vertices = {v for e in edges for v in e}
+    return len(vertices), len(edges)
 
 # ==============================================================================
 #  New Processing Function
@@ -381,11 +532,16 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
     Parses all three time files, prefixes the common metrics, and merges them.
     """
     # ADD THIS CHECK:
-    required = ["SuperbubbleSimpleTimeOutput.txt", 
-                "SuperbubbleIncrementalDFSOutputSSM.txt", 
-                "SuperbubbleIncrementalAVLDFSOutput.txt",
-                "SuperbubbleIncrementalBatchDFSOutput.txt",
-                "SuperbubbleDifferentMaxO.txt"]
+    required = ["static_time.txt", 
+                "incRecompute_time.txt", 
+                "incNormalBST_time.txt",
+                "incBST_time.txt",
+                "incBSTBatch_time.txt",
+                "incMinIBST_time.txt",
+                "incMinIBSTH1_time.txt",
+                "incRecomputeBatch_time.txt",
+                "incBSTBatchH1_time.txt",
+                "incBSTBatchH2_time.txt"]
     
     dir_name = time_dir_path.name.lower()
 
@@ -410,12 +566,25 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
 
     # Define files, corresponding time columns, and their prefixes
     ALGORITHMS = {
-        "Simple": "SuperbubbleSimpleTimeOutput.txt",
-        "INC": "SuperbubbleIncrementalDFSOutputSSM.txt",
-        "BST": "SuperbubbleIncrementalAVLDFSOutput.txt",
-        "INCBATCH": "SuperbubbleIncrementalBatchDFSOutput.txt",
-        "DIFFMAXO": "SuperbubbleDifferentMaxO.txt"
+        "static": "static_time.txt",
+        "incRecompute": "incRecompute_time.txt",
+        "incNormalBST": "incNormalBST_time.txt",
+        "incBST": "incBST_time.txt",
+        "incBSTBatch": "incBSTBatch_time.txt",
+        "incMinIBST": "incMinIBST_time.txt",
+        "incMinIBSTH1": "incMinIBSTH1_time.txt",
+        "incRecomputeBatch": "incRecomputeBatch_time.txt",
+        "incBSTBatchH1": "incBSTBatchH1_time.txt",
+        "incBSTBatchH2": "incBSTBatchH2_time.txt"
     }
+
+    # perEdge-only algorithms (PEREDGE_ONLY in superbubbleRunner.py): in
+    # perbatch the comparison is static, incMinIBSTH1 and the batch
+    # algorithms; perbatch time files of the others (from earlier runs) are
+    # not read
+    if mode == "perbatch":
+        for a in ("incNormalBST", "incRecompute", "incBST", "incMinIBST"):
+            ALGORITHMS.pop(a)
 
     files_to_parse = {
         time_dir_path / fname: f"{prefix}_Time_s"
@@ -423,11 +592,19 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
     }
 
     all_data = []
-    
-    for filepath, time_col in files_to_parse.items():
-        df, _peak_mem = parse_file(filepath, time_col, mode)
+    peak_memory_kb = {}        # algorithm ID -> PeakMemory(KB) of its time file
+    baseline_memory_kb = {}    # algorithm ID -> BaselineMemory(KB) (0 if the file has none)
+    dataset_info = {}          # genomes and final graph size (the same in every time file)
+
+    for (prefix, _fname), (filepath, time_col) in zip(ALGORITHMS.items(), files_to_parse.items()):
+        df, peak_mem, info = parse_file(filepath, time_col, mode)
+        if info and not dataset_info:
+            dataset_info = info
         if not df.empty:
             all_data.append(df)
+            if peak_mem:
+                peak_memory_kb[prefix] = peak_mem
+                baseline_memory_kb[prefix] = (info or {}).get('baseline_memory', 0)
 
     if not all_data:
         print("  No data was parsed. No CSV will be generated.")
@@ -439,9 +616,10 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         COMMON_MERGE_COLS = ['Step', 'Haplotype_Name', 'Nodes', 'Edges']
         
         # 1. Define time metric structures for use in merging and filtering (FIX: SCOPE)
-        BASE_TIME_METRICS = ['Insert_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time']
+        BASE_TIME_METRICS = ['UpdateDS_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time']
         BASE_VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
-        PREFIXES = ['Simple_', 'INC_', 'BST_','INCBATCH_','DIFFMAXO_']
+        PREFIXES = ['static_', 'incRecompute_', 'incNormalBST_', 'incBST_','incBSTBatch_','incMinIBST_','incMinIBSTH1_',
+                    'incRecomputeBatch_', 'incBSTBatchH1_', 'incBSTBatchH2_']
         
         # 2. Perform the full merge
         merge_keys = ['Step']
@@ -474,10 +652,14 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         non_base_df = merged_df[merged_df['Step'] != 'Base'].copy()
         base_df = merged_df[merged_df['Step'] == 'Base'].copy()
         
-        # 5. Filter non-base rows: convert time columns to numeric and sum
-        valid_time_cols = [col for col in metric_cols if col in non_base_df.columns]
+        # 5. Filter non-base rows: a genome/edge without any time is dropped.
+        # Only the TIME columns decide (not the vertex/edge counts: a count
+        # that overflowed in a program, e.g. a 32-bit sum over a whole HPRC
+        # genome, is negative and must not cancel the times).
+        valid_time_cols = [col for col in metric_cols
+                           if col in non_base_df.columns and col.endswith('_Time')]
 
-        for col in valid_time_cols:
+        for col in [c for c in metric_cols if c in non_base_df.columns]:
              non_base_df[col] = pd.to_numeric(non_base_df[col], errors='coerce').fillna(0.0)
 
         # Calculate the sum and filter
@@ -495,13 +677,18 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         CASE_METRICS = ['Case1', 'Case2', 'Case3', 'Case4', 'Case5']
         
         rename_dict = {}
+        # the edge-by-edge algorithms classify every edge identically: the
+        # cases are taken from the first of them with case columns (incBST;
+        # in perbatch incMinIBSTH1), the others' case columns are dropped
+        case_source = next((a for a in ('incBST', 'incMinIBST', 'incMinIBSTH1')
+                            if f'{a}_Case1' in merged_df.columns), None)
         for case in CASE_METRICS:
-            # Drop the INC_ columns
-            if f'INC_{case}' in merged_df.columns:
-                merged_df = merged_df.drop(columns=[f'INC_{case}'], errors='ignore')
-            # Rename the BST_ columns to the final CaseX name
-            if f'BST_{case}' in merged_df.columns:
-                rename_dict[f'BST_{case}'] = case
+            for other in ('incRecompute', 'incNormalBST', 'incBST', 'incMinIBST', 'incMinIBSTH1'):
+                if other != case_source and f'{other}_{case}' in merged_df.columns:
+                    merged_df = merged_df.drop(columns=[f'{other}_{case}'], errors='ignore')
+            # Rename the source's columns to the final CaseX name
+            if case_source and f'{case_source}_{case}' in merged_df.columns:
+                rename_dict[f'{case_source}_{case}'] = case
         
         merged_df = merged_df.rename(columns=rename_dict)
         
@@ -509,26 +696,27 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         
         RENAME_MAP = {
             'Haplotype_Name': 'HaplotypeName',
-            'Simple_SB_Count': 'SuperbubbleCount',
+            'static_SB_Count': 'SuperbubbleCount',
         }
 
-        # Function to convert snake_case column names (e.g., Simple_DFS_Time) to PascalCase (SimpleDFSTime)
+        # Function to convert snake_case column names (e.g., static_DFS_Time) to PascalCase (staticDFSTime)
         def to_pascal_case(name):
             if name in RENAME_MAP:
                 return RENAME_MAP[name]
 
             # Preserve the prefixed parts exactly (so acronyms like DFS, MinI, MaxO stay uppercase)
             # and convert by simply removing the underscores between parts.
-            # Special-case the Time_s sentinel which we want as e.g. SimpleTimeS
+            # Special-case the Time_s sentinel which we want as e.g. staticTimeS
             if name.endswith('Time_s'):
-                # e.g. 'Simple_Time_s' -> 'SimpleTimeS'
+                # e.g. 'static_Time_s' -> 'staticTimeS'
                 prefix = name.split('_')[0]
                 return prefix + 'TimeS'
 
-            if name.startswith(('Simple_', 'INC_', 'BST_', 'INCBATCH_', 'DIFFMAXO_')):
+            if name.startswith(('static_', 'incRecompute_', 'incNormalBST_', 'incBST_', 'incBSTBatch_', 'incMinIBST_', 'incMinIBSTH1_',
+                                'incRecomputeBatch_', 'incBSTBatchH1_', 'incBSTBatchH2_')):
                 parts = name.split('_')
                 # Keep inner parts exactly (no .capitalize()), just glue them:
-                # 'Simple_DFS_Time' -> ['Simple','DFS','Time'] -> 'Simple' + 'DFS' + 'Time' -> 'SimpleDFSTime'
+                # 'static_DFS_Time' -> ['static','DFS','Time'] -> 'static' + 'DFS' + 'Time' -> 'staticDFSTime'
                 return parts[0] + ''.join(parts[1:])
 
             return name  # Case1-5 and common columns
@@ -539,10 +727,13 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         # --- Define Final Order using the new PascalCase names ---
         
         BASE_COLS = ['Step', 'HaplotypeName', 'Nodes', 'Edges']
-        TIME_METRICS = ['InsertTime', 'DFSTime', 'TopologicalOrderTime', 'MinITime', 'MaxOTime', 'SBComputeTime', 'TotalTime']
+        TIME_METRICS = ['UpdateDSTime', 'DFSTime', 'TopologicalOrderTime', 'MinITime', 'MaxOTime', 'SBComputeTime', 'TotalTime']
         VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
         GRAPH_METRICS = ['TotalVertices', 'TotalEdges']
-        PREFIXES = ['Simple', 'INC', 'BST', 'INCBATCH','DIFFMAXO']
+        # the batch algorithm writes what a batch did instead of the per-edge cases
+        BATCH_METRICS = ['NewVertices', 'SourcesPlaced', 'BackwardEdges', 'Rounds', 'Adoptions']
+        PREFIXES = ['static', 'incRecompute', 'incNormalBST', 'incBST', 'incBSTBatch','incMinIBST','incMinIBSTH1',
+                    'incRecomputeBatch', 'incBSTBatchH1', 'incBSTBatchH2']
 
         final_order = BASE_COLS + ['SuperbubbleCount']
 
@@ -564,6 +755,12 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
                 col_name = f'{prefix}{metric}'
                 if col_name in merged_df.columns:
                     final_order.append(col_name)            
+
+        for metric in BATCH_METRICS:
+            for prefix in ('incRecomputeBatch', 'incBSTBatch', 'incBSTBatchH1', 'incBSTBatchH2'):
+                col_name = f'{prefix}{metric}'
+                if col_name in merged_df.columns:
+                    final_order.append(col_name)
         
         
         # 3. Add Case metrics (now just the 5 CaseX columns)
@@ -582,7 +779,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         for col in merged_df.columns:
             if 'Time' in col or 'Compute' in col:
                 merged_df[col] = pd.to_numeric(merged_df[col], errors='coerce').astype(float).fillna(0.0)
-            elif col in ['SuperbubbleCount', 'Nodes', 'Edges'] or col in CASE_METRICS or any(col.endswith(s) for s in ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']):
+            elif col in ['SuperbubbleCount', 'Nodes', 'Edges'] or col in CASE_METRICS or any(col.endswith(s) for s in ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges'] + BATCH_METRICS):
                 merged_df[col] = pd.to_numeric(merged_df[col], errors='coerce').astype('Int64').fillna(0)
             
         merged_df['HaplotypeName'] = merged_df['HaplotypeName'].fillna('N/A')
@@ -590,7 +787,28 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         # --- Save to CSV ---
         output_filename = time_dir_path / "haplotype_build_comparison.csv"
         merged_df.to_csv(output_filename, index=False)
+
+        # Peak memory per algorithm (PeakMemory(KB) line of each time file),
+        # next to the CSV; read by csvToLatex.py (table_PeakMemory.tex)
+        memory_filename = time_dir_path / "peak_memory.csv"
+        with open(memory_filename, "w") as mf:
+            mf.write("Algorithm,PeakMemoryKB,BaselineMemoryKB\n")
+            for algo_id, kb in peak_memory_kb.items():
+                mf.write(f"{algo_id},{kb},{baseline_memory_kb.get(algo_id, 0)}\n")
         
+        # Genomes and final graph size, next to the CSV; read by csvToLatex.py
+        # (table_size_haplotypes.tex). Counted from the time file, so genomes
+        # that add nothing (dropped from the CSV: zero time) are included.
+        # Real*: the input graph (edge list) without the artificial source,
+        # sink and their edges; Graph*: the program's graph after the last
+        # genome, with them (the denominators of the ratio tables).
+        if dataset_info:
+            real = real_graph_size(time_dir_path) or ("", "")
+            with open(time_dir_path / "dataset_info.csv", "w") as inf:
+                inf.write("Genomes,RealNodes,RealEdges,GraphNodes,GraphEdges\n")
+                inf.write(f"{dataset_info['genomes']},{real[0]},{real[1]},"
+                          f"{dataset_info['final_nodes']},{dataset_info['final_edges']}\n")
+
         print(f"  ✅ Successfully saved data to: {output_filename}")
 
     except Exception as e:
@@ -602,61 +820,17 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
 # ==============================================================================
 
 def main():
-    """
-    Main function to find output directories and process them.
-
-    --------------------------------------------------------------------------
-    HOW TO RUN THIS SCRIPT:
-    --------------------------------------------------------------------------
-
-    1.  **Prerequisites:**
-        * You must have the 'pandas' library installed:
-            `pip install pandas`
-        * This script MUST be located somewhere inside your
-            'IncSuperbubble' repository directory structure.
-            It doesn't matter where (e.g., can be in 'Preprocessing',
-            'output', or the root), as it will find the root dynamically.
-
-    2.  **Running the script:**
-        * Open your terminal or command prompt.
-        * Navigate to the directory containing this script.
-        * Run the script using python, specifying the dataset:
-
-            `python3 parse_to_csv.py -d ecoli`
-        
-            To run a specific chromosome: 
-            python3 parse_to_csv.py -d human -c 1
-            To rually downn multiple specific chromosomes: 
-            python3 parse_to_csv.py -d human -c 1 2 22
-            To run everything (it will still find perEdge/perbatch): 
-            python3 parse_to_csv.py -d human
-
-            python3 parse_to_csv.py -d human -m peredge or 
-            python3 parse_to_csv.py -d ecoli -m peredge
-            python3 parse_to_csv.py -d ecoli -m perbatch
-
-
-    3.  **What it does:**
-        * It automatically finds the 'IncSuperbubble' repository root.
-        * It looks for the 'output' directory.
-        * It processes `output/Ecoli/timeFile/` and saves a CSV inside it.
-        * It finds all `output/Human/chromosome_*` directories, looks
-            for a `timeFile` subdirectory in each one, and saves a
-            separate CSV inside each `timeFile` directory it finds.
-
-    4.  **Output:**
-        * A file named `haplotype_build_comparison.csv` will be created
-            inside each `timeFile` directory that is processed.
-    """
+    """Finds the timing folders and writes their CSVs; see the guide at the top of this file."""
     parser = argparse.ArgumentParser(
         description="Parses haplotype time-tracking files into CSVs.",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
         "-d", "--dataset",
-        choices=["ecoli", "human", "all"],
+        choices=["ecoli", "human", "hprc", "hprc2", "all"],
         required=True,
-        help="The dataset to process. 'ecoli', 'human', or 'all'."
+        help="The dataset to process. 'ecoli', 'human', 'hprc' (Minigraph-Cactus, "
+             "experimental), or 'all' (= ecoli + human)."
     )
     parser.add_argument("-c", "--chromosome",
         nargs='+', 
@@ -713,10 +887,13 @@ def main():
         process_time_directory(ecoli_time_dir)
     """
     # --- 2. Process Human Dataset ---
-    if args.dataset in ["human", "all"]:
-        human_output_dir = OUTPUT_DIR / "Human"
+    # (HPRC: Minigraph-Cactus chromosomes, same layout as Human)
+    groups = ((["Human"] if args.dataset in ["human", "all"] else []) + (["HPRC"] if args.dataset == "hprc" else [])
+              + (["HPRC2"] if args.dataset == "hprc2" else []))
+    for group in groups:
+        human_output_dir = OUTPUT_DIR / group
         if not human_output_dir.is_dir():
-            print(f"\nℹ️ 'Human' directory not found at {human_output_dir}, skipping.")
+            print(f"\nℹ️ '{group}' directory not found at {human_output_dir}, skipping.")
         else:
             print(f"\nScanning {human_output_dir} for chromosome directories...")
             # Find all directories starting with "chromosome_"

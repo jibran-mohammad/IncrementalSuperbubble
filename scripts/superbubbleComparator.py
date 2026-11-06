@@ -1,50 +1,144 @@
 """
 superbubbleComparator.py
 
-Runner for BubbleGun comparison experiments.
+Runs an external superbubble tool (BubbleGun or BubbleFinder) on
+the same sequence of graph updates that the C++ algorithms process: after
+every update (an edge in perEdge mode, a haplotype in perBatch mode) the
+tool computes all bubbles of the whole graph from scratch. Records the
+time of every run, the tool's peak memory and its bubble lists, for the
+comparison with the algorithms (Preprocessing/toolComparisonToLatex.py).
+What is timed and how the comparison works: COMPARISON_METHOD.md.
 
-Features:
+=====================================================================
+HOW TO RUN
+=====================================================================
 
-✔ Dynamic repository discovery
-✔ Dataset aware
-✔ Human chromosome support
-✔ Per-edge mode
-✔ Per-batch mode
-✔ Tool-independent architecture
+Run from the repository root, with the virtual environment active
+(source venv/bin/activate; BubbleGun is installed there). The graph files
+must exist first (scripts/graphRunner.py).
 
-Datasets:
+    # BubbleGun on E. coli, one run per edge (about 1.5 minutes)
+    python3 scripts/superbubbleComparator.py -d Ecoli -m perEdge
 
-Ecoli:
+    # one run per haplotype
+    python3 scripts/superbubbleComparator.py -d Ecoli -m perBatch
 
-input/Ecoli/Graphs/
+    # human chromosomes 14 and X
+    python3 scripts/superbubbleComparator.py -d Human -c 14 X -m perEdge
 
-Human:
+    # every human chromosome that has been preprocessed
+    python3 scripts/superbubbleComparator.py -d Human -m perEdge
 
-input/Human/chromosome_X/Graphs/
+    # E. coli and every human chromosome, one after the other
+    python3 scripts/superbubbleComparator.py -d all -m perEdge
 
-Required files:
+    # another tool, once it is added (see below)
+    python3 scripts/superbubbleComparator.py -d Ecoli -m perEdge -t bubblefinder
 
-reduced_graph.gfa
-ordered_haplotypes.txt
-unique_elements.txt
+Options:
 
+    -d           Ecoli | Human | HPRC | HPRC2 | all (= Ecoli + Human)    (required;
+                 HPRC: Minigraph-Cactus graphs prepared by
+                 Preprocessing/mcToDag.py, experimental)
+    -c           Human only: chromosomes, e.g. 14 X or chromosome_14
+                 (default: every chromosome with a reduced_graph.gfa)
+    -m           perEdge | perBatch                              (required)
+    -t / --tool  bubblegun | bubblefinder                        (default: bubblegun;
+                 bubblefinder needs the BubbleFinder binary, see
+                 Preprocessing/superbubbleTools/bubblefinderTool.py)
+    --every N    perEdge only: SAMPLING for graphs too large to run the
+                 tool after every edge (e.g. HPRC chr22, ~1 million edges).
+                 The tool runs on the graph after every N-th edge and after
+                 the last edge of every haplotype; the total time is
+                 estimated as the mean time of the every-N-th-edge samples
+                 x number of updates and marked as estimated
+                 (TotalTimeEstimated line). The runs after a haplotype's
+                 last edge are not in the mean (they also list all
+                 bubbles and are slower).
+                 Memory and the bubble lists (after every haplotype) are
+                 complete.                                        (default: 1)
+    --final-superbubbles-only
+                 write only the bubbles of the final graph (after the last
+                 haplotype) to <tool>_superbubbles.txt, not those of the base
+                 graph and after every haplotype: on HPRC the full lists are
+                 several GB per run. The tool runs and is timed exactly as
+                 without the option; only the file is smaller.
 
-Usage Examples:
+    # HPRC chromosome 22 (Minigraph-Cactus, ~1 million edge updates):
+    # about 100 sampled graphs plus one per haplotype
+    python3 scripts/superbubbleComparator.py -d HPRC -c 22 -m perEdge --every 10000
 
-Ecoli per-edge:
+A dataset stops with an error if the tool reports a warning (for
+BubbleGun e.g. a link to a segment that is not in the GFA), so wrong
+input does not go unnoticed; the other datasets still run, and a SUMMARY
+at the end lists every dataset as ok or FAILED (exit code 1 if any
+failed).
 
-python superbubbleComparator.py -d Ecoli -m perEdge -o ecoli_perEdge.csv
+=====================================================================
+INPUT
+=====================================================================
 
+From input/Ecoli/Graphs/ or input/Human/chromosome_<X>/Graphs/:
 
-Human chromosome 14 per-batch:
+    reduced_graph.gfa        base graph (reference only)
+    ordered_haplotypes.txt   order in which haplotypes are added
+    unique_elements.txt      nodes and edges each haplotype adds
 
-python superbubbleComparator.py -d Human -c 14 -m perBatch -o ecoli_perEdge.csv
+The graph after each update (base graph + the edges added so far, with an
+S line for every new node) is written to a temporary GFA and given to the
+tool; nodes and edges are written in the order they were added, so the
+temporary GFA, and the tool's output, is the same in every run.
+
+=====================================================================
+OUTPUT (folder named after the tool)
+=====================================================================
+
+    output/Ecoli/<tool>/<perEdge|perbatch>/
+    output/Human/chromosome_<X>/<tool>/<perEdge|perbatch>/
+
+    <tool>_time.txt          CSV, one row per update (edge or haplotype):
+                             Time        one tool run on the whole graph
+                                         (BubbleGun: reading the GFA +
+                                         finding bubbles; Python start-up
+                                         not included)
+                             ReadTime / FindTime / ChainsTime   its parts
+                                         (ChainsTime: building chains and
+                                         nesting, not included in Time)
+                             simple / super / insertion / TotalBubbles
+                                         bubbles of each type (all three
+                                         are superbubbles)
+                             PeakMemoryKB / BaselineMemoryKB   peak memory
+                                         of the tool, measured at the base
+                                         graph and after each haplotype in
+                                         a separate, untimed run ("-" on
+                                         other rows); baseline = before the
+                                         graph is read
+                             then TotalUpdateTime, TotalTime, and the
+                             largest PeakMemory(KB) / BaselineMemory(KB)
+    <tool>_superbubbles.txt  every bubble ("<type> <end1> <end2>", GFA
+                             segment names) for the base graph and after
+                             each haplotype; the last block is the final
+                             graph
+
+=====================================================================
+ADDING ANOTHER TOOL
+=====================================================================
+
+  1. Write Preprocessing/superbubbleTools/<name>Tool.py with a class like
+     BubbleGunTool (a Python library, bubblegunTool.py) or BubbleFinderTool
+     (a separate program, bubblefinderTool.py): name = "<name>",
+     run(gfa_file, keep_bubbles) and optionally memory(gfa_file); the
+     expected return values are described in
+     Preprocessing/superbubbleTools/toolInterface.py.
+  2. Import it below and add it to TOOLS.
+  3. Run this script with -t <name>; results go to output/<dataset>/<name>/.
 """
 
 import sys
 import pathlib
 import argparse
 import time
+
 
 ############################################################
 # Dynamic Path Discovery
@@ -101,179 +195,232 @@ sys.path.insert(0, str(REPO_ROOT_PATH))
 # Now imports work
 ############################################################
 
+
 from Preprocessing.haplotypeParser import *
 from Preprocessing.graphUpdater import *
 from Preprocessing.superbubbleTools.bubblegunTool import BubbleGunTool
+from Preprocessing.superbubbleTools.bubblefinderTool import BubbleFinderTool
+
+
+# Tools selectable with -t; the key is the tool's own name.
+TOOLS = {tool.name: tool for tool in (BubbleGunTool, BubbleFinderTool)}
+
+# Same mode directory names as superbubbleRunner.py
+MODE_DIRS = {"perEdge": "perEdge", "perBatch": "perbatch"}
 
 
 #######################################################
 
-def run_perEdge(updater,hap_order,hap_edges,tool,outfile):
+def write_time_row(timefile,step,hap,update,result,memory=None):
 
-    total_runtime = 0
+    counts = result["counts"]
+
+    phases = result.get("phases", {})
+
+    # memory is only measured at the base graph and at haplotype boundaries
+    mem = f"{memory['peak']},{memory['baseline']}" if memory else "-,-"
+
+    timefile.write(
+        f"{step},{hap},{update},{result['time']},"
+        + "".join(f"{t}," for t in phases.values())
+        + ",".join(str(n) for n in counts.values())
+        + f",{sum(counts.values())},{mem}\n"
+    )
+
+
+def measure_memory(tool,gfa,memories):
+    """Peak memory of the tool on gfa (separate, untimed run), if supported."""
+
+    memory = tool.memory(gfa)
+
+    if memory:
+        memories.append(memory)
+
+    return memory
+
+
+def write_superbubbles(sbfile,title,result):
+
+    counts = result["counts"]
+
+    summary = " ".join(f"{t}={n}" for t,n in counts.items())
+
+    sbfile.write(f"# {title} | {summary} total={sum(counts.values())}\n")
+
+    for bubble_type,end1,end2 in sorted(result["bubbles"]):
+        sbfile.write(f"{bubble_type} {end1} {end2}\n")
+
+    sbfile.write("\n")
+
+
+def run_updates(mode,updater,hap_order,hap_edges,tool,timefile,sbfile,every=1,final_only=False):
+    """
+    Runs the tool on the base graph and after every update. perEdge with
+    every > 1 (sampling, for graphs too large to run the tool after every
+    edge): the tool runs only on the graph after every <every>-th edge and
+    after the last edge of every haplotype; the other edges are only added.
+    The total is estimated as (mean time of the EVENLY SPACED samples, every
+    <every>-th edge) x (number of updates) and marked as estimated in the
+    time file. The runs after a haplotype's last edge are not used for the
+    mean: they also list all bubbles (keep_bubbles), which makes them
+    slower (chr21: +13%); they give the bubble lists and memory only.
+    """
 
     ################################################
     # Base graph
     ################################################
 
+    memories = []
+
     gfa = updater.write_temp_gfa()
 
-    runtime, sb = tool.run(gfa)
+    result = tool.run(gfa, keep_bubbles=True)
 
-    total_runtime += runtime
+    base_time = result["time"]
 
-    outfile.write(f"Base,-,-,{runtime},{sb}\n")
+    timefile.write(
+        "Step,Haplotype," + ("Edge" if mode == "perEdge" else "Edges")
+        + ",Time,"
+        + "".join(f"{p.capitalize()}Time," for p in result.get("phases", {}))
+        + ",".join(result["counts"]) + ",TotalBubbles,PeakMemoryKB,BaselineMemoryKB\n"
+    )
+
+    write_time_row(timefile,"Base","-","-",result,measure_memory(tool,gfa,memories))
+
+    if not final_only:
+        write_superbubbles(sbfile,"Base graph",result)
 
     print("Base completed")
 
 
     ################################################
-    # Edge updates
+    # Updates: one tool run per edge (perEdge) or
+    # per haplotype (perBatch); bubbles are listed
+    # after the last update of every haplotype
     ################################################
 
-    for hap in hap_order:
+    update_time = 0
 
-        for edge in hap_edges[hap]:
+    step = 0
 
-            updater.add_edge(edge)
+    sampled = 0            # updates on which the tool was run
+    even_time = 0.0        # time of the evenly spaced samples (every <every>-th edge)
+    even_count = 0
+
+    for h, hap in enumerate(hap_order, 1):
+
+        edges = hap_edges[hap]
+
+        if mode == "perEdge":
+
+            for e, edge in enumerate(edges, 1):
+
+                updater.add_edge(edge)
+
+                step += 1
+
+                last = (e == len(edges))
+
+                # sampling: only every <every>-th edge and the haplotype's last edge
+                if every > 1 and step % every != 0 and not last:
+                    continue
+
+                sampled += 1
+
+                gfa = updater.write_temp_gfa()
+
+                result = tool.run(gfa, keep_bubbles=last)
+
+                update_time += result["time"]
+
+                if every > 1 and step % every == 0:
+                    even_time += result["time"]
+                    even_count += 1
+
+                memory = measure_memory(tool,gfa,memories) if last else None
+
+                write_time_row(timefile,step,hap,edge,result,memory)
+
+        else:
+
+            for edge in edges:
+                updater.add_edge(edge)
+
+            step += 1
+
+            sampled += 1
 
             gfa = updater.write_temp_gfa()
 
-            runtime, sb = tool.run(gfa)
+            result = tool.run(gfa, keep_bubbles=True)
 
-            total_runtime += runtime
+            update_time += result["time"]
 
-            outfile.write(
-                f"Edge,{hap},{edge},{runtime},{sb}\n"
+            write_time_row(timefile,step,hap,len(edges),result,measure_memory(tool,gfa,memories))
+
+        # --final-superbubbles-only: only the final graph (after the last haplotype)
+        if not final_only or h == len(hap_order):
+            write_superbubbles(
+                sbfile,
+                f"After haplotype {h}/{len(hap_order)}: {hap} (step {step})",
+                result
             )
 
+        print(f"Haplotype {h}/{len(hap_order)} completed: {hap}")
+
 
     ################################################
-    # Total BubbleGun runtime
+    # Total tool runtime
     ################################################
 
-    outfile.write("\n")
+    timefile.write("\n")
 
-    outfile.write(
-        f"TotalBubbleGunTime,{total_runtime}\n"
-    )
+    timefile.write(f"Updates,{step}\n")
 
-    print("Total BubbleGun time:", total_runtime)
+    if every > 1 and mode == "perEdge":
+
+        # Estimated from the evenly spaced samples: their mean time per
+        # update x number of updates (+ the base graph, always measured)
+        mean = even_time / even_count if even_count else 0.0
+        estimate = mean * step
+
+        timefile.write(f"SampledUpdates,{even_count}\n")
+        timefile.write(f"RunsAfterLastEdgeOfHaplotype,{sampled - even_count}\n")
+        timefile.write(f"MeanUpdateTime,{mean}\n")
+        timefile.write(f"TotalUpdateTime,{estimate}\n")
+        timefile.write(f"TotalTime,{base_time + estimate}\n")
+        timefile.write(f"TotalTimeEstimated,mean of the {even_count} updates after every {every}-th edge "
+                       f"(of {step} updates) x {step}; TotalUpdateTime = MeanUpdateTime x Updates\n")
+
+        print(f"{tool.name}: {even_count} evenly spaced samples of {step} updates, mean {mean:.4f} s "
+              f"per update, estimated total {base_time + estimate:.1f} s")
+
+    else:
+
+        timefile.write(f"TotalUpdateTime,{update_time}\n")
+
+        timefile.write(f"TotalTime,{base_time + update_time}\n")
+
+        print(f"Total {tool.name} time:", base_time + update_time)
+
+    # Largest measured peak, comparable with PeakMemory(KB) of the C++ algorithms
+    if memories:
+
+        largest = max(memories, key=lambda m: m["peak"])
+
+        timefile.write(f"PeakMemory(KB),{largest['peak']}\n")
+
+        timefile.write(f"BaselineMemory(KB),{largest['baseline']}\n")
+
+        print(f"{tool.name} peak memory: {largest['peak']} KB (baseline {largest['baseline']} KB)")
 
 
 #######################################################
 
-def run_perBatch(updater,hap_order,hap_edges,tool,outfile):
+def run_dataset(repo, dataset_path, mode, tool_name, every=1, final_only=False):
+    """Run the tool after every update of one dataset; write its two output files."""
 
-    total_runtime = 0
-
-    ################################################
-    # Base graph
-    ################################################
-
-    gfa = updater.write_temp_gfa()
-
-    runtime, sb = tool.run(gfa)
-
-    total_runtime += runtime
-
-    outfile.write(f"Base,-,-,{runtime},{sb}\n")
-
-    print("Base completed")
-
-
-    ################################################
-    # Batch updates
-    ################################################
-
-    for hap in hap_order:
-
-        for edge in hap_edges[hap]:
-
-            updater.add_edge(edge)
-
-        gfa = updater.write_temp_gfa()
-
-        runtime, sb = tool.run(gfa)
-
-        total_runtime += runtime
-
-        outfile.write(
-            f"Batch,{hap},-,{runtime},{sb}\n"
-        )
-
-
-    ################################################
-    # Total BubbleGun runtime
-    ################################################
-
-    outfile.write("\n")
-
-    outfile.write(
-        f"TotalBubbleGunTime,{total_runtime}\n"
-    )
-
-    print("Total BubbleGun time:", total_runtime)
-
-
-#######################################################
-
-if __name__=="__main__":
-
-    parser=argparse.ArgumentParser()
-
-    parser.add_argument(
-        "-d",
-        choices=["Ecoli","Human"],
-        required=True
-    )
-
-    parser.add_argument("-c")
-
-    parser.add_argument("-m",
-        choices=["perEdge","perBatch"],
-        required=True
-    )
-
-    parser.add_argument(
-        "-o",
-        "--output",
-        default="superbubble_results.csv",
-        help="Output file for results"
-    )
-
-    args=parser.parse_args()
-
-
-    ###################################################
-
-    script_dir=pathlib.Path(__file__).parent
-
-    repo = REPO_ROOT_PATH
-
-
-    ###################################################
-
-    if args.d == "Ecoli":
-
-        graph_dir = repo / "input" / "Ecoli" / "Graphs"
-
-    elif args.d == "Human":
-
-        if args.c is None:
-
-            print("❌ Error: Human dataset requires chromosome argument.")
-            print("Example:")
-            print("python scripts/superbubbleComparator.py -d Human -c chromosome_14 -m perEdge")
-
-            sys.exit(1)
-
-        args.c = f"chromosome_{args.c}" if not args.c.startswith("chromosome_") else args.c    
-
-        graph_dir = repo / "input" / "Human" / args.c / "Graphs"
-
-
-    ###################################################
+    graph_dir = repo / "input" / dataset_path / "Graphs"
 
     base_gfa=graph_dir/"reduced_graph.gfa"
 
@@ -289,34 +436,152 @@ if __name__=="__main__":
 
     updater=GraphUpdater(base_gfa)
 
-    tool=BubbleGunTool()
+    tool=TOOLS[tool_name]()
 
-    output_file = args.output
+    out_dir = repo / "output" / dataset_path / tool.name / MODE_DIRS[mode]
 
-    with open(output_file,"w") as outfile:
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-        outfile.write(
-            "Mode,Haplotype,Edge,Runtime,Superbubbles\n"
-        )
+    time_path = out_dir / f"{tool.name}_time.txt"
 
-        if args.m=="perEdge":
+    sb_path = out_dir / f"{tool.name}_superbubbles.txt"
 
-            run_perEdge(
+    try:
+
+        with open(time_path,"w") as timefile, open(sb_path,"w") as sbfile:
+
+            run_updates(
+                mode,
                 updater,
                 hap_order,
                 hap_edges,
                 tool,
-                outfile
+                timefile,
+                sbfile,
+                every,
+                final_only
             )
 
+    finally:
+
+        updater.cleanup()
+
+        tool.close()
+
+    print("Times written to:",time_path)
+
+    print("Superbubbles written to:",sb_path)
+
+
+def datasets_to_run(repo, d, chromosomes):
+    """Dataset paths (relative to input/) for -d and -c; Human without -c = every prepared chromosome."""
+
+    paths = []
+
+    if d in ("Ecoli", "all"):
+        paths.append(pathlib.Path("Ecoli"))
+
+    # Human and HPRC (Minigraph-Cactus graphs prepared by mcToDag.py): one
+    # folder per chromosome; "all" = Ecoli + Human (HPRC is run on its own)
+    for group in (["Human"] if d == "all" else [d] if d in ("Human", "HPRC", "HPRC2") else []):
+        if chromosomes:
+            names = [c if c.startswith("chromosome_") else f"chromosome_{c}" for c in chromosomes]
         else:
+            names = sorted(p.name for p in (repo / "input" / group).glob("chromosome_*") if p.is_dir())
+        skipped = []
+        for name in names:
+            path = pathlib.Path(group) / name
+            if (repo / "input" / path / "Graphs" / "reduced_graph.gfa").exists():
+                paths.append(path)
+            else:
+                skipped.append(name)
+        if skipped:
+            print(f"[!] skipped, no reduced_graph.gfa (not preprocessed): {' '.join(skipped)}")
 
-            run_perBatch(
-                updater,
-                hap_order,
-                hap_edges,
-                tool,
-                outfile
-            )
+    return paths
 
-    print("Results written to:",output_file)
+
+#######################################################
+
+if __name__=="__main__":
+
+    parser=argparse.ArgumentParser(
+        description="Run a superbubble tool after every update of a dataset; "
+                    "see the guide at the top of this file.")
+
+    parser.add_argument(
+        "-d",
+        choices=["Ecoli","Human","HPRC","HPRC2","all"],
+        required=True,
+        help="Dataset: Ecoli, Human, HPRC (Minigraph-Cactus, experimental), "
+             "or all (= Ecoli + every human chromosome)"
+    )
+
+    parser.add_argument("-c",
+        nargs="+",
+        help="Human only: chromosomes, e.g. 14 X or chromosome_14 "
+             "(default: every chromosome that has been preprocessed)")
+
+    parser.add_argument("-m",
+        choices=["perEdge","perBatch"],
+        required=True,
+        help="perEdge: one tool run per edge; perBatch: one per haplotype"
+    )
+
+    parser.add_argument(
+        "-t",
+        "--tool",
+        choices=sorted(TOOLS),
+        default="bubblegun",
+        help="Superbubble tool to run; also names the output directory"
+    )
+
+    parser.add_argument(
+        "--every",
+        type=int,
+        default=1,
+        help="perEdge only: run the tool only after every N-th edge (and after the last "
+             "edge of every haplotype) and estimate the total; for graphs too large to "
+             "run the tool after every edge (default: 1 = every edge)"
+    )
+
+    parser.add_argument(
+        "--final-superbubbles-only",
+        action="store_true",
+        help="write only the bubbles of the final graph to <tool>_superbubbles.txt "
+             "(timing unchanged; the full lists are several GB on HPRC)"
+    )
+
+    args=parser.parse_args()
+
+    if args.every > 1 and args.m != "perEdge":
+        print("[!] --every is only used in perEdge mode; ignored")
+        args.every = 1
+
+    repo = REPO_ROOT_PATH
+
+    datasets = datasets_to_run(repo, args.d, args.c)
+
+    # One dataset after the other; a dataset that fails (e.g. the tool
+    # reports a warning) is reported and the others still run.
+    status = {}
+
+    for dataset_path in datasets:
+
+        print(f"\n========== {dataset_path} ({args.m}) ==========", flush=True)
+
+        start = time.time()
+
+        try:
+            run_dataset(repo, dataset_path, args.m, args.tool, args.every, args.final_superbubbles_only)
+            status[dataset_path] = f"ok ({time.time() - start:.0f} s)"
+        except (Exception, SystemExit) as e:
+            status[dataset_path] = f"FAILED: {e}"
+            print(f"[!] {dataset_path} FAILED: {e}", flush=True)
+
+    print("\n===================\nSUMMARY\n===================")
+
+    for dataset_path, st in status.items():
+        print(f"{str(dataset_path):22s} {st}")
+
+    sys.exit(1 if any(st.startswith("FAILED") for st in status.values()) else 0)

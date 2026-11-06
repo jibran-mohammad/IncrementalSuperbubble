@@ -7,8 +7,24 @@
       1) edge (u,v) inserted, one new node inserted and u is new node.
       2) edge (u,v) inserted, one new node inserted and v is new node.
       3) edge (u,v) inserted, two new nodes inserted.
-      4) edge (u,v) inserted, edge is from right to left.
-      5) edge (u,v) inserted, edge if from left to right.  
+      4) edge (u,v) inserted, both nodes exist, edge is from left to right in the DFS tree
+         (u is visited before v's part of the tree, u after v in the topological order:
+         the order is broken and partialDFS re-places v and what it reaches after u).
+      5) edge (u,v) inserted, both nodes exist, edge is from right to left in the DFS tree
+         (u before v in the topological order: the order stays valid, nothing is reordered).
+
+      Case 1: u is placed as the rightmost child of 0 (directly after 0 in
+      the topological order), so (u,v) is a right-to-left edge and nothing is
+      reordered: all other positions move up by one (O(n)), no partialDFS. If
+      v's only parent was 0, u takes v's place instead (directly before v),
+      again without a rebuild. (The same as in incMinIBST.)
+
+      Case 5 when v's only parent was the artificial source 0: the graph
+      deletes the edge 0->v (g->strategy->artificialParentRemoved), but in the
+      DFS tree v and its subtree are still children of 0, so they are not placed
+      under u: superbubbles that now contain v are not contiguous in the order
+      and computeSB misses them. The order is then recomputed once with the
+      static DFS (rebuildFromStaticDFS), in which v's subtree hangs under u.
     */
     void IncrementalDFSSMM::insert(GraphContext *g, int u, int v) {
         int x;
@@ -39,7 +55,10 @@
         g->insertEdge(u,v);
         this->n=g->displayNumberVertices();
         this->vertexCount.currentTotalEdges = g->displayNumberEdges();
-        this->vertexCount.totalEdges += this->vertexCount.currentTotalEdges;
+        // perBatch: the graph size after the genome (like TotalVertices = n),
+        // not summed over the genome's edges (affected / explored are summed:
+        // that is the work of the genome)
+        this->vertexCount.totalEdges = this->vertexCount.currentTotalEdges;
         x=this->n-x;
         //std::cout << "original U= "<< u << " " << "original v= " << v << std::endl;
         this->u=g->strategy->reverseMapping[u];
@@ -78,7 +97,9 @@
                
                //case where u is new node
                if(g->strategy->newu == true){
+                   #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1` (was #ifndef BENCHMARK)
                    std::cout << "u is new node" << std::endl;
+                   #endif
                    this->cases = 1;
                    #ifndef BENCHMARK
                    this->edgeTypes.case1 +=1;
@@ -90,13 +111,23 @@
                    start = std::chrono::high_resolution_clock::now();
                    #endif
 
-                   this->reverseTopologicalOrder[u] = this->n-1;
-                   this->topOrd[u] = this->n - 1;
-
-                   this->partialDFS(g,u,v);
-                   //std::cout << "partial DFS done in case where u is new node" << std::endl;
-                   this->update(g);
-                   this->reset();
+                   {
+                   // v has another parent: u becomes the rightmost child of 0
+                   // in the DFS tree, directly after 0 in the topological
+                   // order, and (u,v) is a right-to-left edge: nothing else is
+                   // reordered, no partialDFS. v's only parent was 0 (the edge
+                   // 0->v is deleted): u takes v's place, directly before v, and
+                   // v's subtree stays the same: no rebuild. Every vertex from
+                   // that position on moves one position later. (As in
+                   // incMinIBST; minI/maxO are recomputed after every update.)
+                   int pos = g->strategy->artificialParentRemoved ? this->reverseTopologicalOrder[v] : 1;
+                   for(int i = this->n - 2; i >= pos; i--) {
+                       this->topOrd[i + 1] = this->topOrd[i];
+                       this->reverseTopologicalOrder[this->topOrd[i + 1]] = i + 1;
+                   }
+                   this->reverseTopologicalOrder[u] = pos;
+                   this->topOrd[pos] = u;
+                   }
 
                     #ifndef BENCHMARK
                     end = std::chrono::high_resolution_clock::now();
@@ -206,6 +237,19 @@
                 this->edgeTypes.case5 +=1;
                 this->edgeTypes.currentcase5 = 1;
                 #endif
+                if(g->strategy->artificialParentRemoved) {
+                    // v's only parent was 0: move v's subtree under u
+                    #ifndef BENCHMARK
+                    start = std::chrono::high_resolution_clock::now();
+                    #endif
+                    this->rebuildFromStaticDFS(g);
+                    #ifndef BENCHMARK
+                    end = std::chrono::high_resolution_clock::now();
+                    elapsed = end - start;
+                    this->latestTimes.currentdfsTime += elapsed.count();
+                    this->latestTimes.dfsTime += elapsed.count();
+                    #endif
+                }
             }   
         }
         /*
@@ -231,6 +275,7 @@
             //std::cout << z << std::endl;
             this->marked[z] =1;
             #ifndef BENCHMARK
+            this->vertexCount.currentcountExploredVertices ++;
             this->vertexCount.currentTotalExploredEdges += g->getOutDegree(z);
             #endif
             for (int u : g->displayOutgoingNeighbours(z)) {
@@ -254,14 +299,16 @@
         std::chrono::duration<double> elapsed = end - start;
 
 
+        // the window's vertices and edges (affected) are counted before the
+        // timer starts: counting is measurement, not part of the relabeling
+        for(int i = this->reverseTopologicalOrder[this->u]; i >= this->reverseTopologicalOrder[this->v]; i--) {
+            this->vertexCount.currentTotalAffectedEdges += g->getOutDegree(this->topOrd[i]);
+            this->vertexCount.currentcountAffectedVertices ++;
+        }
         start = std::chrono::high_resolution_clock::now();
         #endif
         
         for(int i = this->reverseTopologicalOrder[this->u]; i >= this->reverseTopologicalOrder[this->v]; i--) {
-            #ifndef BENCHMARK
-            this->vertexCount.currentTotalAffectedEdges += g->getOutDegree(this->reverseTopologicalOrder[i]);
-            this->vertexCount.currentcountAffectedVertices ++;
-            #endif
             index = this->topOrd[i];
             
             if(this->marked[index]==1) {
@@ -303,6 +350,7 @@
         this->latestTimes.currenttopologicalOrderTime += elapsed.count();
         this->latestTimes.topologicalOrderTime += elapsed.count();
         this->vertexCount.countAffectedVertices += this->vertexCount.currentcountAffectedVertices;
+        this->vertexCount.countExploredVertices += this->vertexCount.currentcountExploredVertices;
         #endif
     }
 
@@ -313,6 +361,23 @@
         std::fill(this->postorderChanged.begin(), this->postorderChanged.end(), 0);
         std::fill(this->intermediatepostorder.begin(), this->intermediatepostorder.end(), 0);
         this->m=0;
+    }
+
+    /*
+      Recomputes the whole order with the static DFS (BaseDFS::dfs) on the
+      current graph. Used in cases 1 and 5 when the inserted edge removed v's
+      artificial edge 0->v (see insert). minI and maxO need nothing extra:
+      incRecompute recomputes them from the order after every update.
+    */
+    void IncrementalDFSSMM::rebuildFromStaticDFS(GraphContext *g) {
+        std::fill(this->visit.begin(), this->visit.end(), 0);
+        this->postorderNumber = 0;
+        this->dfs(g);
+        this->reset();
+        this->staticRebuilds++;
+        #ifdef DEBUG_OUTPUT  // debug output: compiled only with `make ... DEBUG=1`
+        std::cout << "v's only parent was 0: order recomputed with the static DFS" << std::endl;
+        #endif
     }
 
     void IncrementalDFSSMM::calculateMaxO(GraphContext *g) {

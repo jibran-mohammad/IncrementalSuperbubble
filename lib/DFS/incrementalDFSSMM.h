@@ -36,17 +36,17 @@ public:
     	int totalEdges = 0;
     	int currentTotalEdges =0;
     };
-    struct CountOfVertices {
-    	int countAffectedVertices = 0;
-    	int countExploredVertices = 0;
-    	int currentcountAffectedVertices = 0;
-    	int currentcountExploredVertices = 0;
-    	int totalEdges = 0;
-    	int currentTotalEdges =0;
-    	int totalExploredEdges = 0;
-    	int totalAffectedEdges = 0;
-    	int currentTotalExploredEdges =0;
-    	int currentTotalAffectedEdges =0;
+    struct CountOfVertices {   // 64 bit: perBatch sums over a whole HPRC genome exceed 2^31
+    	long long countAffectedVertices = 0;
+    	long long countExploredVertices = 0;
+    	long long currentcountAffectedVertices = 0;
+    	long long currentcountExploredVertices = 0;
+    	long long totalEdges = 0;
+    	long long currentTotalEdges =0;
+    	long long totalExploredEdges = 0;
+    	long long totalAffectedEdges = 0;
+    	long long currentTotalExploredEdges =0;
+    	long long currentTotalAffectedEdges =0;
     };
     IncrementalUpdateTimes latestTimes;
     TypeOfEdgeInsertion edgeTypes;
@@ -55,6 +55,9 @@ public:
     std::vector<int> postorderChanged;
     std::vector<int> intermediatepostorder;
     int m,u,v;    
+    // number of updates after which the whole order was recomputed with the
+    // static DFS (rebuildFromStaticDFS)
+    int staticRebuilds;
 
 public:
 	IncrementalDFSSMM(GraphContext *g): BaseDFS(g) {
@@ -62,6 +65,7 @@ public:
         g->insertEdge(0,1);
         n=g->displayNumberVertices();
         this->m=0;
+        this->staticRebuilds=0;
     	  this->reverseTopologicalOrder.resize(n);
     	  this->topOrd.resize(n);
     	  this->minI.resize(n);
@@ -89,6 +93,7 @@ public:
 	void reset() override;
 	void partialDFS(GraphContext *g,int u , int v );
 	void update(GraphContext *g);
+	void rebuildFromStaticDFS(GraphContext *g);
 	void calculateMinI(GraphContext *g) override;
 	void calculateMaxO(GraphContext *g) override;
 	void printMinI() const override;

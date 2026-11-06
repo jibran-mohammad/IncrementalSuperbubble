@@ -12,7 +12,7 @@
    */
 
    void AdjacencyListGraph::addEdge(int x, int y) {
-       bool flagIncoming = false, flagOutgoing = false;
+       this->artificialParentRemoved = false;
        if (x < 0 || y < 0) {
            std::cout << "ERROR: Incorrect arguments addEdge " << x << " " << y << std::endl;
            return;
@@ -44,9 +44,23 @@
        if(t == this->adjLOutgoing[this->reverseMapping[x]].end()) {
            this->adjLOutgoing[this->reverseMapping[x]].push_back(this->reverseMapping[y]);  // Add to outgoing edges
            this->adjLIncoming[this->reverseMapping[y]].push_back(this->reverseMapping[x]);  // Add to incoming edges (for completeness) 
+           this->sizeE++;     // the edge itself (a duplicate is not added and not counted)
        }
        if(this->incoming[this->reverseMapping[y]] == 2) {
            this->incoming[this->reverseMapping[y]] = 1 ;
+           /*
+              y had only the artificial parent 0 and now has a real one: delete
+              the artificial edge 0->y. Otherwise the DFS from 0 keeps y's
+              subtree under 0 instead of moving it under x, and the
+              superbubble computation, which needs a DFS order, misses
+              superbubbles. Artificial edges to the sink 1 are kept: they do
+              not change the DFS tree (1 is the first vertex visited) and are
+              ignored by maxO.
+           */
+           this->adjLOutgoing[0].erase(this->sourcePos[this->reverseMapping[y]]);
+           this->adjLIncoming[this->reverseMapping[y]].remove(0);
+           this->sizeE--;
+           this->artificialParentRemoved = true;
        }
        else {
            this->incoming[this->reverseMapping[y]] = 1;
@@ -57,6 +71,8 @@
        */
        if(this->incoming[this->reverseMapping[x]] == 0 && this->reverseMapping[x]!=0) {
           this->adjLOutgoing[0].push_back(this->reverseMapping[x]);
+          if ((int)this->sourcePos.size() <= this->reverseMapping[x]) this->sourcePos.resize(this->reverseMapping[x] + 1);
+          this->sourcePos[this->reverseMapping[x]] = std::prev(this->adjLOutgoing[0].end());
           this->sizeE++;
           this->adjLIncoming[this->reverseMapping[x]].push_back(0);
           this->incoming[this->reverseMapping[x]] = 2 ;
@@ -135,7 +151,7 @@
        // Return a reference to the outgoing neighbors for consistency
        static const std::list<int> empty_list;  
 
-       if (x < 0 || x >= this->adjLOutgoing.size()) {  
+       if (x < 0 || x >= (int)this->adjLOutgoing.size()) {  
            return empty_list;
        }
         return this->adjLOutgoing[x];
@@ -149,7 +165,7 @@
    const std::list<int>& AdjacencyListGraph::getNeighboursIncoming(int x) const {
        static const std::list<int> empty_list;  
 
-       if (x < 0 || x >= this->adjLIncoming.size()) {  
+       if (x < 0 || x >= (int)this->adjLIncoming.size()) {  
            return empty_list;
        }
        return this->adjLIncoming[x];
@@ -173,7 +189,7 @@
    }
 
     int AdjacencyListGraph::getInDegree(int x) const {
-        if (x < 0 || x >= this->adjLIncoming.size()) {
+        if (x < 0 || x >= (int)this->adjLIncoming.size()) {
             std::cout << "ERROR: Node " << x << " not found" << std::endl;
             return -1;
         }
@@ -182,7 +198,7 @@
 
     int AdjacencyListGraph::getOutDegree(int x) const {
         
-        if (x < 0 || x >= this->adjLOutgoing.size()) {
+        if (x < 0 || x >= (int)this->adjLOutgoing.size()) {
             std::cout << "ERROR: Node " << x << " not found" << std::endl;
             return -1;
         }

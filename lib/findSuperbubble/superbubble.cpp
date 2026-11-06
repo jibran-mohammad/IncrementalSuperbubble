@@ -1,4 +1,5 @@
 #include"superbubble.h"
+#include<chrono>
 
     void SuperbubbleCalculation::computeSB(DFSCONTEXT *sdfs,GraphContext *g){
 	    int t1,t;
@@ -75,13 +76,22 @@
     }
 
     
-    void SuperbubbleCalculation::printSuperbubbles() {
+    // SB holds internal vertex ids; they are converted to input ids only for printing.
+    void SuperbubbleCalculation::printSuperbubbles(GraphContext *g) {
     	std::cout << "superbubbles of graph are" << std::endl;
     	for (pii element : this->SB) {
-            std::cout << "<"<<element.first <<" " << element.second <<">";
+            std::cout << "<"<<g->toOriginal(element.first) <<" " << g->toOriginal(element.second) <<">";
             std::cout << std::endl;
         }
         std::cout << std::endl;
+    }
+
+
+    // One superbubble per line, "<entrance> <exit>", in input ids.
+    void SuperbubbleCalculation::writeSuperbubbles(GraphContext *g, std::ostream &out) {
+        for (pii element : this->SB) {
+            out << g->toOriginal(element.first) << " " << g->toOriginal(element.second) << "\n";
+        }
     }
 
 
@@ -92,15 +102,27 @@
 
     void SuperbubbleCalculation::insertE(DFSCONTEXT *sdfs,GraphContext *g,int u, int v) {
     	sdfs->updateEdge(g,u,v);
+        #ifndef BENCHMARK
+        auto start = std::chrono::high_resolution_clock::now();
+        #endif
         this->SB.clear();
+        #ifndef BENCHMARK
+        this->clearTime = std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - start).count();
+        #endif
     }
  
-    /*
-    void SuperbubbleCalculation::insertBatch(DFSCONTEXT *sdfs, GraphContext *g) {
-	    sdfs->updateEdge(g);
+    // a batch of edges (input ids): the DFS strategy updates the order, minI
+    // and maxO once for all of them
+    void SuperbubbleCalculation::insertBatch(DFSCONTEXT *sdfs, GraphContext *g, const std::vector<std::pair<int,int>> &edges) {
+	    sdfs->updateEdgeBatch(g, edges);
+        #ifndef BENCHMARK
+        auto start = std::chrono::high_resolution_clock::now();
+        #endif
 	    this->SB.clear();
+        #ifndef BENCHMARK
+        this->clearTime = std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - start).count();
+        #endif
 	}
-	*/
 
 
 
