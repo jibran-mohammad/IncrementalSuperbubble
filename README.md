@@ -8,6 +8,112 @@ The pipeline is generally run in two phases:
 
 ---
 
+## 🧪 Testing the Artifact (for Reviewers)
+
+Two scripts reproduce the experiments of the paper. Run them from the
+repository root.
+
+### Requirements
+
+* Linux (x86-64), `git`, `make`, `g++` (C++11) and Python 3.8 or newer.
+* The Python packages, including BubbleGun:
+
+  ```Bash
+  python3 -m venv venv && source venv/bin/activate
+  pip install -r requirements.txt
+  ```
+* BubbleFinder 1.0.5. The scripts look for it at
+  `~/tools/bubblefinder-1.0.5/BubbleFinder`, or set
+  `BUBBLEFINDER=/path/to/BubbleFinder`:
+
+  ```Bash
+  mkdir -p ~/tools/bubblefinder-1.0.5 && cd ~/tools/bubblefinder-1.0.5 \
+    && wget https://github.com/algbio/BubbleFinder/releases/download/v1.0.5/BubbleFinder-linux-x86_64.tar.gz \
+    && tar xzf BubbleFinder-linux-x86_64.tar.gz && cd -
+  ```
+* For test 2 only: `curl`, `vg` (static binary from
+  https://github.com/vgteam/vg/releases), about 10 GB of free disk space
+  and 8 GB of memory.
+
+### Test 1: the small human graphs (`scripts/reviewerTest.py`)
+
+The five small graphs of the paper (chromosomes 11, 17, 18, 22 and X) are
+in `testdata/small/` (gzipped; base graph, haplotypes and the edge list of
+the updates). The script unpacks them and then:
+
+* runs **our algorithms** per edge and per batch: Simple (`static`), ImpDFS
+  (`incRecompute` / `incRecomputeBatch`), ImpDS (`incMinIBST` /
+  `incBSTBatch`), ImpSB (`incMinIBSTH1` / `incBSTBatchH2`), and per edge also
+  the data structures NBST (`incNormalBST`) and BST (`incBST`);
+* runs **BubbleGun** and **BubbleFinder** per batch;
+* prints the **tables** and writes them to `output/reviewer/small_tables.md`.
+  They show the total time per graph with the speedup over Simple, the time
+  of every step, minI/maxO for each data structure, the tools against our
+  algorithms (time and memory), and whether all our algorithms and the
+  tools find the same superbubbles in the final graph.
+
+```Bash
+python3 scripts/reviewerTest.py            # all five graphs: about 40 minutes
+python3 scripts/reviewerTest.py -c 22      # one graph only: a few minutes
+```
+
+**Per edge, the tools take hours.** BubbleGun and BubbleFinder cannot
+update a result. After every inserted edge they read and search the whole
+graph again, about 60,000 times for the five graphs. Per batch they run once
+per haplotype, which takes minutes. To also run the tools per edge (about
+4.5 hours for the five graphs; optional):
+
+```Bash
+python3 scripts/reviewerTest.py --tools-per-edge
+```
+
+Other options: `--runs N` (runs of each of our algorithms, averaged; default
+1, the paper used 30) and `--no-tools`. Absolute times depend on the machine;
+the speedups much less.
+
+### Test 2: the conversion of an HPRC graph into a DAG (`scripts/dagConversionTest.py`)
+
+This test checks how much the conversion of a Minigraph-Cactus graph into a
+DAG (`Preprocessing/mcToDag.py`) changes the superbubbles. It takes one
+chromosome of HPRC release 1.1 (44 samples, on GRCh38). The graph is too
+large for this repository, so the script downloads it from the HPRC bucket.
+The script then:
+
+* converts the graph into a DAG and reports what was removed;
+* finds the superbubbles of the original graph with BubbleFinder
+  (bidirected), and those of the DAG with our algorithm ImpSB after the last
+  haplotype;
+* as a check, also runs BubbleFinder on the DAG, which must give the same
+  superbubbles as ImpSB;
+* writes the tables to `output/reviewer/dag_conversion_chr<c>.md`.
+
+Choose the chromosome with `-c`:
+
+| `-c` | Download | Superbubbles of the original lost in the DAG |
+|---|---:|---:|
+| 22 | 0.94 GB | 1.16 % |
+| 18 | 1.51 GB | 0.00 % |
+| 17 | 1.54 GB | 0.82 % |
+| X  | 1.83 GB | 0.19 % |
+| 11 | 2.50 GB | 0.20 % |
+
+```Bash
+python3 scripts/dagConversionTest.py -c 22 --vg /path/to/vg
+```
+
+The download runs at about 1 MB/s (chr22: about 15 minutes); the rest takes
+a few minutes. Every other chromosome (1–22, X, Y) works the same way.
+
+### Data
+
+The small graphs were built with minigraph/minichain from assemblies of the
+Human Pangenome Reference Consortium (HPRC, Data Release 2) on the
+T2T-CHM13 reference. The HPRC graphs are the consortium's Minigraph-Cactus
+graphs (release 1.1 and 2.1, on GRCh38). We thank the HPRC for making these
+data publicly available.
+
+---
+
 ## 🏗️ Directory Structure
 
 The project uses the following directory structure, rooted at `IncSuperbubble/`:
@@ -25,6 +131,7 @@ The project uses the following directory structure, rooted at `IncSuperbubble/`:
 ├── requirements.txt
 ├── scripts
 ├── test
+├── testdata
 └── venv
 
 
@@ -66,7 +173,7 @@ The pipeline uses several external bioinformatics tools. These executables must 
 
 The workflow is divided into four phases. You must complete Phase 0 before running any other steps.
 
-Every script you run has a guide at the top of its file (HOW TO RUN, options, input and output files), and `python3 <script> --help` lists its options. Algorithm names are explained in [ALGORITHMS.md](ALGORITHMS.md); how the graphs, base graphs and updates are prepared (rules, checks, dataset numbers) is described in [GRAPH_PREPARATION.md](GRAPH_PREPARATION.md); how the algorithm is compared with external tools such as BubbleGun (what is timed, memory, agreement, how to read the speedup, which older results are not comparable) in [COMPARISON_METHOD.md](COMPARISON_METHOD.md).
+Every script you run has a guide at the top of its file (HOW TO RUN, options, input and output files), and `python3 <script> --help` lists its options.
 
 ### Phase 0: External Tool Setup (One-Time)
 This step ensures that the required external bioinformatics tools (vg, mash, minichain, minigraph) are present in the correct locations for the preprocessing scripts to function.
@@ -111,7 +218,7 @@ This step handles C++ compilation via the Makefile and executes the algorithms o
 
 **Script location: scripts/superbubbleRunner.py**
 
-**Available Algorithms: `static`, `incRecompute`, `incNormalBST`, `incBST`, `incMinIBST`, `incBSTBatch`.** Each ID is also the source file (`algorithms/<ID>.cpp`), make target, binary (`test/<ID>`) and timing file (`<ID>_time.txt`); see [ALGORITHMS.md](ALGORITHMS.md) for what each one does.
+**Available Algorithms: `static`, `incRecompute`, `incNormalBST`, `incBST`, `incMinIBST`, `incBSTBatch`.** Each ID is also the source file (`algorithms/<ID>.cpp`), make target, binary (`test/<ID>`) and timing file (`<ID>_time.txt`).
 
 `incBSTBatch` only runs in `perBatch` mode; it is skipped automatically in `perEdge` mode. Each algorithm is run 100 times (`NUM_RUNS` in `superbubbleRunner.py`) and the timings are averaged, so large datasets take a long time.
 
@@ -204,7 +311,7 @@ months for the human chromosomes).
 **0. Code and data**
 
 ```Bash
-git pull                      # branch repo-new-track
+git pull                      # branch main
 source venv/bin/activate
 pip install -r requirements.txt
 ```
@@ -219,8 +326,7 @@ want the old ones.
 
 Regenerates `reduced_graph.gfa`, `unique_elements.txt`,
 `ordered_haplotypes.txt`, `numeric_edgelist.txt` and
-`haplotype_removal_report.txt` (rules and checks:
-[GRAPH_PREPARATION.md](GRAPH_PREPARATION.md)). One command does this for
+`haplotype_removal_report.txt`. One command does this for
 E. coli and every human chromosome that has a graph:
 
 ```Bash
@@ -339,9 +445,7 @@ python3 Preprocessing/parse_to_csv.py -d hprc2 -c 22 -m perbatch
 
 On a graph of this size only the **best algorithm** is compared with
 BubbleGun, with **one run** each, and BubbleGun perEdge is **sampled**
-(`--every`): the method, its validation and suggested wording for the
-paper are in [COMPARISON_METHOD.md](COMPARISON_METHOD.md), section 7.
-For one mode (`perEdge` / `perEdge` dir, or `perBatch` / `perbatch` dir):
+(`--every`). For one mode (`perEdge` / `perEdge` dir, or `perBatch` / `perbatch` dir):
 
 ```Bash
 # a + b. incMinIBST, one run each, one after the other (perEdge: ~1 day each):

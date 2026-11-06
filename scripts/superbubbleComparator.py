@@ -150,12 +150,12 @@ def find_repo_root(start_path: pathlib.Path, repo_name: str) -> pathlib.Path:
 
     while current_dir != current_dir.parent:
 
-        if current_dir.name == repo_name:
+        if current_dir.name == repo_name or ((current_dir / "scripts").is_dir() and (current_dir / "Preprocessing").is_dir()):  # any clone name
             return current_dir
 
         current_dir = current_dir.parent
 
-    if current_dir.name == repo_name:
+    if current_dir.name == repo_name or ((current_dir / "scripts").is_dir() and (current_dir / "Preprocessing").is_dir()):  # any clone name
         return current_dir
 
     raise FileNotFoundError(

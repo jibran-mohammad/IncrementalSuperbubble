@@ -84,12 +84,12 @@ def find_repo_root(start_path: pathlib.Path, repo_name: str) -> pathlib.Path:
 
     # Loop until we hit the filesystem root (where parent == self)
     while current_dir != current_dir.parent:
-        if current_dir.name == repo_name:
+        if current_dir.name == repo_name or ((current_dir / "scripts").is_dir() and (current_dir / "Preprocessing").is_dir()):  # any clone name
             return current_dir  # Found it!
         current_dir = current_dir.parent
 
     # Final check in case the root directory itself is the repo_name
-    if current_dir.name == repo_name:
+    if current_dir.name == repo_name or ((current_dir / "scripts").is_dir() and (current_dir / "Preprocessing").is_dir()):  # any clone name
         return current_dir
 
     # If we get here, we've hit the filesystem root and found nothing

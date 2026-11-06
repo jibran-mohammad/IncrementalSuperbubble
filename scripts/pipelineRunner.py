@@ -115,7 +115,7 @@ def find_repo_root(start_path, repo_name="IncSuperbubble"):
     current = start_path.resolve()
 
     while current != current.parent:
-        if current.name == repo_name:
+        if current.name == repo_name or ((current / "scripts").is_dir() and (current / "Preprocessing").is_dir()):  # any clone name
             return current
         current = current.parent
 
