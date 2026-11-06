@@ -14,8 +14,9 @@ makeOverleaf.py - builds the Overleaf folder with every table of the paper.
         toolComparison/<tool>/ tables of Preprocessing/toolComparisonToLatex.py
     output/overleaf_tables.zip the same folder, to upload
 
-<mode> = perEdge, perBatch (11 datasets), perEdgeHPRC, perBatchHPRC (HPRC
-chromosomes), perBatchHPRC2 (HPRC release 2 chr22).
+<mode> = <class><Mode>: the class of datasets (small = human chr11, 17, 18,
+22, X; medium = HPRC release 1, the same chromosomes; large = HPRC release 2
+chr22) and perEdge, perBatch or History (tables of historyTables.py).
 Every tabular is wrapped in an adjustbox (never wider than the text; the
 large full-time table also not higher than the page), so the preamble needs
 \\usepackage{adjustbox}. Labels of the detailed tables get the mode as
@@ -48,23 +49,55 @@ TABLES = DEST / "tables"
 #   TOOL_DIRS = ["bubblegun", "bubblefinder", "bubblegun_hprc22", "bubblefinder_hprc22",
 #                "bubblegun_hprc22_H1", "bubblefinder_hprc22_H1"]
 DETAILED = []
-PAPER = [("perEdge", OUT / "paperTables" / "perEdge"),
-         ("perBatch", OUT / "paperTables" / "perBatch"),
-         ("perEdgeHPRC", OUT / "paperTables" / "perEdge_HPRC"),
-         ("perBatchHPRC", OUT / "paperTables" / "perBatch_HPRC"),
-         ("perBatchHPRC2", OUT / "paperTables" / "perBatch_HPRC2")]
+# the three classes of datasets, each with its own tables and plots
+CLASSES = [("small", "small datasets: human chr11, chr17, chr18, chr22, chrX"),
+           ("medium", "medium datasets: HPRC release 1, chr11, chr17, chr18, chr22, chrX"),
+           ("large", "large dataset: HPRC release 2, chr22")]
+PAPER = [(f"{c}{m[0].upper()}{m[1:]}", OUT / "paperTables" / c / m)
+         for c, _ in CLASSES for m in ("perEdge", "perBatch", "history")]
+# the dataset table (haplotypes, nodes, edges; small / medium / large) comes first
+PAPER.insert(0, ("datasets", OUT / "paperTables" / "datasets"))
+# the long time table in three dataset groups (small / medium / large), perEdge and perBatch;
+# it replaces the long tables of the classes (table_full_time)
+PAPER.insert(1, ("grouped", OUT / "paperTables" / "grouped"))
+# the DAG conversion: BubbleFinder on the original graphs and on the DAGs (HPRC)
+PAPER.insert(2, ("dag", OUT / "paperTables" / "dag"))
+# medium perEdge: the long table only for chr22, where (nearly) every algorithm finished
+PAPER.insert(PAPER.index(("mediumPerEdge", OUT / "paperTables" / "medium" / "perEdge")) + 1,
+             ("mediumPerEdgeChr22", OUT / "paperTables" / "medium" / "perEdge_chr22"))
 TOOL_DIRS = []
-MODE_TITLE = {"perEdge": "perEdge, 11 datasets", "perBatch": "perBatch, 11 datasets",
-              "perEdgeHPRC": "perEdge, HPRC chromosomes", "perBatchHPRC": "perBatch, HPRC chromosomes",
-              "perBatchHPRC2": "perBatch, HPRC release 2 chr22"}
+MODE_TITLE = {f"{c}{m[0].upper()}{m[1:]}": f"{text}; {m}" for c, text in CLASSES
+              for m in ("perEdge", "perBatch", "history")}
+MODE_TITLE["grouped"] = "long time tables: small / medium / large datasets in one table, perEdge and perBatch"
+MODE_TITLE["dag"] = "the DAG conversion: superbubbles of the original graphs and of the converted DAGs"
+MODE_TITLE["datasets"] = "datasets: haplotypes and graph size, small / medium / large"
+MODE_TITLE["mediumPerEdgeChr22"] = "medium datasets: HPRC release 1, chr22 only; perEdge"
+# history figures (output/plots/history/<class>/), by the end of the file name
+HISTORY_TEXT = {
+    "growth": "Superbubbles alive, cumulative born (new sites: containing a vertex the haplotype added), "
+              "cumulative promoted (an existing region became a superbubble) and cumulative died, against "
+              "the number of haplotypes added; only superbubbles with at least one inside vertex (the base "
+              "graph, the reference path, has none)",
+    # new_sites (new sites per genome by superpopulation) is left out: the genomes are added in
+    # population blocks, so the comparison mostly reflects the position in the order
+    "var_types": "Variant type of the final superbubbles, untouched vs touched by the DAG normalization, as "
+                 "shares of each group (number of superbubbles above each bar)",
+    # edge_destroyed (superbubbles destroyed per inserted edge along the reference) is left out:
+    # nearly every edge destroys one, the plot has no visible pattern; the numbers are in
+    # table_edge_history
+}
 
-# plots: (folder in the Overleaf project, source folder of output/plots, mode text)
-FIGURE_SETS = [("perEdge", OUT / "plots" / "perEdge", "perEdge"),
-               ("perBatch", OUT / "plots" / "perBatch", "perBatch"),
-               ("perBatchHPRC", OUT / "plots" / "perBatch" / "HPRC", "perBatch, HPRC")]
+# plots in the appendix: only the comparison plots (output/plots/comparison,
+# all datasets in one plot). The per-dataset plots are left out; to include
+# them again, add their sets here as
+#   (folder in the Overleaf project, source folder of output/plots, mode text), e.g.
+#   ("perEdge", OUT / "plots" / "perEdge", "perEdge"),
+#   ("perBatch", OUT / "plots" / "perBatch", "perBatch"),
+#   ("perBatchHPRC", OUT / "plots" / "perBatch" / "HPRC", "perBatch, HPRC")
+FIGURE_SETS = []
 FIGURE_WIDTH = 1600          # pixels: enough for the text width, keeps the project small
 PLOT_TEXT = {
-    "total_time_line": "Total time of every update (perEdge: an edge, perBatch: a genome) for every algorithm (log scale)",
+    "total_time_line": "Total time of every update (perEdge: an edge, perBatch: a haplotype) for every algorithm (log scale)",
     "total_time_bar": "Total time of every algorithm, summed over all updates",
     "components": "Time of every step (UpdateDS, DFS, TopoOrder, MinI, MaxO, SBCompute) over the updates, one panel per step (log scale)",
     "stacked_breakdown": "The first updates, every bar split into the time of the steps (right panel: algorithms below 1/20 of the largest, own scale)",
@@ -95,9 +128,9 @@ def dataset_order(name):
 
 
 def build_figures():
-    """copy (shrunk) every plot into figures/ and write appendix_figures.tex"""
+    """copy (shrunk) the plots into figures/ and write appendix_figures.tex"""
     FIG = DEST / "figures"
-    lines = ["% Appendix with ALL plots (generated by Preprocessing/makeOverleaf.py), shrunk to",
+    lines = ["% Appendix with the comparison plots (generated by Preprocessing/makeOverleaf.py), shrunk to",
              f"% {FIGURE_WIDTH} px width. Include after the tables:  \\input{{tables/appendix_figures}}",
              "% Needs \\usepackage{graphicx}. Move a plot into the text by cutting its figure block.", ""]
     count = 0
@@ -111,23 +144,69 @@ def build_figures():
         if count % 2 == 0:
             lines.append(r"\clearpage")
 
-    comp = sorted((OUT / "plots" / "comparison").glob("*.png"))
-    if comp:
-        lines += [r"\section{Plots: all datasets in one plot}", ""]
+    for cls, cls_text in CLASSES:
+      comp = sorted((OUT / "plots" / "comparison" / cls).glob("*.png"))
+      hist = sorted((OUT / "plots" / "history" / cls).glob("*.png"))
+      if comp or hist:
+        lines += [rf"\section{{Plots: {cls_text}}}", ""]
+      for f in hist:
+        kind = next((k for k in HISTORY_TEXT if f.stem.endswith(k)), None)
+        if kind is None:
+            continue
+        shrink(f, FIG / "history" / cls / f.name)
+        figure(f"figures/history/{cls}/{f.name}", f"{HISTORY_TEXT[kind]} ({cls_text}).",
+               f"fig:history:{cls}:{f.stem}")
+      if comp:
         for f in comp:
-            shrink(f, FIG / "comparison" / f.name)
+            shrink(f, FIG / "comparison" / cls / f.name)
             mode = "perEdge" if "_perEdge_" in f.name else "perBatch"
             sets = f.stem.split(f"_{mode}_", 1)[-1]
             # a tag at the end (plotChromosomeComparison.py --tag): the data
             # structures for minI / maxO get their own caption
             subject = "one bar per algorithm"
-            if sets.endswith("_datastructures"):
+            if sets.endswith("_scaling") and mode == "perBatch":
+                figure(f"figures/comparison/{cls}/{f.name}",
+                       "Total time against the number of inserted edges over all haplotypes, HPRC release 1 "
+                       "chromosomes and release 2 chr22 (chr22 v2); all points measured. Left: our algorithms "
+                       "(static, BRec, Batch, BatchH1) on a linear axis; right: BubbleGun and BubbleFinder on a "
+                       "logarithmic axis, with BatchH1 as the reference. Our algorithms: sum of the timed "
+                       "steps; the tools: reading the graph and finding the bubbles after every haplotype. "
+                       "The time limit (dashed line) is not reached by any of them.",
+                       f"fig:comparison:{cls}:{f.stem}")
+            if sets.endswith("_scaling"):
+                figure(f"figures/comparison/{cls}/{f.name}",
+                       "Total time of the per-edge algorithms (log scale, sum of the timed steps) against the "
+                       "number of inserted edges, HPRC release 1 chromosomes and release 2 chr22 (chr22 v2). "
+                       "Filled: measured; hollow: static on release 2 as a lower bound: its measured time on "
+                       "release 1 chr22 scaled by the graph size summed over the edge updates (static processes "
+                       "the whole graph after every edge). No point: did not finish within the time limit "
+                       "(dashed line). Only H1 finishes on every dataset. H1 spends 91--94\\% of its time on the "
+                       "full recomputations of the superbubbles; an edge that goes against the order (case 4) "
+                       "almost always forces one (98.7\\% on release 1 chr22), and only 5.9\\% of the edges of "
+                       "release 2 are of this kind, against 17--21\\% on release 1. That is why release 2 chr22 "
+                       "(3.3 million edges) takes less time than release 1 chr11 (2.7 million) and chrX "
+                       "(2.4 million).", f"fig:comparison:{cls}:{f.stem}")
+                continue
+            if sets.endswith("_finished"):
+                sets = sets[:-len("_finished")]
+                subject = ("one bar per algorithm that finished on this dataset within the time limit (the "
+                           "others are DNF, see the tables)")
+            elif sets.endswith("_algorithms"):
+                sets = sets[:-len("_algorithms")]
+                subject = ("one bar per algorithm: static, the recomputation of minI / maxO (Rec), the "
+                           "modified tree for minI (MinI) and the superbubble heuristic (H1)")
+            elif sets.endswith("_trees"):
+                sets = sets[:-len("_trees")]
+                subject = ("one bar per data structure for minI and maxO, with all steps: static, normal "
+                           "balanced binary search trees keyed by position (NBST), modified trees comparing "
+                           "by the current positions (BST), modified tree for minI and maxO by comparison (MinI)")
+            elif sets.endswith("_datastructures"):
                 sets = sets[:-len("_datastructures")]
                 subject = ("one bar per data structure for minI and maxO, only the time of maintaining "
                            "minI and maxO (the other steps are the same in all three: the same incremental "
                            "DFS and superbubble computation). NBST = normal balanced binary search trees "
                            "keyed by position, BST = modified trees comparing by the current positions "
-                           "(minI and maxO), MinI = modified tree for minI and maxO by comparison. Lower "
+                           "(minI and maxO), MinI = modified tree for minI and maxO by comparison. Zoom "
                            "panel: BST and MinI on their own scale")
             m = re.match(r"(HPRC|small|mixed)_(\d+)datasets$", sets)
             if m:   # short file name: describe the group
@@ -135,11 +214,14 @@ def build_figures():
                         "small": f"the {m.group(2)} small datasets (E. coli and human chromosomes)",
                         "mixed": f"{m.group(2)} datasets"}[m.group(1)]
             else:
-                sets = sets.replace("_", ", ").replace("HPRCchr", "HPRC chr")
+                sets = sets.replace("_", ", ").replace("HPRCchr", "HPRC chr").replace("HPRCv2chr", "HPRC v2 chr")
             what = "Time of minI and maxO" if f.stem.endswith("_datastructures") else "Time of every step"
-            figure(f"figures/comparison/{f.name}",
+            dnf = (" A bar marked DNF: the run was not started because it was estimated to exceed the "
+                   "time limit." if cls == "medium" and mode == "perEdge" else "")
+            figure(f"figures/comparison/{cls}/{f.name}",
                    f"{what} summed over all updates ({mode}), one group of bars per dataset "
-                   f"({sets}), {subject}.", f"fig:comparison:{f.stem}")
+                   f"({sets}), {subject}.{dnf}", f"fig:comparison:{cls}:{f.stem}")
+      if comp or hist:
         lines.append(r"\clearpage")
 
     for key, src, mode_text in FIGURE_SETS:
@@ -177,6 +259,32 @@ PAPER_TEXT = {
     "table_edge_processed": "edges explored / affected vs what static processes",
     "table_tool_bubblegun": "BubbleGun vs our algorithms (wall time, speedup = tool / algorithm)",
     "table_tool_bubblefinder": "BubbleFinder vs our algorithms (wall time, speedup = tool / algorithm)",
+    "table_datastructures": "minI / maxO data structures: NBST vs BST vs MinI",
+    "table_tools": "BubbleGun as reference: BubbleFinder, static and the best algorithm, speedup over BubbleGun",
+    "table_full_time": "time of every step per dataset (one block per step), speedup over static",
+    "table_full_time_edge": "long time table, perEdge: small / medium / large datasets, every step, speedup over static",
+    **{f"table_{slug}_{m}": f"{name} time, {'perEdge' if m == 'edge' else 'perBatch'}: small / medium / large "
+       f"datasets, static against the final algorithm" + (" (and the BST variant)" if slug == "maxo" else "")
+       for slug, name in (("insert", "Insert"), ("dfs", "DFS"), ("toporder", "Top. Order"), ("mini", "MinI"),
+                          ("maxo", "MaxO"), ("sbcompute", "SBCompute"), ("total", "Total")) for m in ("edge", "batch")},
+    "table_full_time_batch": "long time table, perBatch: small / medium / large datasets, every step, speedup over static",
+    "table_full_time_trees": "the same for the minI / maxO data structures: static, NBST, BST, MinI",
+    "table_size": "datasets: haplotypes, base and final graph size",
+    "table_dag_vs_original": "BubbleFinder on the original graphs and on the DAGs: superbubbles in both, only in each, touched sites",
+    "table_datasets": "dataset table: haplotypes, total nodes and edges, small / medium / large",
+    "table_memory_edge": "peak memory, perEdge: small / medium / large datasets, every algorithm, ratio to static",
+    "table_memory_batch": "peak memory, perBatch: small / medium / large datasets, every algorithm, ratio to static",
+    "table_tools_edge": "tools, perEdge: BubbleGun as reference, BubbleFinder, static and our algorithms, speedup over BubbleGun",
+    "table_tools_batch": "tools, perBatch: BubbleGun as reference, BubbleFinder, static and our algorithms, speedup over BubbleGun",
+    "table_step_UpdateDS": "time of UpdateDS per dataset, speedup over static",
+    "table_step_DFS": "time of the DFS per dataset, speedup over static",
+    "table_step_TopoOrder": "time of the topological order per dataset, speedup over static",
+    "table_step_MinI": "time of minI per dataset, speedup over static",
+    "table_step_MaxO": "time of maxO per dataset, speedup over static",
+    "table_step_SBCompute": "time of the superbubble computation per dataset, speedup over static",
+    "table_history_summary": "superbubble history per haplotype: base, born, promoted, died, final, DAG-affected",
+    "table_history_var_types": "variant types of the final superbubbles",
+    "table_edge_history": "superbubble history per edge, by case of the incremental DFS",
 }
 
 
@@ -191,6 +299,68 @@ def convert(src, dst, prefix=None, tall=False):
         s = re.sub(r"\\(label|ref)\{tab:", lambda m: f"\\{m.group(1)}{{tab:{prefix}:", s)
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(s)
+
+
+# tables not copied; they stay in output/paperTables and their captions in
+# table_captions.md: the per-step tables (each a block of table_full_time).
+# The two total-time tables (per dataset: table_dataset_summary; per step:
+# table_component_summary) are always kept. Where most runs did not finish
+# (medium and large perEdge) the long table is left out too; the long table of
+# medium perEdge is the one of chr22 alone (mediumPerEdgeChr22, of which only
+# that table is copied).
+LEFT_OUT = ("table_step_",)
+DNF_MODES = ("mediumPerEdge", "largePerEdge")
+
+
+def is_left_out(mode, stem):
+    if stem == "table_full_time":
+        return True                                     # replaced by the grouped long tables
+    if mode != "grouped" and stem in ("table_vertex_processed", "table_edge_processed", "table_tools",
+                                      "table_memory"):
+        return True                                     # replaced by the grouped tables (perEdge and perBatch)
+    if mode == "mediumPerEdgeChr22":
+        return stem != "table_full_time_trees"
+    if mode in DNF_MODES:
+        return stem.startswith(("table_step_", "table_full_time"))
+    return stem.startswith(LEFT_OUT)
+
+
+def caption_of(path):
+    """the caption text of a table file (the braces of \\caption{...} balanced)"""
+    s = path.read_text()
+    i = s.find(r"\caption{")
+    if i < 0:
+        return ""
+    i += len(r"\caption{")
+    depth, j = 1, i
+    while j < len(s) and depth:
+        depth += {"{": 1, "}": -1}.get(s[j], 0)
+        j += 1
+    return s[i:j - 1].strip()
+
+
+def write_captions(captions):
+    """table_captions.md: every paper table of every class and mode with its
+    file, label, whether it is in the Overleaf folder, and its caption"""
+    lines = ["# Captions of all paper tables", "",
+             "Generated by Preprocessing/makeOverleaf.py. Every table of output/paperTables, also the ones "
+             "left out of the Overleaf folder: the per-step tables (each a block of table_full_time); in "
+             "medium and large "
+             "perEdge, where most runs did not finish, the long table instead (medium: the long table of chr22 "
+             "alone is in). A left-out table is still in output/paperTables/<class>/<mode>/.",
+             ""]
+    for mode in [m for m, _ in PAPER]:
+        rows = [c for c in captions if c[0] == mode]
+        if not rows:
+            continue
+        lines += [f"## {MODE_TITLE[mode]}", ""]
+        for _, f, left_out in rows:
+            lines += [f"### {f.stem}" + ("  (left out of Overleaf)" if left_out else ""), "",
+                      f"- file: `{f.relative_to(REPO)}`", f"- label: `{label_of(f)}`",
+                      f"- what: {PAPER_TEXT.get(f.stem, f.stem)}", "", caption_of(f), ""]
+    text = "\n".join(lines) + "\n"
+    (DEST / "table_captions.md").write_text(text)
+    (OUT / "paperTables" / "CAPTIONS.md").write_text(text)
 
 
 def label_of(path):
@@ -214,15 +384,21 @@ def main():
             convert(f, TABLES / mode / f.name, prefix=mode, tall=f.stem == "table_full_time")
             present.setdefault(mode, set()).add(f.stem)
 
-    # paper tables
-    paper = []
+    # paper tables (without the ones contained in table_full_time); every
+    # caption, also of the left-out tables, goes into table_captions.md
+    paper, captions = [], []
     for mode, src in PAPER:
         if not src.is_dir():
             continue
         for f in sorted(src.glob("*.tex")):
+            left_out = is_left_out(mode, f.stem)
+            captions.append((mode, f, left_out))
+            if left_out:
+                continue
             dst = TABLES / "paper" / mode / f.name
             convert(f, dst)
             paper.append((mode, f.stem, label_of(dst)))
+    write_captions(captions)
 
     # tool comparison tables
     tools = []

@@ -78,7 +78,8 @@ ALGORITHMS = {
     "incMinIBSTH1": "incMinIBSTH1",
     "incRecomputeBatch": "incRecomputeBatch",
     "incBSTBatch": "incBSTBatch",
-    "incBSTBatchH1": "incBSTBatchH1"
+    "incBSTBatchH1": "incBSTBatchH1",
+    "incBSTBatchH2": "incBSTBatchH2"
 }
 
 # Names shown in table headers (IDs and meanings: see ALGORITHMS.md)
@@ -92,6 +93,7 @@ DISPLAY_NAMES = {
     "incRecomputeBatch": "Inc-Recompute-Batch",
     "incBSTBatch": "Inc-BST-Batch",
     "incBSTBatchH1": "Inc-BST-Batch-H1",
+    "incBSTBatchH2": "Inc-BST-Batch-H2",
 }
 
 
@@ -108,6 +110,7 @@ SHORT_NAMES = {
     "incRecomputeBatch": "BRec",
     "incBSTBatch": "Batch",
     "incBSTBatchH1": "BatchH1",
+    "incBSTBatchH2": "BatchH2",
 }
 SHORT_BY_DISPLAY = {DISPLAY_NAMES[a]: SHORT_NAMES[a] for a in SHORT_NAMES}
 # other long headers / words in headers
@@ -176,7 +179,7 @@ TIME_NOTE = ("Times: sum of the per-update times measured inside each program (n
 STEP_MEANING = {
     "UpdateDS": ("updating the graph and the data structures for the new edges (inserting the edge, "
                  "classifying it; static: also clearing the arrays for the DFS, after every edge in perEdge, "
-                 "once per genome in perBatch)"),
+                 "once per haplotype in perBatch)"),
     "DFS": "repairing the order (searches of the incremental DFS; static: the full DFS)",
     "TopoOrder": "writing the new positions of the topological order",
     "MinI": "updating minI (earliest parent of every vertex)",
@@ -485,7 +488,7 @@ def build_batch_table(csv_paths: list):
             continue
         name = infer_dataset_name_from_path(path)
         g = len(df)
-        row = {"Dataset": name, "Genomes": str(g)}
+        row = {"Dataset": name, "Haplotypes": str(g)}
         for col, label in BATCH_TABLE_COLUMNS:
             c = f"incBSTBatch{col}"
             if c in df.columns and g:
@@ -714,8 +717,8 @@ def build_activity_table(csv_paths: list):
     labels = ["Edge-by-edge"] + (["Batch"] if mode == "perBatch" else [])
     for r in rows:
         if mode == "perBatch" and "Updates" in r:
-            r["Genomes"] = r.pop("Updates")
-    columns = ["Dataset", "Genomes" if mode == "perBatch" else "Updates", "Mean V", "Mean E"]
+            r["Haplotypes"] = r.pop("Updates")
+    columns = ["Dataset", "Haplotypes" if mode == "perBatch" else "Updates", "Mean V", "Mean E"]
     for what in ["Affected V", "Affected E", "Explored V", "Explored E"]:
         columns += [f"{what} {l}" for l in labels]
     return pd.DataFrame(rows), columns, mode, algos_used
@@ -808,8 +811,8 @@ def build_activity_totals(csv_paths: list, what: str):
         {"Dataset": "Ratio (Affected / Explored)"},
         {"Dataset": f"Static per edge ($\\sum$ {label})"},
         {"Dataset": "Ratio (Static per edge / Explored)"},
-        {"Dataset": f"Static per genome ($\\sum$ {label})"},
-        {"Dataset": "Ratio (Static per genome / Explored)"},
+        {"Dataset": f"Static per haplotype ($\\sum$ {label})"},
+        {"Dataset": "Ratio (Static per haplotype / Explored)"},
     ]
     for name, (explored, affected, per_edge, per_genome) in cols.items():
         rows[0][name] = big_number(explored) if explored is not None else "-"
@@ -867,7 +870,7 @@ def build_full_time_table(csv_paths: list, out_tex: str, mode: str):
                              + f" & {sp(compute_speedup(totals['static'], totals[a]))}" + r" \\")
             lines.append(r"\hline")
         lines.append(r"\hline")
-    mode_text = "all edge updates (perEdge)" if mode == "perEdge" else "all genomes (perBatch)"
+    mode_text = "all edge updates (perEdge)" if mode == "perEdge" else "all haplotypes (perBatch)"
     caption = (f"Time (s) of every step, summed over {mode_text}, per dataset and in total; "
                "below each algorithm its speedup = static / algorithm. " + TIME_NOTE
                + abbreviation_note([SHORT_NAMES.get(a, a) for a in algos]))
@@ -1020,10 +1023,10 @@ def main():
         if not batch_df.empty:
             generate_latex_table(
                 batch_df,
-                columns=["Dataset", "Genomes"] + [l for _, l in BATCH_TABLE_COLUMNS],
-                caption=("What the batch algorithm does per genome: total over all genomes and, in "
-                         "brackets, the mean per genome. Reorder rounds: one for the backward edges "
-                         "of a genome (if it has any) plus one per adoption of an old source."),
+                columns=["Dataset", "Haplotypes"] + [l for _, l in BATCH_TABLE_COLUMNS],
+                caption=("What the batch algorithm does per haplotype: total over all haplotypes and, in "
+                         "brackets, the mean per haplotype. Reorder rounds: one for the backward edges "
+                         "of a haplotype (if it has any) plus one per adoption of an old source."),
                 label="tab:batch",
                 out_tex=os.path.join(args.outdir, "table_batch.tex"))
 
@@ -1031,12 +1034,12 @@ def main():
     act_df, act_cols, act_mode, act_algos = build_activity_table(csv_paths)
     shown = ", ".join(DISPLAY_NAMES.get(x, x) for x in act_algos) or "-"
     if act_mode == "perBatch":
-        act_caption = ("Part of the graph touched per genome, on average: affected = reordered "
+        act_caption = ("Part of the graph touched per haplotype, on average: affected = reordered "
                        "positions, explored = vertices reached by the searches, as vertices (V) and "
-                       "edges (E, their out-degrees); mean per genome and, in brackets, its share of "
+                       "edges (E, their out-degrees); mean per haplotype and, in brackets, its share of "
                        "the mean graph size (Mean V, Mean E). Edge-by-edge, the work of all edges of a "
-                       "genome is added up and can exceed 100\\% (the same regions are reordered "
-                       f"repeatedly); the batch algorithm reorders once per genome. Algorithms: {shown}.")
+                       "haplotype is added up and can exceed 100\\% (the same regions are reordered "
+                       f"repeatedly); the batch algorithm reorders once per haplotype. Algorithms: {shown}.")
     else:
         act_caption = ("Part of the graph touched per edge update, on average: affected = reordered "
                        "positions, explored = vertices reached by the search, as vertices (V) and "
@@ -1061,14 +1064,14 @@ def main():
         tot_df, tot_cols, tot_algo = build_activity_totals(csv_paths, what)
         if tot_algo is None:
             continue
-        who = ("the batch algorithm (perBatch, once per genome)" if tot_algo == "incBSTBatch"
+        who = ("the batch algorithm (perBatch, once per haplotype)" if tot_algo == "incBSTBatch"
                else "the edge-by-edge algorithms (perEdge; all give the same counts)")
         unit = "vertices" if what == "V" else "edges (the out-degrees of those vertices)"
         generate_latex_table(
             tot_df, tot_cols,
             caption=(f"Total {word} touched, summed over all updates, by {who}: Explored = {unit} "
                      "reached by the searches, Affected = positions reordered. Static per edge / per "
-                     f"genome = the graph's {word} summed over the edge updates / over the genomes, i.e. "
+                     f"haplotype = the graph's {word} summed over the edge updates / over the haplotypes, i.e. "
                      "what static processes in perEdge / perBatch mode. Ratios: relative to Explored. "
                      "M = million, B = billion."),
             label=f"tab:activity_totals_{word}",

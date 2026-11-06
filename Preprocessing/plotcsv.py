@@ -67,7 +67,7 @@ import argparse
 # developed (legends, bars); each plot shows those present in the CSV
 # (select_algorithms), e.g. incBSTBatch only in perBatch
 ALL_ALGORITHMS = ["static", "incRecompute", "incNormalBST", "incBST", "incMinIBST", "incMinIBSTH1",
-                  "incRecomputeBatch", "incBSTBatch", "incBSTBatchH1"]
+                  "incRecomputeBatch", "incBSTBatch", "incBSTBatchH1", "incBSTBatchH2"]
 ALGORITHMS = list(ALL_ALGORITHMS)
 
 # Names shown in legends (IDs and meanings: see ALGORITHMS.md)
@@ -81,6 +81,7 @@ DISPLAY_NAMES = {
     "incRecomputeBatch": "Inc-Recompute-Batch",
     "incBSTBatch": "Inc-BST-Batch",
     "incBSTBatchH1": "Inc-BST-Batch-H1",
+    "incBSTBatchH2": "Inc-BST-Batch-H2",
 }
 
 # short labels under the bars of the stacked breakdown plots
@@ -94,6 +95,7 @@ SHORT_NAMES = {
     "incRecomputeBatch": "BRec",
     "incBSTBatch": "Batch",
     "incBSTBatchH1": "BatchH1",
+    "incBSTBatchH2": "BatchH2",
 }
 
 COMPONENT_SUFFIX = {
@@ -132,6 +134,7 @@ VERSION_STYLES = {
     'incRecomputeBatch':{'color': 'darkcyan', 'marker': '*', 'linestyle': ':', 'linewidth': 0.7, 'markersize': 2},
     'incBSTBatch':{'color': 'saddlebrown', 'marker': 'x', 'linestyle': '--',  'linewidth': 0.7, 'markersize': 2},
     'incBSTBatchH1':{'color': 'black', 'marker': '+', 'linestyle': '-.', 'linewidth': 0.7, 'markersize': 2},
+    'incBSTBatchH2':{'color': 'green', 'marker': 'x', 'linestyle': '-.', 'linewidth': 0.7, 'markersize': 2},
 }
 
 def build_plot_filename(dataset, mode, scale, plot_type):

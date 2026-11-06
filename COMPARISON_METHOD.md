@@ -185,6 +185,62 @@ Suggested wording:
 > the tools (up to 621x) show the gain over the current practice of
 > re-running a static tool.
 
+### How the DNF entries were decided (note for the paper)
+
+A run that was not started is DNF by a lower bound. Static, Rec, NBST, BST and
+MinI process the whole graph after every edge (a full DFS for static, and all
+of them recompute every superbubble and clear the superbubble list), so their
+work is proportional to the graph size summed over the edge updates,
+Sigma(V+E) (from the H1 time files). Their time on a dataset is therefore at
+least their measured time on HPRC release 1 chr22 times the ratio of
+Sigma(V+E): the time per processed vertex / edge does not fall on a larger
+graph, it rises (more cache misses). Checked on every run of these algorithms
+that finished (bound / measured):
+
+| Run | bound / measured |
+|---|---|
+| BST chr18, chr17 | 0.82, 0.73 |
+| MinI chr18 | 0.78 |
+
+So the bound was 18-27% below the measured time (the measured runs took 22-37% more than the bound). Every DNF by this bound
+exceeds the 2-day limit (static: 129-355 h; Rec: 74-203 h; BST / MinI chr11:
+61 / 68 h; MinI chrX: 52 h). BST on chrX (bound 47.2 h), MinI on chr17 and
+BST / MinI on release 2 were run up to the limit instead (measured).
+
+H1 is not part of this: it updates only the changed region, its work is not
+proportional to Sigma(V+E) (bound / measured for H1 ranges from 0.85 on chr11
+to 1.43 on release 2), and it was measured on every dataset.
+
+### BENCHMARK time vs the step tables (note for the paper)
+
+The tool tables use the BENCHMARK time of our algorithms: the wall time of the
+whole program (reading the edge list, building the base graph, every update,
+including the untimed work between the steps), measured like the tools. The
+time and step tables sum only the timed steps (UpdateDS ... SBCompute) of the
+normal build. The BENCHMARK time is therefore higher, never lower; it is not a
+timer artifact (the BENCHMARK build has no timers). Measured for H1 per edge:
+
+| Dataset | BENCHMARK (wall) | timed steps | ratio |
+|---|---|---|---|
+| small datasets (1-5 s runs) | 1.4-5.1 s | 0.6-2.6 s | about 2x (reading the input dominates) |
+| HPRC release 1 chr11 | 62,167 s | 56,939 s | 1.09 |
+| HPRC release 1 chr17 | 23,823 s | 23,671 s | 1.01 |
+| HPRC release 1 chr18 | 21,067 s | 19,813 s | 1.06 |
+| HPRC release 1 chr22 | 6,916 s | 6,515 s | 1.06 |
+| HPRC release 1 chrX | 45,215 s | 40,777 s | 1.11 |
+| HPRC release 2 chr22 | 42,643 s | 35,306 s | 1.21 (the BENCHMARK ran next to three other memory-heavy runs on the same CCD; shared L3) |
+
+The BENCHMARK runs of chr11/17/18/X and release 2 ran in parallel (4 runs on CCD 0);
+the perBatch BENCHMARK runs (static, Batch, BatchH1) ran alone.
+The values are used as measured, without adjustment.
+
+Suggested wording: "For the comparison with the tools we report the wall time
+of the whole program (reading the input, building the base graph and
+processing every update), measured in the same way as for the tools. The
+per-step tables sum only the timed steps and are therefore lower (by 1-11% on
+the HPRC release 1 chromosomes; by 21% on HPRC release 2, where the run shared
+the processor with other runs)."
+
 ### Speedup
 
 `Speedup = TotalTime (tool) / AlgorithmTime (algorithm)`, per dataset and
@@ -339,8 +395,16 @@ these changes and need to be rerun before they are compared.
   mean of all updates by +0.1% (N = 50, 137 samples), +1.6% (N = 100),
   +0.1% (N = 250), +2.5% (N = 500, 13 samples), +1.8% (N = 1000, 6
   samples). Per-update time changes slowly along the sequence, so evenly
-  spaced samples represent it well. For chr22 with N = 10,000 there are
-  about 100 samples.
+  spaced samples represent it well. (That check is on the small human
+  chr21 dataset, 6,863 edges, not HPRC.)
+- **HPRC chr22 (release 1), as used in the paper:** N = 2,000, i.e. 514
+  samples from the first haplotype (CHM13) to the last (NA21309). The time
+  per update grows along the run (BubbleGun 3.75 s at the first sample to
+  12.03 s at the last; BubbleFinder 2.25 to 4.94 s); the evenly spaced mean
+  covers that growth. Estimates: BubbleGun 2,177 h (mean 7.62 s x 1,028,578),
+  BubbleFinder 1,019 h (mean 3.57 s). Self-check: using only every 2nd ...
+  32nd of these samples (257 ... 32 samples, any offset) changes the estimate
+  by at most 0.9% (BubbleGun) and 1.6% (BubbleFinder).
 - Correctness of incMinIBST on chr22: `checkSuperbubbles.py --every 20000`
   (about 50 updates and the last one checked against the reference;
   checking all ~1 million is too slow for the Python reference).

@@ -105,8 +105,6 @@ These are kept under their old names and are not used by the scripts:
   original incremental DFS; commented out in `superbubbleRunner.py`
 - `algorithms/superbubbledfsh1.cpp` (make target `simpleSuperbubbleh1`): H1
   heuristic version of the static algorithm
-- make targets `H1Superbubble` (source `algorithms/mnlognH1.cpp` no longer
-  exists) and `incdfsH1`
 
 
 ## External tools

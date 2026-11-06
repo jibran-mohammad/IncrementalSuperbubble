@@ -39,6 +39,9 @@ Options:
                        -a incNormalBST incBST incMinIBST
     -s / --steps       only these steps in the bars (default: all), e.g.
                        -s MinI MaxO for the data structures
+    -z / --zoom        these algorithms in the zoom panel, on their own axis
+                       (default: those below 1/20 of the largest bar);
+                       -z none: no zoom panel
 
 More than about six datasets make the bars narrow. Datasets of very
 different size (e.g. a small human chromosome next to an HPRC one) are
@@ -103,6 +106,15 @@ def load_steps(folder, algorithms, components, quiet=False):
         df = df[df["Step"].astype(str) != "Base"]
     out = {}
     for a in algorithms:
+        # a run that did not finish (stopped at the time limit, or still
+        # running: no final PeakMemory line in its time file) has no bar (DNF)
+        tf = folder / f"{a}_time.txt"
+        if tf.exists():
+            with open(tf, "rb") as fh:
+                fh.seek(max(0, tf.stat().st_size - 4096))
+                if b"PeakMemory" not in fh.read():
+                    out[a] = None
+                    continue
         cols = [f"{a}{c}Time" for c in components]
         if not any(c in df.columns for c in cols):
             if not quiet:
@@ -122,6 +134,8 @@ def main():
     ap.add_argument("-o", "--output", default=str(REPO / "output" / "plots" / "comparison"))
     ap.add_argument("-t", "--tag", help="added to the file name")
     ap.add_argument("-s", "--steps", nargs="+", choices=COMPONENTS, help="only these steps (default: all)")
+    ap.add_argument("-z", "--zoom", nargs="+",
+                    help="these algorithms in the zoom panel (default: those below 1/ZOOM_RATIO of the largest)")
     args = ap.parse_args()
     algorithms = args.algorithms or list(ALL_ALGORITHMS)
     components = args.steps or COMPONENTS
@@ -159,7 +173,7 @@ def main():
         pad = 0.015 * tops.max() if tops.max() > 0 else 0
         for k, a in enumerate(algos):
             for i in range(len(labels)):
-                name = SHORT_NAMES.get(a, a) if steps[i][a] is not None else f"{SHORT_NAMES.get(a, a)} (-)"
+                name = SHORT_NAMES.get(a, a) if steps[i][a] is not None else f"{SHORT_NAMES.get(a, a)} (DNF)"
                 ax.text(groups[i] + offsets[k], tops[k][i] + pad, name, ha="center", va="bottom",
                         fontsize=10, fontweight="bold", rotation=90)
         ax.set_xticks(groups)
@@ -169,7 +183,10 @@ def main():
 
     # algorithms far below the largest one would be invisible: own panel (zoom)
     totals = {a: sum(sum(s[a]) for s in steps if s[a] is not None) for a in algorithms}
-    small = small_algorithms(totals)
+    if args.zoom == ["none"]:
+        small = []                                      # no zoom panel
+    else:
+        small = [a for a in args.zoom if a in totals] if args.zoom else small_algorithms(totals)
     width = max(10, 2.2 * len(labels) + 4)
     if small and len(labels) > 6:
         # many datasets: the zoom panel below the main one (side by side the
@@ -186,7 +203,8 @@ def main():
     legend_ax = ax
     if small:
         draw(axz, small)
-        axz.set_title(f"Zoom: {', '.join(SHORT_NAMES.get(a, a) for a in small)} (own scale; below 1/{ZOOM_RATIO} of the largest)",
+        axz.set_title(f"Zoom: {', '.join(SHORT_NAMES.get(a, a) for a in small)} (own scale"
+                      + (")" if args.zoom else f"; below 1/{ZOOM_RATIO} of the largest)"),
                       fontsize=12)
         legend_ax = axz
     legend_ax.legend(title="Step", loc="upper left", bbox_to_anchor=(1.005, 1.0))

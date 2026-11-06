@@ -93,7 +93,7 @@ def main():
                 label="... + cumulative promoted")
         ax.plot(g["step"], g["cum_died"], color="#D55E00", label="cumulative died")
         ax.axhline(base, color="grey", linestyle=":", linewidth=1, label="superbubbles of the base graph")
-        ax.set_xlabel("genomes added")
+        ax.set_xlabel("haplotypes added")
         ax.set_ylabel("superbubbles")
         ax.set_title(lab)
         ax.grid(alpha=0.4, linestyle="--")
@@ -121,15 +121,15 @@ def main():
         g[args.group] = g[args.group].fillna("-").astype(str)
         colors = [GROUP_COLORS.get(v, "#555555") for v in g[args.group]]
         ax.bar(g["step"], g["born"], color=colors, width=0.9)
-        ax.set_xlabel("genome (in the order added)")
+        ax.set_xlabel("haplotype (in the order added)")
         ax.set_ylabel("new sites (born)")
-        ax.set_title(f"{lab}: new superbubble sites per genome")
+        ax.set_title(f"{lab}: new superbubble sites per haplotype")
         ax.grid(axis="y", alpha=0.4, linestyle="--")
         groups = [k for k in GROUP_COLORS if k in set(g[args.group])] + \
                  sorted(set(g[args.group]) - set(GROUP_COLORS))
         handles = [Patch(color=GROUP_COLORS.get(k, "#555555"), label=f"{k} ({(g[args.group] == k).sum()})")
                    for k in groups]
-        ax.legend(handles=handles, title=f"{args.group} (genomes)", ncol=len(groups), loc="upper right")
+        ax.legend(handles=handles, title=f"{args.group} (haplotypes)", ncol=len(groups), loc="upper right")
         ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{int(v):,}"))
         # distribution per group, without the first genomes (they add the most sites to any graph)
         late = g[g["step"] > max(3, len(g) // 10)]
@@ -141,7 +141,7 @@ def main():
             axb.scatter([i] * len(d), d, color="black", s=8, zorder=3)
         axb.set_xticks(range(1, len(groups) + 1))
         axb.set_xticklabels(groups)
-        axb.set_title(f"per {args.group} (genomes {int(late['step'].min())}+)", fontsize=11)
+        axb.set_title(f"per {args.group} (haplotypes {int(late['step'].min())}+)", fontsize=11)
         axb.grid(axis="y", alpha=0.4, linestyle="--")
     plt.tight_layout()
     plt.savefig(args.out + "_new_sites.png", dpi=200)

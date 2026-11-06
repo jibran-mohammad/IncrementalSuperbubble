@@ -64,7 +64,6 @@ INCDFSSSM_SRCS = $(DFS_DIR)/incrementalDFSSMM.cpp
 INCDFSBATCH_SRCS = $(DFS_DIR)/incDFSBatch.cpp
 NEWINC_SRCS = $(DFS_DIR)/incrementalDFSAVLTree.cpp
 INCDFSSMM_SRCS = $(DFS_DIR)/incrementalDFSSMM.cpp
-NEWINCDFSH1_SRCS = $(DFS_DIR)/incrementalDFSH1.cpp
 NEWINCDFSH4_SRCS = $(DFS_DIR)/incrementalDFSAVLTreeH4.cpp
 SUPERBUBBLE_SRCS = $(SUPERBUBBLE_DIR)/superbubble.cpp
 SUPERBUBBLEH1_SRCS = $(SUPERBUBBLE_DIR)/superbubbleh1.cpp
@@ -81,8 +80,6 @@ INCDFS_OBJS = $(DFS_DIR)/incremetalDFS.o $(DFS_DIR)/contextdfs.o $(DFS_DIR)/base
 				$(TEST_DIR)/testIncrementalDFS.o
 NEWINC_OBJS = $(DFS_DIR)/incrementalDFSAVLTree.o $(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseDFS.o \
 				$(TEST_DIR)/testnewIncrementalDFS.o 
-NEWINCH1_OBJS = $(DFS_DIR)/incrementalDFSH1.o $(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseDFS.o \
-				$(TEST_DIR)/testnewIncrementalDFSH1.o
 INCDFSSMM_OBJS = $(DFS_DIR)/incrementalDFSSSM.o $(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseDFS.o \
 				$(TEST_DIR)/testnewIncrementalDFS.o
 INCDFSBATCH_OBJS = $(DFS_DIR)/incDFSBatch.o $(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseDFS.o \
@@ -103,7 +100,6 @@ INCMINIBST_OBJS = $(ALGORITHM_DIR)/incMinIBST.o
 INCMINIBSTH1_OBJS = $(ALGORITHM_DIR)/incMinIBSTH1.o
 INCBST_OBJS = $(ALGORITHM_DIR)/incBST.o
 INCNORMALBST_OBJS = $(ALGORITHM_DIR)/incNormalBST.o
-H1SUPERBUBBLE_OBJS = $(ALGORITHM_DIR)/mnlognH1.o
 TESTDFSALLFILES_OBJS = $(TEST_DIR)/testSIIAVLTree.o
 TESTALLFILESSUPERBUBBLE_OBJS = $(TEST_DIR)/testAllSuperbubble.o
 PREPROCESSGRAPH_OBJS = $(PREPROCESS_DIR)/preprocessGraph.o
@@ -121,7 +117,6 @@ TEST_GRAPH_SRCS = $(TEST_DIR)/testadjacencyGraph.cpp
 TEST_SIMPLEDFS_SRCS = $(TEST_DIR)/testSimpleDFS.cpp
 TEST_INCDFS_SRCS = $(TEST_DIR)/testIncrementalDFS.cpp
 TEST_NEWINC_SRCS = $(TEST_DIR)/testnewIncrementalDFS.cpp
-TEST_NEWINCH1_SRCS = $(TEST_DIR)/testNewIncrementalDFSh1.cpp
 TEST_AVLTREE_SRCS= $(TEST_DIR)/testAVLtree.cpp
 TEST_DIFFERENTAVLTREE_SRCS = $(TEST_DIR)/testDifferentAvlTree.cpp
 SUPERBUBBLE_SRCS = $(SUPERBUBBLE_DIR)/superbubble.cpp
@@ -137,7 +132,6 @@ INCBSTBATCHH1_SRCS = $(ALGORITHM_DIR)/incBSTBatchH1.cpp
 INCBSTBATCHH2_SRCS = $(ALGORITHM_DIR)/incBSTBatchH2.cpp
 INCMINIBST_SRCS = $(ALGORITHM_DIR)/incMinIBST.cpp
 INCMINIBSTH1_SRCS = $(ALGORITHM_DIR)/incMinIBSTH1.cpp
-H1SUPERBUBBLE_SRCS = $(ALGORITHM_DIR)/mnlognH1.cpp
 TESTDFSALLFILES_SRCS = $(TEST_DIR)/testSIIAVLTree.cpp
 TESTALLFILESSUPERBUBBLE_SRCS = $(TEST_DIR)/testAllSuperbubble.cpp
 PREPROCESSGRAPH_SRCS = $(PREPROCESS_DIR)/preprocessGraph.cpp
@@ -155,7 +149,6 @@ GRAPH_EXEC = $(TEST_DIR)/testadjacencyListGraph
 SIMPLEDFS_EXEC = $(TEST_DIR)/testSimpleDFS
 INCDFS_EXEC = $(TEST_DIR)/testIncrementalDFS
 NEWINC_EXEC = $(TEST_DIR)/testNewIncrementalDFS
-NEWINCH1_EXEC = $(TEST_DIR)/newIncDFSH1
 AVLTREE_EXEC = $(TEST_DIR)/testavlTree
 DIFFERENTAVLTREE_EXEC = $(TEST_DIR)/differentavlTree
 STATIC_EXEC = $(TEST_DIR)/static
@@ -170,7 +163,6 @@ INCMINIBST_EXEC = $(TEST_DIR)/incMinIBST
 INCMINIBSTH1_EXEC = $(TEST_DIR)/incMinIBSTH1
 INCBST_EXEC = $(TEST_DIR)/incBST
 INCNORMALBST_EXEC = $(TEST_DIR)/incNormalBST
-H1SUPERBUBBLE_EXEC = $(TEST_DIR)/h1Superbubble
 TESTDFSALLFILES_EXEC = $(TEST_DIR)/testAllFilesDfs
 TESTALLFILESSUPERBUBBLE_EXEC = $(TEST_DIR)/testAllSuperbubbles
 PREPROCESSGRAPH_EXEC = $(PREPROCESS_DIR)/preprocessGraph
@@ -229,12 +221,6 @@ else ifeq ($(TARGET),incNormalBST)
 					$(DFS_DIR)/incrementalDFSNormalBST.o $(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseDFS.o  \
 					$(GRAPH_DIR)/adjacencyListGraph.o $(GRAPH_DIR)/contextGraph.o \
 					$(TREE_DIR)/avlTree.o
-else ifeq ($(TARGET),H1Superbubble)
-	TARGET_EXEC = $(H1SUPERBUBBLE_EXEC)
-	TARGET_DEPS = $(H1SUPERBUBBLE_OBJS) $(SUPERBUBBLE_DIR)/superbubble.o \
-					$(DFS_DIR)/incrementalDFSH1.o $(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseDFS.o  \
-					$(GRAPH_DIR)/adjacencyListGraph.o $(GRAPH_DIR)/contextGraph.o \
-						$(TREE_DIR)/differentAVLTree.o
 else ifeq ($(TARGET),testDFSAllFiles)
 	TARGET_EXEC = $(TESTDFSALLFILES_EXEC)
 	TARGET_DEPS = $(TESTDFSALLFILES_OBJS)
@@ -272,10 +258,6 @@ else ifeq ($(TARGET),superbubbleProbability)
 	TARGET_DEPS = $(SUPERBUBBLEPROBABILITY_OBJS) $(SUPERBUBBLE_DIR)/superbubble.o \
 				 $(DFS_DIR)/simpleDFS.o $(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseDFS.o \
 				 $(GRAPH_DIR)/adjacencyListGraph.o	$(GRAPH_DIR)/contextGraph.o
-else ifeq ($(TARGET),incdfsH1)
-	TARGET_EXEC = $(NEWINCH1_EXEC)
-	TARGET_DEPS = $(NEWINCH1_OBJS) $(GRAPH_DIR)/contextGraph.o $(GRAPH_DIR)/adjacencyListGraph.o \
-					$(TREE_DIR)/differentAVLTree.o 
 else ifeq ($(TARGET),simpleSuperbubbleh1)
 	TARGET_EXEC = $(SIMPLESUPERBUBBLEH1_EXEC)
 	TARGET_DEPS = $(SIMPLESUPERBUBBLEH1_OBJS) $(SUPERBUBBLE_DIR)/superbubbleh1.o \
@@ -388,8 +370,6 @@ $(ALGORITHM_DIR)/incMinIBSTH1.o: $(INCMINIBSTH1_SRCS)
 $(ALGORITHM_DIR)/incRecompute.o: $(INCRECOMPUTE_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(ALGORITHM_DIR)/mnlognH1.o: $(H1SUPERBUBBLE_SRCS)
-	$(CC) $(CFLAGS) -c $< -o $@		
 
 $(SUPERBUBBLE_DIR)/Superbubble.o: $(SUPERBUBBLE_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -454,8 +434,6 @@ $(DFS_DIR)/incDFSNoTree.o: $(INCDFSNOTREE_SRCS)
 $(DFS_DIR)/newIncrementalDFS.o: $(NEWINC_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@	
 
-$(DFS_DIR)/incrementalDFSH1.o: $(NEWINCDFSH1_SRCS)
-	$(CC) $(CFLAGS) -c $< -o $@	
 
 $(DFS_DIR)/incrementalDFSAVLTreeH4.o: $(NEWINCDFSH4_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@		
@@ -536,7 +514,7 @@ clean:
 	 $(GENERATEHUNDEREDRANDOMGRAPHS_OBJS) $(GENERATEHUNDEREDRANDOMGRAPHS_EXEC) \
 	 $(isDAG_OBJS) $(isDAG_EXEC) $(BARANDOMGRAPH_OBJS) $(BARANDOMGRAPH_EXEC) \
 	 $(EXTRACTDAGS_OBJS) $(EXTRACTDAGS_EXEC) $(SUPERBUBBLEPROBABILITY_EXEC) \
-	 $(SUPERBUBBLEPROBABILITY_OBJS) $(NEWINCH1_OBJS) $(NEWINCH1_EXEC) \
+	 $(SUPERBUBBLEPROBABILITY_OBJS) \
 	 $(INCRECOMPUTE_EXEC) $(INCRECOMPUTE_OBJS) $(INCDFSSMM_OBJS) \
 	 $(INCBSTBATCH_OBJS) $(INCBSTBATCH_EXEC) $(INCRECOMPUTEBATCH_OBJS) $(INCRECOMPUTEBATCH_EXEC) $(INCBSTBATCHH1_OBJS) $(INCBSTBATCHH1_EXEC) $(INCBSTBATCHH2_OBJS) $(INCBSTBATCHH2_EXEC) $(INCMINIBST_OBJS) \
 	 $(INCMINIBST_EXEC) $(INCNORMALBST_OBJS) $(INCNORMALBST_EXEC)

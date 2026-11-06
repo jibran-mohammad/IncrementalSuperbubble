@@ -121,7 +121,7 @@ def main():
     if args.history:
         h = [history_summary(p) for p in args.history]
         rows = [[name] + [cell(x) for x in h] for name, cell in [
-            ("Genomes", lambda x: num(x["genomes"])),
+            ("Haplotypes", lambda x: num(x["genomes"])),
             ("Base graph", lambda x: num(x["base"])),
             ("Born", lambda x: num(x["born"])),
             ("Promoted", lambda x: num(x["promoted"])),
@@ -129,9 +129,9 @@ def main():
             ("Final graph", lambda x: num(x["final"])),
             ("DAG-affected (\\%)", lambda x: x["dag"])]]
         write_table(os.path.join(args.outdir, "table_history_summary.tex"), ["Dataset"] + labels, rows,
-                    "Superbubble history per genome (batch algorithm): superbubbles of the base graph, "
-                    "born (new sites: containing a vertex the genome added), promoted (an existing region "
-                    "became a superbubble) and died over all genomes, superbubbles of the final graph, and "
+                    "Superbubble history per haplotype (batch algorithm): superbubbles of the base graph, "
+                    "born (new sites: containing a vertex the haplotype added), promoted (an existing region "
+                    "became a superbubble) and died over all haplotypes, superbubbles of the final graph, and "
                     "the share of the final superbubbles touched by the DAG normalization (an endpoint of a "
                     "removed link inside the site or at its boundary). Base + born + promoted - died = final. "
                     "Only superbubbles with at least one inside vertex are counted; trivial ones (a single "

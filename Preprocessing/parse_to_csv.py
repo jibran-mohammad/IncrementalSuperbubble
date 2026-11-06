@@ -45,7 +45,7 @@ output/Human/chromosome_<X>/timeFile/<perEdge|perbatch>/:
 
     static_time.txt, incRecompute_time.txt, incNormalBST_time.txt, incBST_time.txt,
     incMinIBST_time.txt, incMinIBSTH1_time.txt, incRecomputeBatch_time.txt,
-    incBSTBatch_time.txt, incBSTBatchH1_time.txt
+    incBSTBatch_time.txt, incBSTBatchH1_time.txt, incBSTBatchH2_time.txt
     (written by superbubbleRunner.py; missing files are skipped with a
     warning, e.g. incBSTBatch_time.txt in perEdge mode)
 
@@ -141,10 +141,10 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     algorithm_id = filename.name[:-len("_time.txt")]
 
     is_incremental_file = algorithm_id in {"incRecompute", "incNormalBST", "incBST", "incMinIBST", "incMinIBSTH1",
-                                           "incRecomputeBatch", "incBSTBatch", "incBSTBatchH1"}
+                                           "incRecomputeBatch", "incBSTBatch", "incBSTBatchH1", "incBSTBatchH2"}
 
     has_explored = algorithm_id in {"incNormalBST", "incBST", "incMinIBST", "incMinIBSTH1",
-                                    "incRecomputeBatch", "incBSTBatch", "incBSTBatchH1"}
+                                    "incRecomputeBatch", "incBSTBatch", "incBSTBatchH1", "incBSTBatchH2"}
     if is_incremental_file:
         CASE_COLUMNS = ['Case1', 'Case2', 'Case3', 'Case4', 'Case5']
         if has_explored:
@@ -190,6 +190,9 @@ def parse_file(filename: pathlib.Path, time_column_name: str, mode: str):
     elif filename.name == "incBSTBatchH1_time.txt":
         source_time_metric = 'DFS_Time'
         prefix = 'incBSTBatchH1_' 
+    elif filename.name == "incBSTBatchH2_time.txt":
+        source_time_metric = 'DFS_Time'
+        prefix = 'incBSTBatchH2_'
     elif filename.name == "incMinIBST_time.txt":
         source_time_metric = 'DFS_Time'   
         prefix = 'incMinIBST_'       
@@ -537,7 +540,8 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
                 "incMinIBST_time.txt",
                 "incMinIBSTH1_time.txt",
                 "incRecomputeBatch_time.txt",
-                "incBSTBatchH1_time.txt"]
+                "incBSTBatchH1_time.txt",
+                "incBSTBatchH2_time.txt"]
     
     dir_name = time_dir_path.name.lower()
 
@@ -570,7 +574,8 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         "incMinIBST": "incMinIBST_time.txt",
         "incMinIBSTH1": "incMinIBSTH1_time.txt",
         "incRecomputeBatch": "incRecomputeBatch_time.txt",
-        "incBSTBatchH1": "incBSTBatchH1_time.txt"
+        "incBSTBatchH1": "incBSTBatchH1_time.txt",
+        "incBSTBatchH2": "incBSTBatchH2_time.txt"
     }
 
     # perEdge-only algorithms (PEREDGE_ONLY in superbubbleRunner.py): in
@@ -614,7 +619,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         BASE_TIME_METRICS = ['UpdateDS_Time', 'DFS_Time', 'TopologicalOrderTime', 'MinI_Time', 'MaxO_Time', 'SB_Compute_Time', 'Total_Time']
         BASE_VERTEX_METRICS = ['AffectedVertices', 'ExploredVertices', 'TotalAffectedEdges', 'TotalExploredEdges']
         PREFIXES = ['static_', 'incRecompute_', 'incNormalBST_', 'incBST_','incBSTBatch_','incMinIBST_','incMinIBSTH1_',
-                    'incRecomputeBatch_', 'incBSTBatchH1_']
+                    'incRecomputeBatch_', 'incBSTBatchH1_', 'incBSTBatchH2_']
         
         # 2. Perform the full merge
         merge_keys = ['Step']
@@ -708,7 +713,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
                 return prefix + 'TimeS'
 
             if name.startswith(('static_', 'incRecompute_', 'incNormalBST_', 'incBST_', 'incBSTBatch_', 'incMinIBST_', 'incMinIBSTH1_',
-                                'incRecomputeBatch_', 'incBSTBatchH1_')):
+                                'incRecomputeBatch_', 'incBSTBatchH1_', 'incBSTBatchH2_')):
                 parts = name.split('_')
                 # Keep inner parts exactly (no .capitalize()), just glue them:
                 # 'static_DFS_Time' -> ['static','DFS','Time'] -> 'static' + 'DFS' + 'Time' -> 'staticDFSTime'
@@ -728,7 +733,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
         # the batch algorithm writes what a batch did instead of the per-edge cases
         BATCH_METRICS = ['NewVertices', 'SourcesPlaced', 'BackwardEdges', 'Rounds', 'Adoptions']
         PREFIXES = ['static', 'incRecompute', 'incNormalBST', 'incBST', 'incBSTBatch','incMinIBST','incMinIBSTH1',
-                    'incRecomputeBatch', 'incBSTBatchH1']
+                    'incRecomputeBatch', 'incBSTBatchH1', 'incBSTBatchH2']
 
         final_order = BASE_COLS + ['SuperbubbleCount']
 
@@ -752,7 +757,7 @@ def process_time_directory(time_dir_path: pathlib.Path, mode: str):
                     final_order.append(col_name)            
 
         for metric in BATCH_METRICS:
-            for prefix in ('incRecomputeBatch', 'incBSTBatch', 'incBSTBatchH1'):
+            for prefix in ('incRecomputeBatch', 'incBSTBatch', 'incBSTBatchH1', 'incBSTBatchH2'):
                 col_name = f'{prefix}{metric}'
                 if col_name in merged_df.columns:
                     final_order.append(col_name)
