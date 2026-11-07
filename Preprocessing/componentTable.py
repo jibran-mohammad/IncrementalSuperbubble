@@ -109,8 +109,9 @@ def own_time(dataset, a):
     return steps(REPO / "output" / dataset / "timeFile" / "perbatch" / f"{a}_time.txt")[6], True
 
 
-def tools_table(outdir):
-    """perBatch, small / medium / large: the tools and our algorithms, speedups over BubbleGun"""
+def tools_table(outdir, simple_read=False):
+    """perBatch, small / medium / large: the tools and our algorithms, speedups over BubbleGun;
+    simple_read: also the row of staticRead (not in the paper yet, local only)"""
     groups = [("Small", [f"Human/chromosome_{c}" for c in CHROMS], True),
               ("Medium", [f"HPRC/chromosome_{c}" for c in CHROMS], True),
               ("Large", ["HPRC2/chromosome_22"], False)]
@@ -165,7 +166,7 @@ def tools_table(outdir):
                r"\hline"])
     # Simple-Read: static, but after every haplotype it reads the graph from the GFA the tools get
     sread = row(lambda d: static_read(d, "total"))
-    lines += [r"\texttt{Simple-Read} & " + cells(sread) + r" \\",
+    lines += [] if not simple_read else [r"\texttt{Simple-Read} & " + cells(sread) + r" \\",
               "Reading & " + cells(row(lambda d: static_read(d, "read"))) + r" \\",
               "Search only & " + cells(row(lambda d: static_read(d, "find"))) + r" \\",
               speedup(gun, sread), search_speedup(row(lambda d: static_read(d, "find"))), r"\hline"]
@@ -180,10 +181,11 @@ def tools_table(outdir):
               r"steps; speedup = BubbleGun / algorithm; Total = sum over the group. Reading / Search only: the "
               r"tool's time split into reading and parsing the GFA (after every haplotype) and the search alone. "
               r"Speedup, search only = BubbleGun's search alone / the sum of the timed steps of our algorithm "
-              r"(neither side reads the graph). Simple-Read = Simple, but after every haplotype it reads the "
-              r"graph from the same GFA as the tools into a new adjacency list (Reading) and builds every data "
-              r"structure from scratch (Search only; its times are the timed steps, writing the GFA is not "
-              r"counted, as for the tools); - = not run.}",
+              r"(neither side reads the graph)." +
+              (r" Simple-Read = Simple, but after every haplotype it reads the graph from the same GFA as the "
+               r"tools into a new adjacency list (Reading) and builds every data structure from scratch (Search "
+               r"only; its times are the timed steps, writing the GFA is not counted, as for the tools); - = "
+               r"not run." if simple_read else "") + "}",
               r"\label{tab:tools_batch}", r"\end{table}"]
     out = os.path.join(outdir, "table_tools_batch_imp.tex")
     with open(out, "w") as f:
@@ -268,9 +270,11 @@ def memory_tables(outdir):
 def main():
     ap = argparse.ArgumentParser(description="Component summary per mode and class")
     ap.add_argument("--outdir", required=True)
+    ap.add_argument("--simple-read", action="store_true",
+                    help="also the Simple-Read row (staticRead) in the tool table; not in the paper yet")
     args = ap.parse_args()
     os.makedirs(args.outdir, exist_ok=True)
-    tools_table(args.outdir)
+    tools_table(args.outdir, args.simple_read)
     memory_tables(args.outdir)
     for tag, (mode_dir, mode_text, algos) in MODES.items():
         for cls, cls_text, datasets in CLASSES:

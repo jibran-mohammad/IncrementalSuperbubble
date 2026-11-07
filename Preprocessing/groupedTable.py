@@ -383,8 +383,9 @@ def own_value(c, a, mode):
     return v, (v != DNF and not pd.isna(v))
 
 
-def build_tools(cols_by_mode, outdir):
-    """one table per mode: the tools and our algorithms, speedups over BubbleGun"""
+def build_tools(cols_by_mode, outdir, simple_read=False):
+    """one table per mode: the tools and our algorithms, speedups over BubbleGun;
+    simple_read: also the row of staticRead (not in the paper yet, local only)"""
     for mode in ("perEdge", "perBatch"):
         cols = cols_by_mode[mode]
         mode_dir, algos, tag = MODES[mode]
@@ -412,10 +413,11 @@ def build_tools(cols_by_mode, outdir):
         entries = [(TOOL_LABELS.get(t, t), row(lambda c, t=t: (tool_value(c, t, mode), False)), t)
                    for t in TOOLS]
         # staticRead: static, reading the graph from the tools' GFA after every update; split like a tool
-        parts["staticRead"] = {k: row(lambda c, k=k: (static_read_part(c, mode, k), False), True)[0]
-                               for k in ("read", "find")}
-        entries.append(("staticRead", row(lambda c: (static_read_part(c, mode, "total"), False), True),
-                        "staticRead"))
+        if simple_read:
+            parts["staticRead"] = {k: row(lambda c, k=k: (static_read_part(c, mode, k), False), True)[0]
+                                   for k in ("read", "find")}
+            entries.append(("staticRead", row(lambda c: (static_read_part(c, mode, "total"), False), True),
+                            "staticRead"))
         entries += [(name_of(a), row(lambda c, a=a: own_value(c, a, mode)), a) for a in algos]
         base = entries[0][1][0]
         base_find = parts[TOOLS[0]]["find"]
@@ -442,10 +444,11 @@ def build_tools(cols_by_mode, outdir):
                    "2 days. Reading / Search only: the tool's time split into reading and parsing the GFA (after "
                    "every update, as the tool cannot change a graph it has read) and the search for the bubbles "
                    "alone. Speedup, search only = BubbleGun's search alone / the sum of the timed steps of our "
-                   "algorithm (neither side reads the graph). staticRead = static, but after every update it "
-                   "reads the graph from the same GFA as the tools into a new adjacency list (Reading) and builds "
-                   "every data structure from scratch (Search only; its times are the timed steps, writing the GFA "
-                   f"is not counted, as for the tools); - = not run.{extra}")
+                   "algorithm (neither side reads the graph)." +
+                   (" staticRead = static, but after every update it reads the graph from the same GFA as the "
+                    "tools into a new adjacency list (Reading) and builds every data structure from scratch "
+                    "(Search only; its times are the timed steps, writing the GFA is not counted, as for the "
+                    "tools); - = not run." if simple_read else "") + extra)
         lines += [r"\end{tabular}", r"\end{adjustbox}", rf"\caption{{{caption}}}", rf"\label{{tab:tools_{tag}}}",
                   r"\end{table}"]
         out = os.path.join(outdir, f"table_tools_{tag}.tex")
@@ -484,6 +487,8 @@ def build(mode, cols, outdir):
 def main():
     ap = argparse.ArgumentParser(description="Long time table in three dataset groups")
     ap.add_argument("--outdir", required=True)
+    ap.add_argument("--simple-read", action="store_true",
+                    help="also the staticRead row in the tool tables; not in the paper yet")
     args = ap.parse_args()
     os.makedirs(args.outdir, exist_ok=True)
     cols_by_mode = {}
@@ -493,7 +498,7 @@ def main():
         build(mode, cols, args.outdir)
         build_steps(mode, cols, args.outdir)
     build_activity(cols_by_mode, args.outdir)
-    build_tools(cols_by_mode, args.outdir)
+    build_tools(cols_by_mode, args.outdir, args.simple_read)
     build_memory(cols_by_mode, args.outdir)
 
 

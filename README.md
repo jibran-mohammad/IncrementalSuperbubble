@@ -12,12 +12,9 @@ The algorithms, with the names used in the paper:
 | ImpDFS | `incRecompute` | `incRecomputeBatch` |
 | ImpDS | `incMinIBST` | `incBSTBatch` |
 | ImpSB | `incMinIBSTH1` | `incBSTBatchH2` |
-| Simple-Read | `staticRead` | `staticRead` |
 
 Each ID is the source file (`algorithms/<ID>.cpp`), the make target and the
-binary (`test/<ID>`). Simple-Read is Simple run the way the external tools
-are run: after every update it reads the whole graph from a GFA and builds
-everything from scratch. It is a baseline for the comparison with the tools.
+binary (`test/<ID>`).
 
 ---
 
@@ -82,27 +79,25 @@ the updates). The script unpacks them and then:
 
 * runs **our algorithms** per edge and per batch (the four above, and per
   edge also the data structures NBST, `incNormalBST`, and BST, `incBST`);
-* runs **BubbleGun**, **BubbleFinder** and **Simple-Read** per batch;
+* runs **BubbleGun** and **BubbleFinder** per batch;
 * prints the **tables** and writes them to `output/artifactTest/small_tables.md`.
   They show the total time per graph with the speedup over Simple, the time
   of every step, minI/maxO for each data structure, the tools against our
   algorithms (time and memory), and whether all our algorithms and the
   tools find the same superbubbles in the final graph. The time of the tools
-  and of Simple-Read is also split into reading the GFA and the search
-  alone, because they re-read the whole graph after every update.
+  is also split into reading the GFA and the search alone, because they
+  re-read the whole graph after every update.
 
 ```Bash
 python3 scripts/smallGraphsTest.py            # all five graphs: about 40 minutes
 python3 scripts/smallGraphsTest.py -c 22      # one graph only: a few minutes
 ```
 
-**Per edge, the tools take hours.** BubbleGun and BubbleFinder cannot
+**Per edge, the tools can take hours.** BubbleGun and BubbleFinder cannot
 update a result. After every inserted edge they read and search the whole
-graph again, about 60,000 times for the five graphs. Per batch they run once
-per haplotype, which takes minutes. Simple-Read does the same and also
-takes hours per edge. To also run the tools and Simple-Read per edge (about
-8 hours for the five graphs: 4.5 for the tools, 3.5 for Simple-Read;
-optional):
+graph again, about 60,000 times for the five graphs, so this can take many
+hours, depending on the machine. Per batch they run once per haplotype, a
+few hundred times. To also run the tools per edge (optional):
 
 ```Bash
 python3 scripts/smallGraphsTest.py --tools-per-edge
