@@ -25,6 +25,8 @@ repository root.
 
 ### Getting the code
 
+This needs `git` (installation: see Requirements below).
+
 ```Bash
 git clone https://github.com/jibran-mohammad/IncrementalSuperbubble.git
 cd IncrementalSuperbubble
@@ -35,7 +37,18 @@ comes with the clone; nothing else needs to be downloaded for test 1.
 
 ### Requirements
 
-* Linux (x86-64), `git`, `make`, `g++` (C++11) and Python 3.8 or newer.
+* Linux (x86-64), `git`, `make`, `g++` (C++11) and Python 3.8 or newer
+  with `venv` and `pip`. Check with `git --version`, `make --version`,
+  `g++ --version` and `python3 --version`. To install what is missing (needs
+  `sudo`):
+
+  ```Bash
+  # Debian / Ubuntu
+  sudo apt-get update && sudo apt-get install -y git make g++ python3 python3-venv python3-pip
+
+  # Fedora / RHEL / Rocky
+  sudo dnf install -y git make gcc-c++ python3 python3-pip
+  ```
 * The Python packages, including BubbleGun:
 
   ```Bash
