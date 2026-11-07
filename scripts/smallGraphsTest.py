@@ -20,23 +20,26 @@ Run from the repository root, with the virtual environment active:
     # one graph only (chr22, the smallest: a few minutes)
     python3 scripts/smallGraphsTest.py -c 22
 
-    # also BubbleGun and BubbleFinder after every edge: this takes HOURS
-    # (about 4.5 hours for the five graphs), see the note below
+    # also BubbleGun, BubbleFinder and Simple-Read after every edge: this takes
+    # HOURS (about 8 hours for the five graphs: 4.5 for the tools, 3.5 for
+    # Simple-Read), see the note below
     python3 scripts/smallGraphsTest.py --tools-per-edge
 
 Options:
     -c / --chromosomes  11 17 18 22 X               (default: all five)
     --runs N            runs of each of our algorithms, averaged (default: 1;
                         the paper used 30)
-    --tools-per-edge    also run BubbleGun and BubbleFinder per edge (hours)
+    --tools-per-edge    also run BubbleGun, BubbleFinder and Simple-Read per
+                        edge (hours)
     --no-tools          only our algorithms
     --overwrite         run even if results already exist in output/ (they
                         are replaced)
 
 Per edge, BubbleGun and BubbleFinder cannot update their result: after every
 inserted edge they read the whole graph again (a GFA of 5-115 MB with its
-sequences) and search it again, about 60,000 times for the five graphs. Per
-batch they run once per haplotype, a few hundred times, so it takes minutes.
+sequences) and search it again, about 60,000 times for the five graphs.
+Simple-Read (our static, run the same way) does the same. Per batch they run
+once per haplotype, a few hundred times, so it takes minutes.
 Our algorithms take seconds to minutes in both modes.
 
 BubbleFinder: the binary is expected at ~/tools/bubblefinder-1.0.5/BubbleFinder
@@ -62,16 +65,22 @@ WHAT IT DOES
                           incBSTBatch (ImpDS), incBSTBatchH2 (ImpSB)
                then Preprocessing/parse_to_csv.py (CSV and peak memory)
   3. tools     scripts/superbubbleComparator.py -t bubblegun / bubblefinder,
-               per batch (per edge with --tools-per-edge)
+               per batch (per edge with --tools-per-edge); and Simple-Read
+               (superbubbleRunner.py -a staticRead: static, but after every
+               update it reads the graph from the same GFA as the tools and
+               builds everything from scratch), in the same modes
   4. tables    output/artifactTest/small_tables.md (printed at the end):
                total time per graph and speedup over Simple, time of every
                step, minI / maxO of the data structures, the tools against
-               our algorithms (time and memory), and whether everybody finds
-               the same superbubbles in the final graph
+               our algorithms (time with the tools' reading and search
+               apart, and memory), and whether everybody finds the same
+               superbubbles in the final graph
 
-Times are the sums of the timed steps of every update (our algorithms) and
-reading the GFA plus the search (tools), as in the paper; they depend on the
-machine, the speedups much less.
+Times are the sums of the timed steps of every update (our algorithms, without
+reading the input) and reading the GFA plus the search (tools, after every
+update), as in the paper. The tools' time is also split into reading and the
+search alone; "search only" compares the same work on both sides. Times depend
+on the machine, the speedups much less.
 """
 import argparse
 import os
@@ -86,7 +95,7 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "Preprocessing"))
 from componentTable import steps, peak_kb, tool_peak_kb                                      # noqa: E402
 from toolComparisonToLatex import (comparable, read_algorithm_superbubbles, read_final_graph,  # noqa: E402
-                                   read_tool_superbubbles)
+                                   read_tool_superbubbles, tool_time_split, algorithm_time_split)
 from superbubbleTools.bubblefinderTool import DEFAULT_BINARY                                  # noqa: E402
 
 CHROMS = ["11", "17", "18", "22", "X"]
@@ -130,16 +139,18 @@ def ds(c):
     return f"Human/chromosome_{c}"
 
 
-def tool_total(c, tool, mode):
-    """total time (s) of a tool run, None if it did not run"""
-    f = REPO / "output" / ds(c) / tool / MODE_DIR[mode] / f"{tool}_time.txt"
-    if not f.exists():
-        return None
-    for line in open(f):
-        k, _, v = line.strip().partition(",")
-        if k == "TotalTime":
-            return float(v)
-    return None
+def tool_split(c, tool, mode):
+    """{"total", "read", "find"} (s) of a tool run: the whole time, reading the GFA, the search alone;
+    None if it did not run"""
+    return tool_time_split(REPO / "output" / ds(c) / tool / MODE_DIR[mode] / f"{tool}_time.txt")
+
+
+def static_read_peak_kb(c, mode):
+    """peak memory (KB) of staticRead, from the end of its time file"""
+    for line in open(REPO / "output" / ds(c) / "timeFile" / MODE_DIR[mode] / "staticRead_time.txt"):
+        if line.startswith("PeakMemory(KB):"):
+            return float(line.split()[1])
+    return float("nan")
 
 
 def table(head, rows):
@@ -183,15 +194,25 @@ def trees_table(chroms):
 
 
 def tools_tables(chroms, mode, tools):
-    """time and memory of the tools and our algorithms; speedup and ratio against BubbleGun"""
+    """time and memory of the tools and our algorithms; speedup and ratio against BubbleGun.
+    A tool's time is split into reading the GFA and the search alone; our times have no reading
+    (the timed steps), so "search only" compares the same work on both sides"""
     names = [f"chr{c}" for c in chroms] + ["Total"]
-    times, mems = {}, {}
+    times, mems, split = {}, {}, {}
     for name, t in tools:
-        v = [tool_total(c, t, mode) for c in chroms]
+        v = [tool_split(c, t, mode) for c in chroms]
         if None in v:
             continue
-        times[name] = v + [sum(v)]
+        split[name] = {k: [x[k] for x in v] + [sum(x[k] for x in v)] for k in ("total", "read", "find")}
+        times[name] = split[name]["total"]
         mems[name] = [tool_peak_kb(ds(c), MODE_DIR[mode], t) / 1024 for c in chroms]
+    # Simple-Read: static reading the graph from the tools' GFA after every update, split like a tool
+    v = [algorithm_time_split(REPO / "output" / ds(c) / "timeFile" / MODE_DIR[mode] / "staticRead_time.txt")
+         for c in chroms]
+    if None not in v:
+        split["Simple-Read"] = {k: [x[k] for x in v] + [sum(x[k] for x in v)] for k in ("total", "read", "find")}
+        times["Simple-Read"] = split["Simple-Read"]["total"]
+        mems["Simple-Read"] = [static_read_peak_kb(c, mode) / 1024 for c in chroms]
     for name, a in ALGOS[mode]:
         v = [steps(REPO / "output" / ds(c) / "timeFile" / MODE_DIR[mode] / f"{a}_time.txt")[6] for c in chroms]
         times[name] = v + [sum(v)]
@@ -200,8 +221,16 @@ def tools_tables(chroms, mode, tools):
     rows = []
     for name in times:
         rows.append([name] + [f"{v:.3f}" for v in times[name]])
+        if name in split:
+            rows.append(["  reading the GFA"] + [f"{r:.3f} ({100 * r / t:.0f} %)" for r, t in
+                                                 zip(split[name]["read"], split[name]["total"])])
+            rows.append(["  search only"] + [f"{v:.3f}" for v in split[name]["find"]])
         if name != base:
             rows.append([f"  speedup over {base}"] + [f2(b / v) for b, v in zip(times[base], times[name])])
+            if base in split:
+                ref = split[base]["find"]
+                mine = split[name]["find"] if name in split else times[name]
+                rows.append([f"  speedup over {base}, search only"] + [f2(b / v) for b, v in zip(ref, mine)])
     t1 = table(["Program"] + names, rows)
     rows = []
     for name in mems:
@@ -219,7 +248,7 @@ def agreement_table(chroms, modes, tools):
         graph = read_final_graph(REPO / "input" / ds(c) / "Graphs" / "numeric_edgelist.txt")
         lists = {}
         for mode in modes:
-            for name, a in ALGOS[mode] + (TREES if mode == "perEdge" else []):
+            for name, a in ALGOS[mode] + (TREES if mode == "perEdge" else []) + [("Simple-Read", "staticRead")]:
                 p = read_algorithm_superbubbles(REPO / "output" / ds(c) / "timeFile" / MODE_DIR[mode] /
                                                 f"{a}_superbubbles.txt")
                 if p is not None:
@@ -245,7 +274,7 @@ def main():
     ap = argparse.ArgumentParser(description="Artifact test: the small human graphs, all algorithms and tools")
     ap.add_argument("-c", "--chromosomes", nargs="+", choices=CHROMS, default=CHROMS)
     ap.add_argument("--runs", type=int, default=1)
-    ap.add_argument("--tools-per-edge", action="store_true", help="also the tools per edge (takes hours)")
+    ap.add_argument("--tools-per-edge", action="store_true", help="also the tools and Simple-Read per edge (takes hours)")
     ap.add_argument("--no-tools", action="store_true", help="only our algorithms")
     ap.add_argument("--overwrite", action="store_true", help="replace results that exist in output/")
     args = ap.parse_args()
@@ -264,7 +293,8 @@ def main():
         tools.remove(("BubbleFinder", "bubblefinder"))
     tool_modes = ["perBatch"] + (["perEdge"] if args.tools_per_edge else [])
     if tools and args.tools_per_edge:
-        log("[!] --tools-per-edge: the tools run after every edge, this takes HOURS (about 4.5 h for all five)")
+        log("[!] --tools-per-edge: the tools and Simple-Read run after every edge, this takes HOURS "
+            "(about 8 h for all five)")
 
     log("1. test data")
     unpack(chroms)
@@ -278,16 +308,21 @@ def main():
              "-a", *algos])
         run([py, "Preprocessing/parse_to_csv.py", "-d", "human", "-c", *chroms, "-m", mode.lower()])
 
-    log("3. tools")
+    log("3. tools, and Simple-Read (static reading the tools' GFA after every update)")
     for _, t in tools:
         for mode in tool_modes:
             run([py, "scripts/superbubbleComparator.py", "-d", "Human", "-c", *chroms, "-m", mode, "-t", t])
+    if tools:
+        for mode in tool_modes:
+            run([py, "scripts/superbubbleRunner.py", "-d", "Human", "-c", *cnames, "-m", mode, "--runs", "1",
+                 "-a", "staticRead"])
 
     log("4. tables")
     OUT.mkdir(parents=True, exist_ok=True)
     parts = [f"# Small human graphs: {', '.join('chr' + c for c in chroms)}",
              f"Our algorithms: {args.runs} run(s) each, averaged. Times in seconds (sum of the timed steps of every "
-             "update; tools: reading the GFA + search), memory in MB (peak of the process).",
+             "update, without reading the input; tools: reading the GFA + search after every update, also shown "
+             "apart: \"search only\" is the same work as our algorithms do), memory in MB (peak of the process).",
              "Simple = static, ImpDFS = incremental DFS, ImpDS = + data structures for minI/maxO, "
              "ImpSB = + superbubble update."]
     for mode, title in (("perEdge", "Per edge"), ("perBatch", "Per batch")):

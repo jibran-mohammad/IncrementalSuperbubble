@@ -89,6 +89,7 @@ SUPERBUBBLEH1_OBJS = $(SUPERBUBBLE_DIR)/superbubbleh1.o
 AVLTREE_OBJS = $(TREE_DIR)/avlTree.o $(TEST_DIR)/testAVLtree.o
 DIFFERENTAVLTREE_OBJS = $(TREE_DIR)/differentAVLTree.o $(TEST_DIR)/testDifferentAvlTree.o
 STATIC_OBJS = $(ALGORITHM_DIR)/static.o
+STATICREAD_OBJS = $(ALGORITHM_DIR)/staticRead.o
 SIMPLESUPERBUBBLEH1_OBJS = $(ALGORITHM_DIR)/superbubbledfsh1.o
 INCSUPERBUBBLE_OBJS = $(ALGORITHM_DIR)/superbubbleIncdfs.o
 INCRECOMPUTE_OBJS = $(ALGORITHM_DIR)/incRecompute.o
@@ -122,6 +123,7 @@ TEST_DIFFERENTAVLTREE_SRCS = $(TEST_DIR)/testDifferentAvlTree.cpp
 SUPERBUBBLE_SRCS = $(SUPERBUBBLE_DIR)/superbubble.cpp
 SUPERBUBBLEH1_SRCS = $(SUPERBUBBLE_DIR)/superbubbleh1.cpp
 STATIC_SRCS = $(ALGORITHM_DIR)/static.cpp
+STATICREAD_SRCS = $(ALGORITHM_DIR)/staticRead.cpp
 INCSUPERBUBBLE_SRCS = $(ALGORITHM_DIR)/superbubbleIncdfs.cpp
 INCBST_SRCS = $(ALGORITHM_DIR)/incBST.cpp
 INCNORMALBST_SRCS = $(ALGORITHM_DIR)/incNormalBST.cpp
@@ -152,6 +154,7 @@ NEWINC_EXEC = $(TEST_DIR)/testNewIncrementalDFS
 AVLTREE_EXEC = $(TEST_DIR)/testavlTree
 DIFFERENTAVLTREE_EXEC = $(TEST_DIR)/differentavlTree
 STATIC_EXEC = $(TEST_DIR)/static
+STATICREAD_EXEC = $(TEST_DIR)/staticRead
 SIMPLESUPERBUBBLEH1_EXEC = $(TEST_DIR)/superbubbledfsh1
 INCSUPERBUBBLE_EXEC = $(TEST_DIR)/superbubbleIncdfs
 INCRECOMPUTE_EXEC = $(TEST_DIR)/incRecompute
@@ -201,6 +204,12 @@ else ifeq ($(TARGET),newincdfs)
 else ifeq ($(TARGET),static)
 	TARGET_EXEC = $(STATIC_EXEC)
 	TARGET_DEPS = $(STATIC_OBJS) $(SUPERBUBBLE_DIR)/superbubble.o  $(DFS_DIR)/simpleDFS.o \
+					$(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseDFS.o $(GRAPH_DIR)/adjacencyListGraph.o	\
+					$(GRAPH_DIR)/contextGraph.o
+else ifeq ($(TARGET),staticRead)
+	# static, but after every update the graph is read from a GFA (as the tools do)
+	TARGET_EXEC = $(STATICREAD_EXEC)
+	TARGET_DEPS = $(STATICREAD_OBJS) $(SUPERBUBBLE_DIR)/superbubble.o  $(DFS_DIR)/simpleDFS.o \
 					$(DFS_DIR)/contextdfs.o $(DFS_DIR)/baseDFS.o $(GRAPH_DIR)/adjacencyListGraph.o	\
 					$(GRAPH_DIR)/contextGraph.o
 else ifeq ($(TARGET),incsuperbubble)
@@ -350,6 +359,9 @@ $(TARGET_EXEC): $(TARGET_DEPS)
 	@$(CC) $(CFLAGS) $^ -o $@
 
 $(ALGORITHM_DIR)/static.o: $(STATIC_SRCS)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(ALGORITHM_DIR)/staticRead.o: $(STATICREAD_SRCS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(ALGORITHM_DIR)/superbubbleIncdfs.o: $(INCSUPERBUBBLE_SRCS)
@@ -506,7 +518,7 @@ clean:
 	rm -f $(GRAPH_OBJS) $(GRAPH_EXEC) $(BASEDFS_OBJS) $(SIMPLEDFS_OBJS) \
 	$(SIMPLEDFS_EXEC) $(INCDFS_OBJS) $(INCDFS_EXEC) $(NEWINC_OBJS) $(NEWINC_EXEC) \
 	 $(SUPERBUBBLE_OBJS) $(AVLTREE_OBJS) $(AVLTREE_EXEC) $(DIFFERENTAVLTREE_OBJS) \
-	 $(DIFFERENTAVLTREE_EXEC) $(STATIC_OBJS) $(STATIC_EXEC) \
+	 $(DIFFERENTAVLTREE_EXEC) $(STATIC_OBJS) $(STATIC_EXEC) $(STATICREAD_OBJS) $(STATICREAD_EXEC) \
 	 $(INCSUPERBUBBLE_OBJS) $(INCSUPERBUBBLE_EXEC) $(INCBST_OBJS) \
 	 $(INCBST_EXEC) $(TESTDFSALLFILES_OBJS) $(TESTDFSALLFILES_EXEC) \
 	 $(TESTALLFILESSUPERBUBBLE_OBJS) $(TESTALLFILESSUPERBUBBLE_EXEC) $(PREPROCESSGRAPH_OBJS) \

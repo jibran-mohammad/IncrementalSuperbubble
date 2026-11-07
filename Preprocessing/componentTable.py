@@ -11,7 +11,8 @@ Run from the repository root:
     python3 Preprocessing/componentTable.py --outdir output/paperTables/grouped
 writes <outdir>/table_component_summary_<edge|batch>_small.tex and
 <outdir>/table_dataset_summary_<edge|batch>_small.tex (total time per dataset),
-<outdir>/table_tools_batch_imp.tex (perBatch, the tools and our algorithms),
+<outdir>/table_tools_batch_imp.tex (perBatch, the tools and our algorithms; the tools'
+reading and search apart, and the speedup over BubbleGun's search alone),
 <outdir>/table_memory_batch_imp.tex, table_memory_tools_batch.tex, table_memory_tools_edge.tex
 """
 import argparse
@@ -19,8 +20,11 @@ import csv
 import os
 import pathlib
 import re
+import sys
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO / "Preprocessing"))
+from toolComparisonToLatex import algorithm_time_split, tool_time_split        # noqa: E402
 CHROMS = ["11", "17", "18", "22", "X"]
 CLASSES = [("small", "small", [f"Human/chromosome_{c}" for c in CHROMS])]
 MODES = {"edge": ("perEdge", "edge updates", [("Simple", "static"), ("ImpDFS", "incRecompute"), ("ImpDS", "incMinIBST"),
@@ -87,6 +91,14 @@ def tool_time(dataset, tool):
     raise SystemExit(f"no TotalTime: {dataset} {tool}")
 
 
+def tool_split(dataset, tool):
+    """{"total", "read", "find"} (s) of an external tool, perBatch: its time, reading the GFA, the search alone"""
+    v = tool_time_split(REPO / "output" / dataset / tool / "perbatch" / f"{tool}_time.txt")
+    if v is None:
+        raise SystemExit(f"no TotalTime: {dataset} {tool}")
+    return v
+
+
 def own_time(dataset, a):
     """(time in s, timed): the BENCHMARK wall time of the whole run, else the sum of the timed steps"""
     f = REPO / "output" / dataset / "incsuperbubble" / "perbatch" / f"{a}_time.txt"
@@ -104,19 +116,23 @@ def tools_table(outdir):
               ("Large", ["HPRC2/chromosome_22"], False)]
 
     def row(get):
-        vals = []                                   # (value, timed), with the group totals
+        vals = []                                   # (value, timed), with the group totals; None = not run
         for _, ds, total in groups:
             v = [get(d) for d in ds]
             vals += v
             if total:
-                vals.append((sum(x[0] for x in v), any(x[1] for x in v)))
+                vals.append((None if any(x[0] is None for x in v) else sum(x[0] for x in v),
+                             any(x[1] for x in v)))
         return vals
 
     def cells(vals):
-        return " & ".join(f"{v:.2f}" + ("$^*$" if t else "") for v, t in vals)
+        return " & ".join("-" if v is None else f"{v:.2f}" + ("$^*$" if t else "") for v, t in vals)
+
+    def div(b, v):
+        return "-" if b is None or not v else f"{b / v:.2f}"
 
     def speedup(base, vals):
-        return "Speedup & " + " & ".join(f"{b[0] / v[0]:.2f}" for b, v in zip(base, vals)) + r" \\"
+        return "Speedup & " + " & ".join(div(b[0], v[0]) for b, v in zip(base, vals)) + r" \\"
 
     spec = "|l|" + "||".join("|".join(["c"] * (len(ds) + (1 if t else 0))) for _, ds, t in groups) + "|"
     heads, names = [], []
@@ -127,17 +143,47 @@ def tools_table(outdir):
     lines = [r"\begin{table}[ht]", r"\centering", r"\begin{adjustbox}{max width=\linewidth}",
              rf"\begin{{tabular}}{{{spec}}}", r"\hline", " & " + " & ".join(heads) + r" \\", r"\hline",
              r"\textbf{Dataset} & " + " & ".join(rf"\textbf{{{n}}}" for n in names) + r" \\", r"\hline\hline"]
+    def split_rows(t):
+        """reading the GFA and the search alone below a tool"""
+        return [f"{text} & " + cells(row(lambda d: (tool_split(d, t)[k], False))) + r" \\"
+                for text, k in (("Reading", "read"), ("Search only", "find"))]
+
+    def search_speedup(vals):
+        return "Speedup, search only & " + " & ".join(div(b[0], v[0]) for b, v in zip(gun_find, vals)) + r" \\"
+
+    def static_read(d, k):
+        """staticRead (static reading the GFA after every update, as the tools): total, read or find; None = not run"""
+        v = algorithm_time_split(REPO / "output" / d / "timeFile" / "perbatch" / "staticRead_time.txt")
+        return (None if v is None else v[k]), False
+
     gun = row(lambda d: (tool_time(d, "bubblegun"), False))
-    lines += [r"\texttt{BubbleGun} & " + cells(gun) + r" \\", r"\hline"]
+    gun_find = row(lambda d: (tool_split(d, "bubblegun")["find"], False))
+    lines += [r"\texttt{BubbleGun} & " + cells(gun) + r" \\"] + split_rows("bubblegun") + [r"\hline"]
     finder = row(lambda d: (tool_time(d, "bubblefinder"), False))
-    lines += [r"\texttt{BubbleFinder} & " + cells(finder) + r" \\", speedup(gun, finder), r"\hline"]
+    lines += ([r"\texttt{BubbleFinder} & " + cells(finder) + r" \\"] + split_rows("bubblefinder") +
+              [speedup(gun, finder), search_speedup(row(lambda d: (tool_split(d, "bubblefinder")["find"], False))),
+               r"\hline"])
+    # Simple-Read: static, but after every haplotype it reads the graph from the GFA the tools get
+    sread = row(lambda d: static_read(d, "total"))
+    lines += [r"\texttt{Simple-Read} & " + cells(sread) + r" \\",
+              "Reading & " + cells(row(lambda d: static_read(d, "read"))) + r" \\",
+              "Search only & " + cells(row(lambda d: static_read(d, "find"))) + r" \\",
+              speedup(gun, sread), search_speedup(row(lambda d: static_read(d, "find"))), r"\hline"]
     for name, a in MODES["batch"][2]:
         vals = row(lambda d: own_time(d, a))
-        lines += [rf"\texttt{{{name}}} & " + cells(vals) + r" \\", speedup(gun, vals), r"\hline"]
+        timed = row(lambda d: (steps(REPO / "output" / d / "timeFile" / "perbatch" / f"{a}_time.txt")[6], True))
+        lines += [rf"\texttt{{{name}}} & " + cells(vals) + r" \\", speedup(gun, vals), search_speedup(timed),
+                  r"\hline"]
     lines += [r"\end{tabular}", r"\end{adjustbox}",
               r"\caption{The external tools and our algorithms for haplotypes (perBatch), small / medium / large "
               r"datasets: total time (s), our algorithms as the wall time of the whole run, * = sum of the timed "
-              r"steps; speedup = BubbleGun / algorithm; Total = sum over the group.}",
+              r"steps; speedup = BubbleGun / algorithm; Total = sum over the group. Reading / Search only: the "
+              r"tool's time split into reading and parsing the GFA (after every haplotype) and the search alone. "
+              r"Speedup, search only = BubbleGun's search alone / the sum of the timed steps of our algorithm "
+              r"(neither side reads the graph). Simple-Read = Simple, but after every haplotype it reads the "
+              r"graph from the same GFA as the tools into a new adjacency list (Reading) and builds every data "
+              r"structure from scratch (Search only; its times are the timed steps, writing the GFA is not "
+              r"counted, as for the tools); - = not run.}",
               r"\label{tab:tools_batch}", r"\end{table}"]
     out = os.path.join(outdir, "table_tools_batch_imp.tex")
     with open(out, "w") as f:

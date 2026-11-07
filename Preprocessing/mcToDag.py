@@ -54,10 +54,11 @@ WHAT IT DOES
   4. Break cycles with a DFS that starts at the reference start and explores
      successors in coordinate order; only DFS back edges are removed, so no
      edge that lies on no cycle is ever removed.
-  5. Keep the largest weakly connected component (optional), verify the
-     result is acyclic, and split the edges into batches: the reference's
-     edges first, then for every haplotype (sample#hap, in file order) the
-     NEW edges it contributes, in walk order. Edges that no walk uses are
+  5. Keep only the weakly connected component that contains the start of
+     the reference (--all-components keeps all), verify the result is
+     acyclic, and split the edges into batches: the reference's edges first,
+     then for every haplotype (sample#hap, in file order) the NEW edges it
+     contributes, in walk order. Edges that no walk uses are
      left out of the pipeline files (as in the rest of the pipeline).
 
 =====================================================================
@@ -245,7 +246,7 @@ def main():
     ap.add_argument('--pipeline-dir', help='also write the pipeline input files into this folder')
     ap.add_argument('--name', help='graph name in numeric_edgelist.txt (default: GFA file name)')
     ap.add_argument('--all-components', action='store_true',
-                    help='keep all weakly connected components (default: largest only)')
+                    help='keep all weakly connected components (default: only the one containing the start of the reference)')
     args = ap.parse_args()
     if args.name is None:
         base_name = os.path.basename(args.gfa)

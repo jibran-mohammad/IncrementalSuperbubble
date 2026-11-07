@@ -1,51 +1,67 @@
+"""
+split_fasta.py
+
+Splits a multi-chromosome reference FASTA (e.g. T2T-CHM13, CHM13Y.fa) into
+one file per chromosome, in the layout the graph pipeline expects
+(scripts/graphRunner.py -d Human):
+
+    <outdir>/chromosome_<c>/chromosome_<c>.fa
+
+The chromosome name comes from the FASTA header: ">chr1 ..." -> 1,
+">chrX" -> X, ">chrMT" / ">MT" -> M.
+
+=====================================================================
+HOW TO RUN
+=====================================================================
+
+    # writes input/Human/chromosome_1/chromosome_1.fa, ... (next to the FASTA)
+    python3 Preprocessing/split_fasta.py input/Human/CHM13Y.fa
+
+    # another output folder; gzipped input also works
+    python3 Preprocessing/split_fasta.py CHM13Y.fa.gz --outdir input/Human
+
+Options:
+    fasta       the reference FASTA (.fa/.fna/.fasta, optionally .gz)
+    --outdir    folder for the chromosome_<c>/ folders
+                (default: the folder of the FASTA)
+"""
+import argparse
+import gzip
 import os
 import sys
 
-# --- Configuration ---
-# Make sure this path is correct, even if it's in another folder
-# e.g., "data/CHM13Y.fa" or "/home/user/genomes/CHM13Y.fa"
-input_fasta = "/home/dell/Research/Superbubble/Experiment/IncSuperbubble/input/Human1/CHM13Y.fa"
-# ---------------------
 
-# <-- NEW LINE: Get the directory where the FASTA file is located.
-base_dir = os.path.dirname(input_fasta) 
+def main():
+    ap = argparse.ArgumentParser(description="Split a reference FASTA into one file per chromosome")
+    ap.add_argument("fasta", help="reference FASTA (optionally .gz)")
+    ap.add_argument("--outdir", help="folder for the chromosome_<c>/ folders (default: the folder of the FASTA)")
+    args = ap.parse_args()
 
-output_file_handle = None
+    input_fasta = args.fasta
+    if not os.path.isfile(input_fasta):
+        sys.exit(f"❌ Error: the file {input_fasta} was not found.")
+    base_dir = args.outdir or os.path.dirname(os.path.abspath(input_fasta))
+    opener = gzip.open if input_fasta.endswith(".gz") else open
 
-print(f"Starting to split {input_fasta}...")
-
-try:
-    with open(input_fasta, 'r') as f_in:
+    print(f"Starting to split {input_fasta}...")
+    output_file_handle = None
+    with opener(input_fasta, "rt") as f_in:
         for line in f_in:
-            if line.startswith('>'):
+            if line.startswith(">"):
                 if output_file_handle:
                     output_file_handle.close()
-                
-                raw_id = line.strip()[1:].split()[0] 
-                
-                base_id = ""
-                if raw_id.startswith('chr'):
-                    base_id = raw_id[3:]
-                else:
-                    base_id = raw_id
-                
-                if base_id == 'MT':
-                    base_id = 'M'
-                
-                # Create the base name for dir and file
+
+                raw_id = line.strip()[1:].split()[0]
+                base_id = raw_id[3:] if raw_id.startswith("chr") else raw_id
+                if base_id == "MT":
+                    base_id = "M"
+
+                # chromosome_<c>/chromosome_<c>.fa
                 dir_name_base = "chromosome_" + base_id
-                file_name = dir_name_base + ".fa"
-                
-                # <-- UPDATED LINE: Join the base_dir with the new chromosome dir
                 full_dir_path = os.path.join(base_dir, dir_name_base)
-                
-                # 5. Create the directory using the full path
-                os.makedirs(full_dir_path, exist_ok=True) # <-- UPDATED LINE
-                
-                # 6. Define the full output path
-                output_path = os.path.join(full_dir_path, file_name)
-                output_file_handle = open(output_path, 'w')
-                
+                os.makedirs(full_dir_path, exist_ok=True)
+                output_path = os.path.join(full_dir_path, dir_name_base + ".fa")
+                output_file_handle = open(output_path, "w")
                 print(f"  -> Writing to {output_path}")
 
             if output_file_handle:
@@ -53,11 +69,8 @@ try:
 
     if output_file_handle:
         output_file_handle.close()
-
     print(f"\n✅ Success! Finished splitting {input_fasta}.")
 
-except FileNotFoundError:
-    print(f"❌ Error: The file {input_fasta} was not found.")
-    print("Please make sure the path in the 'input_fasta' variable is correct.")
-except Exception as e:
-    print(f"An unexpected error occurred: {e}")
+
+if __name__ == "__main__":
+    main()

@@ -245,6 +245,64 @@ def read_tool_time(path):
     return values
 
 
+def tool_time_split(path):
+    """TotalTime of a <tool>_time.txt split into reading the GFA and the search
+    alone: {"total", "read", "find"} in s, None if the file or TotalTime is
+    missing. The rows (base graph and every update) have Time = ReadTime +
+    FindTime; read / find = TotalTime x their share of the summed rows, which
+    is exact for a full run and scales a sampled one (--every) to its
+    estimated TotalTime."""
+
+    values = read_tool_time(path)
+    if "TotalTime" not in values:
+        return None
+
+    sums, idx = {"Time": 0.0, "ReadTime": 0.0, "FindTime": 0.0}, None
+    for line in open(path):
+        f = line.strip().split(",")
+        if idx is None and "ReadTime" in f:
+            idx = {k: f.index(k) for k in sums}
+            continue
+        if idx and (f[0].isdigit() or f[0] == "Base"):
+            for k, i in idx.items():
+                sums[k] += float(f[i])
+
+    total = values["TotalTime"]
+    if sums["Time"] <= 0:
+        return None
+    return {"total": total,
+            "read": total * sums["ReadTime"] / sums["Time"],
+            "find": total * sums["FindTime"] / sums["Time"]}
+
+
+def algorithm_time_split(path):
+    """The time of staticRead (algorithms/staticRead.cpp: static, reading the
+    graph from a GFA after every update, as the tools do) split like a tool's:
+    {"total", "read", "find"} in s, summed over the updates (as for our other
+    algorithms, the base graph is not counted); None if the file is missing or
+    the run did not finish (no PeakMemory line). read = Read_Time (reading the
+    GFA into the adjacency list), find = the rest of Total_Time (clearing the
+    arrays, DFS, topological order, minI, maxO, superbubbles). A sampled
+    perEdge run (every > 1) is scaled to its TotalTimeEstimated."""
+
+    if not path.exists() or "PeakMemory" not in path.read_text()[-4096:]:
+        return None
+    cols, total, read, estimate = None, 0.0, 0.0, None
+    for line in open(path):
+        p = line.split()
+        if "Read_Time" in p and "Total_Time" in p:
+            cols = (p.index("Total_Time"), p.index("Read_Time"))
+        elif line.startswith("TotalTimeEstimated:"):
+            estimate = float(p[1])
+        elif cols and len(p) > max(cols) and p[0].isdigit():
+            total += float(p[cols[0]])
+            read += float(p[cols[1]])
+    if cols is None or total <= 0:
+        return None
+    scale = estimate / total if estimate else 1.0
+    return {"total": total * scale, "read": read * scale, "find": (total - read) * scale}
+
+
 def last_block(path):
     """Lines of the last '#'-headed block of a superbubble file (the final graph)."""
 

@@ -40,9 +40,10 @@ Options:
                          HPRC / HPRC2 (release 1.1 / 2.1, scripts/hprcPrepare.py
                          --release): Minigraph-Cactus graphs prepared by
                          Preprocessing/mcToDag.py, experimental)
-    -a / --algorithms    algorithm IDs: static incRecompute incNormalBST incBST incMinIBST
+    -a / --algorithms    algorithm IDs: static staticRead incRecompute incNormalBST incBST incMinIBST
                          incMinIBSTH1 incRecomputeBatch incBSTBatch incBSTBatchH1 incBSTBatchH2
-                                                                  (default: all of the mode)
+                                                                  (default: all of the mode,
+                                                                  without staticRead)
     -c / --chromosomes   Human only: chromosome_1 chromosome_X ... (default: all)
     -m / --mode          perEdge: recompute after every edge;
                          perBatch: after every haplotype           (default: perBatch)
@@ -57,6 +58,12 @@ Notes:
     and the batch algorithms: incNormalBST (it re-keys its trees after
     every edge, so in perBatch it is far slower than every other algorithm:
     Ecoli 55 s vs 0.4 s static), incRecompute, incBST and incMinIBST.
+  - staticRead (static that reads the graph from a GFA after every update,
+    as the tools do; algorithms/staticRead.cpp) runs only when named with
+    -a, in both modes; it needs reduced_graph.gfa next to the edge list.
+    Its time file has two more columns: Read_Time (reading the GFA into the
+    adjacency list) and Search_Time (the rest); UpdateDS_Time = Read_Time +
+    clearing the arrays.
   - Every run starts with "make clean" and uses one _tmp_runs/ folder in
     the repository root, so run only one superbubbleRunner.py at a time
     per copy of the repository.
@@ -143,6 +150,18 @@ ALGORITHMS = [
     },
 
     {
+        # static run the way the external tools are run: after every update
+        # the graph is written to a GFA (not timed), read back into a new
+        # adjacency list (Read_Time) and every data structure is built from
+        # scratch (algorithms/staticRead.cpp); gets the base GFA
+        # (reduced_graph.gfa) as an extra argument. Only with -a staticRead.
+        "name": "staticRead",
+        "target": "staticRead",
+        "output_filename": "staticRead_time.txt",
+        "base_gfa": True
+    },
+
+    {
         "name": "incRecompute",
         "target": "incRecompute",
         "output_filename": "incRecompute_time.txt"
@@ -222,6 +241,9 @@ ALGORITHMS = [
 # perBatch only / perEdge only (skipped in the other mode)
 BATCH_ONLY = {"incRecomputeBatch", "incBSTBatch", "incBSTBatchH1", "incBSTBatchH2"}
 PEREDGE_ONLY = {"incNormalBST", "incRecompute", "incBST", "incMinIBST"}
+# run only when named with -a (not part of "all algorithms of the mode"): staticRead
+# re-reads the whole graph after every update, like the tools (per edge: hours)
+OPT_IN = {"staticRead"}
 # ---------------------
 
 def run_make_clean(cpp_dir):
@@ -316,13 +338,14 @@ def raise_stack_limit():
         resource.setrlimit(resource.RLIMIT_STACK, (hard, hard))
 
 
-def run_cpp_program(executable_path, input_path,full_output_path, mode):
-    """Runs a compiled C++ program, redirecting the input file to its stdin."""
+def run_cpp_program(executable_path, input_path,full_output_path, mode, extra_args=()):
+    """Runs a compiled C++ program, redirecting the input file to its stdin.
+    extra_args: further arguments after the mode (staticRead: the base GFA)."""
     print(f"-> Running {os.path.basename(executable_path)} with input {os.path.basename(input_path)}...in {mode} mode...")
     print(f"   ...Writing output to: {full_output_path}")
 
     # The executable path is now absolute, so it's the only item in the command.
-    run_command = [executable_path, full_output_path, mode]
+    run_command = [executable_path, full_output_path, mode] + list(extra_args)
     try:
         with open(input_path, 'r') as input_file_handle:
             subprocess.run(
@@ -434,7 +457,7 @@ def main():
         algorithms_to_run = [algo for algo in ALGORITHMS if algo['name'] in args.algorithms]
         print(f"--- Running selected algorithms: {[algo['name'] for algo in algorithms_to_run]} ---")
     else:
-        algorithms_to_run = ALGORITHMS
+        algorithms_to_run = [algo for algo in ALGORITHMS if algo['name'] not in OPT_IN]
         print("--- Starting Superbubble Algorithm Pipeline (all algorithms) ---")
 
     skip = BATCH_ONLY if args.mode == "perEdge" else PEREDGE_ONLY
@@ -476,6 +499,8 @@ def main():
                 "input_path": input_path,
                 "output_dir": output_dir,
                 "full_output_path": full_output_path,
+                "extra_args": [os.path.join(os.path.dirname(input_path), "reduced_graph.gfa")]
+                              if algo.get("base_gfa") else [],
                 "job_name": f"{algo['name']} on Ecoli" # Added job_name
             })
             
@@ -524,6 +549,8 @@ def main():
                     "input_path": input_path,
                     "output_dir": output_dir,
                     "full_output_path": full_output_path,
+                    "extra_args": [os.path.join(os.path.dirname(input_path), "reduced_graph.gfa")]
+                                  if algo.get("base_gfa") else [],
                     "job_name": f"{algo['name']} on {chr_name}" # For logging
                 })
     else:
@@ -579,7 +606,8 @@ def main():
 
             # Step 3: Run the job, writing to the temp path
             run_start = time.time()
-            if not run_cpp_program(executable_path, job['input_path'], tmp_output_path, args.mode):
+            if not run_cpp_program(executable_path, job['input_path'], tmp_output_path, args.mode,
+                                   job['extra_args']):
                 print(f"\nAborting pipeline due to execution error on job {job_name}.", file=sys.stderr)
                 sys.exit(1)
             run_time = time.time() - run_start

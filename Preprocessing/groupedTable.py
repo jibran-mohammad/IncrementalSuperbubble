@@ -20,6 +20,9 @@ And the tables of the external tools (BubbleGun, BubbleFinder) against our
 algorithms, one per mode, BubbleGun as the reference: BubbleGun, BubbleFinder,
 then static and the other algorithms, each with its speedup over BubbleGun:
     <outdir>/table_tools_edge.tex, <outdir>/table_tools_batch.tex
+Below each tool its time split into reading the GFA and the search alone;
+below each algorithm also its speedup over BubbleGun's search alone (against
+the sum of its timed steps: neither side reads the graph).
 Our algorithms: the wall time of the whole run (the BENCHMARK runs, measured
 like the tools); where a dataset has none, the sum of the timed steps of the
 normal run, marked with an asterisk.
@@ -61,7 +64,8 @@ from Preprocessing.csvToLatex import (ALGORITHMS, EDGE_BY_EDGE_FOR_ACTIVITY, SHO
 from Preprocessing.paperTables import (DNF, DNF_NOTE, LIMIT_S, STEPS, fmt, ratio,        # noqa: E402
                                        run_finished)
 from Preprocessing.toolComparisonToLatex import (TOOL_LABELS, read_pipeline_time,      # noqa: E402
-                                                 read_tool_time)
+                                                 read_tool_time, tool_time_split,
+                                                 algorithm_time_split)
 from pipelineRunner import TOOL_NAME as PIPELINE_DIR                                    # noqa: E402
 
 CHROMS = ["11", "17", "18", "22", "X"]
@@ -350,6 +354,24 @@ def tool_value(c, tool, mode):
     return DNF if t is None or t > LIMIT_S else t
 
 
+def tool_part(c, tool, mode, key):
+    """reading the GFA ("read") or the search alone ("find") of a tool's total time (s); DNF as tool_value"""
+    if tool_value(c, tool, mode) == DNF:
+        return DNF
+    out = c[2].resolve().parent.parent.parent
+    return tool_time_split(out / tool / MODES[mode][0] / f"{tool}_time.txt")[key]
+
+
+def static_read_part(c, mode, key):
+    """staticRead (static reading the graph from the tools' GFA after every update) on a dataset:
+    "total", "read" or "find" (s); NaN if it was not run, DNF beyond the limit"""
+    out = c[2].resolve().parent.parent.parent
+    v = algorithm_time_split(out / "timeFile" / MODES[mode][0] / "staticRead_time.txt")
+    if v is None:
+        return float("nan")
+    return DNF if v["total"] > LIMIT_S else v[key]
+
+
 def own_value(c, a, mode):
     """(time, starred) of one of our algorithms: the BENCHMARK wall time, else the timed steps"""
     out = c[2].resolve().parent.parent.parent
@@ -368,8 +390,8 @@ def build_tools(cols_by_mode, outdir):
         mode_dir, algos, tag = MODES[mode]
         layout = layout_of(cols)
 
-        def row(getter):
-            """values and stars of a row, with the group totals"""
+        def row(getter, strict=False):
+            """values and stars of a row, with the group totals (strict: no total if a dataset is missing)"""
             vals, stars, per_group = [], [], {}
             for kind, group, c in layout:
                 if kind == "data":
@@ -379,20 +401,37 @@ def build_tools(cols_by_mode, outdir):
                     stars.append(st)
                 else:
                     ds = per_group[group]
-                    vals.append(group_total([v for v, _ in ds]))
+                    missing = strict and any(v != DNF and pd.isna(v) for v, _ in ds)
+                    vals.append(float("nan") if missing else group_total([v for v, _ in ds]))
                     stars.append(any(st for _, st in ds))
             return vals, stars
-        entries = [(TOOL_LABELS.get(t, t), row(lambda c, t=t: (tool_value(c, t, mode), False)))
+        # a tool's total time split into reading the GFA and the search alone; "search only" speedup:
+        # BubbleGun's search against the timed steps of our algorithms (no reading on either side)
+        parts = {t: {k: row(lambda c, t=t, k=k: (tool_part(c, t, mode, k), False))[0] for k in ("read", "find")}
+                 for t in TOOLS}
+        entries = [(TOOL_LABELS.get(t, t), row(lambda c, t=t: (tool_value(c, t, mode), False)), t)
                    for t in TOOLS]
-        entries += [(name_of(a), row(lambda c, a=a: own_value(c, a, mode))) for a in algos]
+        # staticRead: static, reading the graph from the tools' GFA after every update; split like a tool
+        parts["staticRead"] = {k: row(lambda c, k=k: (static_read_part(c, mode, k), False), True)[0]
+                               for k in ("read", "find")}
+        entries.append(("staticRead", row(lambda c: (static_read_part(c, mode, "total"), False), True),
+                        "staticRead"))
+        entries += [(name_of(a), row(lambda c, a=a: own_value(c, a, mode)), a) for a in algos]
         base = entries[0][1][0]
+        base_find = parts[TOOLS[0]]["find"]
         lines = head_lines(layout)
-        lines.append(rf"\texttt{{{entries[0][0]}}} & " + " & ".join(fmt(v, 2) for v in base) + r" \\")
-        lines.append(r"\hline")
-        for name, (vals, stars) in entries[1:]:
+        for name, (vals, stars), key in entries:
             cells = [fmt(v, 2) + (r"$^*$" if st and v != DNF else "") for v, st in zip(vals, stars)]
             lines.append(rf"\texttt{{{name}}} & " + " & ".join(cells) + r" \\")
-            lines.append("Speedup & " + " & ".join(fmt(ratio(b, v), 2) for b, v in zip(base, vals)) + r" \\")
+            if key in parts:
+                lines.append("Reading & " + " & ".join(fmt(v, 2) for v in parts[key]["read"]) + r" \\")
+                lines.append("Search only & " + " & ".join(fmt(v, 2) for v in parts[key]["find"]) + r" \\")
+            if key != TOOLS[0]:
+                lines.append("Speedup & " + " & ".join(fmt(ratio(b, v), 2) for b, v in zip(base, vals)) + r" \\")
+                mine = (parts[key]["find"] if key in parts
+                        else row(lambda c, a=key: (value(a, c, "TotalTime"), False))[0])
+                lines.append("Speedup, search only & " + " & ".join(fmt(ratio(b, v), 2)
+                                                                    for b, v in zip(base_find, mine)) + r" \\")
             lines.append(r"\hline")
         mode_text = "edge updates (perEdge)" if mode == "perEdge" else "haplotypes (perBatch)"
         extra = (" The tools did not finish on the HPRC datasets (BubbleGun on chr22 estimated at 91 days, "
@@ -400,7 +439,13 @@ def build_tools(cols_by_mode, outdir):
         caption = (f"The external tools and our algorithms for {mode_text}, small / medium / large datasets: "
                    "total time (s), our algorithms as the wall time of the whole run, * = sum of the timed steps; "
                    "speedup = BubbleGun / algorithm; Total = sum over the group; DNF = did not finish within "
-                   f"2 days.{extra}")
+                   "2 days. Reading / Search only: the tool's time split into reading and parsing the GFA (after "
+                   "every update, as the tool cannot change a graph it has read) and the search for the bubbles "
+                   "alone. Speedup, search only = BubbleGun's search alone / the sum of the timed steps of our "
+                   "algorithm (neither side reads the graph). staticRead = static, but after every update it "
+                   "reads the graph from the same GFA as the tools into a new adjacency list (Reading) and builds "
+                   "every data structure from scratch (Search only; its times are the timed steps, writing the GFA "
+                   f"is not counted, as for the tools); - = not run.{extra}")
         lines += [r"\end{tabular}", r"\end{adjustbox}", rf"\caption{{{caption}}}", rf"\label{{tab:tools_{tag}}}",
                   r"\end{table}"]
         out = os.path.join(outdir, f"table_tools_{tag}.tex")
