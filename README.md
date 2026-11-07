@@ -54,9 +54,25 @@ comes with the clone; nothing else needs to be downloaded for test 1.
     && wget https://github.com/algbio/BubbleFinder/releases/download/v1.0.5/BubbleFinder-linux-x86_64.tar.gz \
     && tar xzf BubbleFinder-linux-x86_64.tar.gz && cd -
   ```
-* For test 2 only: `curl`, `vg` (static binary from
-  https://github.com/vgteam/vg/releases), about 10 GB of free disk space
-  and 8 GB of memory.
+* For test 2 only: `curl`, `vg`, about 10 GB of free disk space and 8 GB
+  of memory.
+  * `curl` (downloads the HPRC graph). Check with `curl --version`; if it
+    is missing, install it (Debian/Ubuntu shown; it needs `sudo`):
+
+    ```Bash
+    sudo apt-get update && sudo apt-get install -y curl
+    ```
+  * `vg` (converts the HPRC graph to GFA): a single static Linux binary
+    from https://github.com/vgteam/vg/releases. No installation or `sudo`
+    is needed:
+
+    ```Bash
+    mkdir -p ~/tools && cd ~/tools \
+      && wget https://github.com/vgteam/vg/releases/download/v1.78.0/vg \
+      && chmod +x vg && ./vg version && cd -
+    ```
+
+    Then give it to the test with `--vg ~/tools/vg`.
 
 ### Test 1: the small human graphs (`scripts/smallGraphsTest.py`)
 
@@ -123,7 +139,7 @@ Choose the chromosome with `-c`:
 | 11 | 2.50 GB | 0.20 % |
 
 ```Bash
-python3 scripts/dagConversionTest.py -c 22 --vg /path/to/vg
+python3 scripts/dagConversionTest.py -c 22 --vg ~/tools/vg
 ```
 
 The download runs at about 1 MB/s (chr22: about 15 minutes); the rest takes
